@@ -41,7 +41,7 @@ You should see the URL for your fork as origin, and the URL for the `ansible-sto
 
 Now, you can work locally and commit to your changes to your fork. This will not impact the main branch.
 
-Refer to the [naming conventions](CONVENTIONS.md), while developing your modules, roles, tests and playbooks.
+Refer to the [naming conventions](Conventions.md), while developing your modules, roles, tests and playbooks.
 
 ### 2. Create and run Ansible Test Playbooks
 
