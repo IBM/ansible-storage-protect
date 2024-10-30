@@ -1,6 +1,5 @@
 # Contributing to ansible-storage-protect
 
-
 Thank you for your interest in contributing to our open-source ansible-storage-protect project.
 
 To ensure that the codebase is always healthy and does not result in deployment issues when forked and used, it is important 
@@ -41,6 +40,8 @@ git remote -v
 You should see the URL for your fork as origin, and the URL for the `ansible-storage-protect` repository as upstream.
 
 Now, you can work locally and commit to your changes to your fork. This will not impact the main branch.
+
+Refer to the [naming conventions](CONVENTIONS.md), while developing your modules, roles, tests and playbooks.
 
 ### 2. Create and run Ansible Test Playbooks
 
@@ -174,7 +175,7 @@ The footer is optional. The [Commit Message Footer](#commit-message-footer) form
   │       │             │
   │       │             └─⫸ Summary in present tense. Not capitalized. No period at the end.
   │       │
-  │       └─⫸ Commit Scope: modules|module_utils|roles|playbooks|inventories|tests|docs|
+  │       └─⫸ Commit Scope: modules|module_utils|roles|playbooks|inventories|tests|
   │
   └─⫸ Commit Type: feature|fix|refactor|test|docs|build|
 ```
@@ -202,7 +203,6 @@ The following is the list of supported scopes:
 * **playbooks**
 * **inventories**
 * **tests**
-* **docs**
 
 #### Summary
 
