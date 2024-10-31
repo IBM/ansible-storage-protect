@@ -244,7 +244,7 @@ options:
         - Specifies whether the node must use the most secure settings to communicate with an IBM Storage Protect server.
         - The system will default to "transitional"
       choices: ["strict", "transitional"]
-      default: 'trasitional'
+      default: 'transitional'
       type: str
     split_large_objects:
       description:
@@ -261,8 +261,8 @@ options:
     state:
       description:
         - Desired state of the registration.
-        - 'present' and 'registered' have the same effect.
-        - 'absent', 'deregistered' and 'removed' have the same effect.
+        - States 'present' and 'registered' have the same effect.
+        - States 'absent', 'deregistered' and 'removed' have the same effect.
       default: "registered"
       choices: ["present", "absent", "registered", "deregistered", "removed"]
       type: str
