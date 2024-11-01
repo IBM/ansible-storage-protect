@@ -1,0 +1,20 @@
+---
+- name: Test register server in IBM Storage Protect
+  hosts: storage_protect
+  vars:
+    ibmsp_host: IBMSPSVR01
+    ibmsp_username: adminuser
+    ibmsp_password: adminPassword12345678
+  tasks:
+    - name: Register hosts
+      ibm.storage_protect.node:
+        node: Test
+        node_password: P@ssword123456789
+        state: "{{ ibmsp_state | default(omit) }}"
+        session_security: transitional
+        node_password_expiry: 90
+        can_archive_delete: true
+        min_extent_size: 250
+        server_name: "{{ ibmsp_host }}"
+        username: "{{ ibmsp_username }}"
+        password: "{{ ibmsp_password }}"
