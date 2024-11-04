@@ -4,7 +4,7 @@
 # (c) 2024,Tom page <tpage@redhat.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-# ibm.spectrum_protect.register:
+# ibm.storage_protect.register:
 #    node: "{{ physical_node }}"
 #    url: "{{ tcp_node_address }}"
 #    username: "{{ username }}"
@@ -22,10 +22,10 @@ ANSIBLE_METADATA = {'metadata_version': '1.1', 'status': ['preview'], 'supported
 DOCUMENTATION = '''
 ---
 module: node
-author: "Tom page (@Tompage1994)"
-short_description: Register or Remove a node from IBM Spectrum Protect
+author: "Tom Page (@Tompage1994)"
+short_description: Register or Remove a client node and set its configuration in IBM Storage Protect
 description:
-    - Register or Remove a node from IBM Spectrum Protect
+    - Register or Remove a client node and set its configuration in IBM Storage Protect
 options:
     node:
       description:
@@ -36,7 +36,7 @@ options:
         - name
     schedules:
       description:
-        - The schedules to associate with the node
+        - The name of the exising schedules to associate with the node
       required: True
       type: list
       elements: str
@@ -273,7 +273,7 @@ extends_documentation_fragment: ibm.storage_protect.auth
 
 EXAMPLES = '''
 - name: Register node
-  ibm.spectrum_protect.node:
+  ibm.storage_protect.node:
     node: "{{ physical_node }}"
     node_password: P@ssword
     node_password_expiry: 90
@@ -287,7 +287,7 @@ EXAMPLES = '''
     state: registered
 
 - name: Deregister node
-  ibm.spectrum_protect.node:
+  ibm.storage_protect.node:
     node: "{{ physical_node }}"
     hostname: "{{ tcp_node_address }}"
     username: "{{ username }}"

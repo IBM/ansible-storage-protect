@@ -10,29 +10,29 @@ __metaclass__ = type
 
 class ModuleDocFragment(object):
 
-    # IBM Spectrum Protect documentation fragment
+    # IBM Storage Protect documentation fragment
     DOCUMENTATION = r'''
 options:
   server_name:
     description:
-    - SERVERNAME your IBM Spectrum Protect instance as specified in the dsm.sys.
-    - If value not set, will try environment variable C(SPECTRUM_PROTECT_SERVERNAME)
+    - SERVERNAME your IBM Storage Protect instance as specified in the dsm.sys.
+    - If value not set, will try environment variable C(STORAGE_PROTECT_SERVERNAME)
     - If value not specified by any means, the value of C(local) will be used
     type: str
   username:
     description:
-    - Username for your IBM Spectrum Protect instance.
-    - If value not set, will try environment variable C(SPECTRUM_PROTECT_USERNAME)
+    - Username for your IBM Storage Protect instance.
+    - If value not set, will try environment variable C(STORAGE_PROTECT_USERNAME)
     type: str
   password:
     description:
-    - Password for your IBM Spectrum Protect instance.
-    - If value not set, will try environment variable C(SPECTRUM_PROTECT_PASSWORD)
+    - Password for your IBM Storage Protect instance.
+    - If value not set, will try environment variable C(STORAGE_PROTECT_PASSWORD)
     type: str
   request_timeout:
     description:
-    - Specify the timeout Ansible should use in requests to the IBM Spectrum Protect host.
+    - Specify the timeout Ansible should use in requests to the IBM Storage Protect host.
     - Defaults to 10s, but this is handled by the shared module_utils code
-    - If value not set, will try environment variable C(SPECTRUM_PROTECT_REQUEST_TIMEOUT)
+    - If value not set, will try environment variable C(STORAGE_PROTECT_REQUEST_TIMEOUT)
     type: float
 '''
