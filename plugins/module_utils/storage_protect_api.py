@@ -9,10 +9,10 @@ import subprocess
 class StorageProtectModule(AnsibleModule):
     url = None
     AUTH_ARGSPEC = dict(
-        server_name=dict(required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_SERVERNAME'])),
-        username=dict(required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_USERNAME'])),
-        password=dict(no_log=True, required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_PASSWORD'])),
-        request_timeout=dict(type='float', required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_REQUEST_TIMEOUT'])),
+        server_name=dict(required=False, fallback=(env_fallback, ['STORAGE_PROTECT_SERVERNAME'])),
+        username=dict(required=False, fallback=(env_fallback, ['STORAGE_PROTECT_USERNAME'])),
+        password=dict(no_log=True, required=False, fallback=(env_fallback, ['STORAGE_PROTECT_PASSWORD'])),
+        request_timeout=dict(type='float', required=False, fallback=(env_fallback, ['STORAGE_PROTECT_REQUEST_TIMEOUT'])),
     )
     server_name = 'local'
     username = None

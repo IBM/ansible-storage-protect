@@ -6,6 +6,11 @@
     ibmsp_username: adminuser
     ibmsp_password: adminPassword12345678
   tasks:
+    - name: Create dsm.sys
+      ibm.storage_protect.sysfile:
+        server_name: "ibmsp01"
+        tcp_server_address: "10.10.10.10"
+
     - name: Register hosts
       ibm.storage_protect.node:
         node: Test

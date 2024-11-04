@@ -4,7 +4,7 @@
 # (c) 2024,Tom page <tpage@redhat.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-# ibm.spectrum_protect.register:
+# ibm.storage_protect.register:
 #    node: "{{ physical_node }}"
 #    url: "{{ tcp_node_address }}"
 #    username: "{{ username }}"
@@ -23,16 +23,16 @@ DOCUMENTATION = '''
 ---
 module: node
 author: "Tom page (@Tompage1994)"
-short_description: Create a dsm.sys file for interaction with IBM Spectrum Protect
+short_description: Create a dsm.sys file for interaction with IBM Storage Protect
 description:
-    - Create a dsm.sys file for interaction with IBM Spectrum Protect
+    - Create a dsm.sys file for interaction with IBM Storage Protect
     - Creates the file on the machine you are connected to.
-    - Works also for localhost for running the modules in this collection against a remote IBM Spectrum Protect Server.
+    - Works also for localhost for running the modules in this collection against a remote IBM Storage Protect Server.
 options:
     server_name:
       description:
-        - SERVERNAME your IBM Spectrum Protect instance.
-        - If value not set, will try environment variable C(SPECTRUM_PROTECT_SERVERNAME)
+        - SERVERNAME your IBM Storage Protect instance.
+        - If value not set, will try environment variable C(STORAGE_PROTECT_SERVERNAME)
         - If value not specified by any means, the value of C(local) will be used
       type: str
     comm_method:
@@ -79,6 +79,12 @@ EXAMPLES = '''
   ibm.storage_protect.sysfile:
     server_name: "ibmsp01"
     tcp_server_address: "10.10.10.10"
+
+- name: Create dsm copy in /tmp
+  ibm.storage_protect.sysfile:
+    server_name: "ibmsp01test"
+    tcp_server_address: "10.10.10.10"
+    sysfile_path: /tmp/dsm.sym
 '''
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
@@ -87,7 +93,7 @@ import os
 
 def main():
     argument_spec = dict(
-        server_name=dict(required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_SERVERNAME'])),
+        server_name=dict(required=False, fallback=(env_fallback, ['STORAGE_PROTECT_SERVERNAME'])),
         comm_method=dict(choices=['namedpipes', 'none', 'sharedmem', 'tcpip', 'v6tcpip'], default='tcpip'),
         tcp_port=dict(type='int', default=1500),
         tcp_server_address=dict(default='127.0.0.1'),
