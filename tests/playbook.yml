@@ -13,7 +13,7 @@
 
     - name: Register hosts
       ibm.storage_protect.node:
-        node: Test
+        name: Test
         node_password: P@ssword123456789
         state: "{{ ibmsp_state | default(omit) }}"
         session_security: transitional

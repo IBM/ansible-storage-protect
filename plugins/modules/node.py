@@ -27,9 +27,9 @@ short_description: Register or Remove a client node and set its configuration in
 description:
     - Register or Remove a client node and set its configuration in IBM Storage Protect
 options:
-    node:
+    name:
       description:
-        - The Node to register or deregister
+        - The name of the node to register or deregister
       required: True
       type: str
       aliases:
@@ -274,7 +274,7 @@ extends_documentation_fragment: ibm.storage_protect.auth
 EXAMPLES = '''
 - name: Register node
   ibm.storage_protect.node:
-    node: "{{ physical_node }}"
+    name: "{{ physical_node }}"
     node_password: P@ssword
     node_password_expiry: 90
     policy_domain: "DOMAIN1"
@@ -288,7 +288,7 @@ EXAMPLES = '''
 
 - name: Deregister node
   ibm.storage_protect.node:
-    node: "{{ physical_node }}"
+    name: "{{ physical_node }}"
     hostname: "{{ tcp_node_address }}"
     username: "{{ username }}"
     password: "{{ password }}"
@@ -300,7 +300,7 @@ from ..module_utils.storage_protect_api import StorageProtectModule
 
 def main():
     argument_spec = dict(
-        node=dict(required=True, aliases=['name']),
+        name=dict(required=True, aliases=['node']),
         schedules=dict(type='list', elements='str'),
         node_password=dict(no_log=True),
         node_password_expiry=dict(type='int', no_log=False),
@@ -334,7 +334,7 @@ def main():
         space_repl_rule_default=dict(choices=['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE']),
         recover_damaged=dict(type='bool'),
         role_override=dict(choices=['client', 'server', 'other', 'usereported'], default='usereported'),
-        authentication=dict(choices=['local', 'ldap'], default='local'),
+        auth_method=dict(choices=['local', 'ldap'], default='local'),
         session_security=dict(choices=['transitional', 'strict'], default='transitional'),
         split_large_objects=dict(type='bool'),
         min_extent_size=dict(type='int', choices=[50, 250, 750], default=50),
@@ -350,12 +350,12 @@ def main():
 
     module = StorageProtectModule(argument_spec=argument_spec, supports_check_mode=True, required_by=required_by)
 
-    node = module.params.get('node')
+    name = module.params.get('name')
     state = module.params.get('state')
-    exists, existing = module.find_one('node', node)
+    exists, existing = module.find_one('node', name)
 
     if state == 'absent' or state == 'deregistered' or state == 'removed':
-        module.perform_action('remove', 'node', node, exists=exists)
+        module.perform_action('remove', 'node', name, exists=exists)
     else:
         options_params = {
             'node_password_expiry': 'PASSExp',
@@ -428,26 +428,26 @@ def main():
                 all_schedules = all_schedules.split('\n')
                 for sched in all_schedules:
                     sched = sched.split(',')
-                    if len(sched) == 3 and sched[2] == node.upper():
+                    if len(sched) == 3 and sched[2] == name.upper():
                         node_schedules += [sched[1]]
 
             for schedule in schedules:
                 # Test if schedule exists and fail if not
                 module.find_one('schedule', f'{policy_domain} {schedule}', fail_on_not_found=True)
 
-        module.perform_action('update' if exists else 'register', 'node', node, options=options, exists=exists, existing=existing, auto_exit=schedules is None)
+        module.perform_action('update' if exists else 'register', 'node', name, options=options, exists=exists, existing=existing, auto_exit=schedules is None)
 
         if schedules:
             for schedule in schedules:
                 if schedule.upper() not in node_schedules:
-                    module.perform_action('define', 'association', f'{policy_domain} {schedule} {node}', auto_exit=False)
+                    module.perform_action('define', 'association', f'{policy_domain} {schedule} {name}', auto_exit=False)
                 else:
                     # Remove them from the list because we will use this list to remove extra ones
                     node_schedules.remove(schedule.upper())
 
             # if any schedules exist for the node which weren't listed, then disassociate them
             for schedule in node_schedules:
-                module.perform_action('delete', 'association', f'{policy_domain} {schedule} {node}', exists=True, auto_exit=False)
+                module.perform_action('delete', 'association', f'{policy_domain} {schedule} {name}', exists=True, auto_exit=False)
 
             module.exit_json(**module.json_output)
 
