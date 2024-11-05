@@ -267,6 +267,7 @@ options:
       type: str
 
 extends_documentation_fragment: ibm.storage_protect.auth
+...
 '''
 
 
@@ -292,6 +293,7 @@ EXAMPLES = '''
     username: "{{ username }}"
     password: "{{ password }}"
     state: deregistered
+...
 '''
 
 from ..module_utils.storage_protect_api import StorageProtectModule

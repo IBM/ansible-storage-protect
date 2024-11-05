@@ -70,7 +70,7 @@ options:
       default: "present"
       choices: ["present", "absent"]
       type: str
-
+...
 '''
 
 
@@ -85,6 +85,7 @@ EXAMPLES = '''
     server_name: "ibmsp01test"
     tcp_server_address: "10.10.10.10"
     sysfile_path: /tmp/dsm.sym
+...
 '''
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
