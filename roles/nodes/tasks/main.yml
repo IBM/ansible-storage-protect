@@ -80,5 +80,5 @@
   no_log: "{{ storage_protect_nodes_secure_logging }}"
   vars:
     __operation: "{{ operation_translate[__node_job_async_result_item.__storage_protect_node_item.state | default(storage_protect_state) | default('present')] }}"
-    ansible_async_dir: '{{ aap_configuration_async_dir }}'
+    ansible_async_dir: '{{ storage_protect_async_dir }}'
 ...

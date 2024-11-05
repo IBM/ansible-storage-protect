@@ -126,7 +126,7 @@ storage_protect_nodes:
     storage_protect_username: adminuser
     storage_protect_password: adminPassword12345678  # For illustration purposes only. You should vault this or retrieve from credential.
   roles:
-    - {role: ibm.aap_configuration.nodes, when: storage_protect_nodes is defined}
+    - {role: ibm.storage_protect.nodes, when: storage_protect_nodes is defined}
 ```
 
 ## License Information
@@ -136,4 +136,4 @@ See [LICENSE](LICENSE) to see the full text.
 
 ## Author
 
-[Tom Page](mailto:tpage@redhat.com)
+[Tom Page](https://github.com/Tompage1994)
