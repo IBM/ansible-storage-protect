@@ -19,6 +19,7 @@ Minor Changes
 -------------
 
 - Add ability to associate a schedule to a node in node module
+- Add global_vars role as a 'meta dependency' role for including vars to the other roles.
 
 Bugfixes
 --------
