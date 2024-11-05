@@ -116,11 +116,10 @@ storage_protect_nodes:
 
 ```yaml
 ---
-- name: Playbook to configure storage_protect clients
+- name: Playbook to configure storage_protect nodes
   hosts: localhost
-  connection: local
   vars_files:
-    - vars/sp_nodes.yml
+    - vars/sp_nodes.yml  # Corresponds to the example above
   vars:
     storage_protect_server_name: IBMSPSVR01
     storage_protect_username: adminuser

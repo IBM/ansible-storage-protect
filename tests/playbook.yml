@@ -2,24 +2,27 @@
 - name: Test register server in IBM Storage Protect
   hosts: storage_protect
   vars:
-    ibmsp_host: IBMSPSVR01
-    ibmsp_username: adminuser
-    ibmsp_password: adminPassword12345678
-  tasks:
-    - name: Create dsm.sys
-      ibm.storage_protect.sysfile:
-        server_name: "ibmsp01"
-        tcp_server_address: "10.10.10.10"
-
-    - name: Register hosts
-      ibm.storage_protect.node:
-        name: Test
+    storage_protect_server_name: IBMSPSVR01
+    storage_protect_username: adminuser
+    storage_protect_password: adminPassword12345678
+    storage_protect_nodes:
+      - name: Test2
+        policy_domain: STANDARD
+        schedules:
+          - my_sched  # This needs to previously exist. Once a schedule module is created, replace with that
         node_password: P@ssword123456789
-        state: "{{ ibmsp_state | default(omit) }}"
-        session_security: transitional
+        session_security: strict
         node_password_expiry: 90
         can_archive_delete: true
         min_extent_size: 250
-        server_name: "{{ ibmsp_host }}"
-        username: "{{ ibmsp_username }}"
-        password: "{{ ibmsp_password }}"
+        repl_state: enabled
+        backup_repl_rule_default: NONE
+
+  pre_tasks:
+    - name: Create dsm.sys
+      ibm.storage_protect.sysfile:
+        server_name: "{{ storage_protect_server_name }}"
+        tcp_server_address: "{{ ansible_host }}"
+
+  roles:
+    - ibm.storage_protect.nodes
