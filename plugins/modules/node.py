@@ -97,9 +97,8 @@ options:
       type: bool
     node_type:
       description:
-        - Specifies the type of node being registered. Default is 'Client'.
+        - Specifies the type of node being registered. System default is 'Client'.
       choices: ['client', 'nas', 'server', 'objectclient']
-      default: 'client'
       required: false
       type: str
     url:
@@ -312,7 +311,7 @@ def main():
         can_backup_delete=dict(type='bool'),
         option_set=dict(),
         force_password_reset=dict(type='bool', no_log=False),
-        node_type=dict(choices=['client', 'nas', 'server', 'objectclient'], default='client'),
+        node_type=dict(choices=['client', 'nas', 'server', 'objectclient']),
         url=dict(),
         utility_url=dict(),
         max_mount_points=dict(type='int'),
