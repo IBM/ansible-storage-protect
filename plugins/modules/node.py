@@ -311,7 +311,7 @@ def main():
         can_archive_delete=dict(type='bool'),
         can_backup_delete=dict(type='bool'),
         option_set=dict(),
-        force_password_reset=dict(type='bool'),
+        force_password_reset=dict(type='bool', no_log=False),
         node_type=dict(choices=['client', 'nas', 'server', 'objectclient'], default='client'),
         url=dict(),
         utility_url=dict(),
@@ -416,7 +416,7 @@ def main():
                 if opt == 'min_extent_size':
                     value = f'{value}KB'
                 options += f" {options_params[opt]}={value}"
-            elif exists and opt in not_on_update:
+            elif value is not None and exists and opt in not_on_update:
                 module.warn(f'{opt} can not be updated so will not change if different from existing value.')
 
         schedules = module.params.get('schedules')
