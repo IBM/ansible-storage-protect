@@ -1,0 +1,84 @@
+---
+- name: "Managing Storage Protect Nodes"
+  ibm.storage_protect.node:
+    name: "{{ __storage_protect_node_item.name | mandatory }}"
+    schedules: "{{ __storage_protect_node_item.schedules | default(omit) }}"
+    node_password: "{{ __storage_protect_node_item.node_password | default(omit) }}"
+    node_password_expiry: "{{ __storage_protect_node_item.node_password_expiry | default(omit) }}"
+    user_id: "{{ __storage_protect_node_item.user_id | default(omit) }}"
+    contact: "{{ __storage_protect_node_item.contact | default(omit) }}"
+    policy_domain: "{{ __storage_protect_node_item.policy_domain | default(omit) }}"
+    compression: "{{ __storage_protect_node_item.compression | default(omit) }}"
+    can_archive_delete: "{{ __storage_protect_node_item.can_archive_delete | default(omit) }}"
+    can_backup_delete: "{{ __storage_protect_node_item.can_backup_delete | default(omit) }}"
+    option_set: "{{ __storage_protect_node_item.option_set | default(omit) }}"
+    force_password_reset: "{{ __storage_protect_node_item.force_password_reset | default(omit) }}"
+    node_type: "{{ __storage_protect_node_item.node_type | default(omit) }}"
+    url: "{{ __storage_protect_node_item.url | default(omit) }}"
+    utility_url: "{{ __storage_protect_node_item.utility_url | default(omit) }}"
+    max_mount_points: "{{ __storage_protect_node_item.max_mount_points | default(omit) }}"
+    auto_rename_file_spaces: "{{ __storage_protect_node_item.auto_rename_file_spaces | default(omit) }}"
+    keep_mount_points: "{{ __storage_protect_node_item.keep_mount_points | default(omit) }}"
+    max_transaction_group: "{{ __storage_protect_node_item.max_transaction_group | default(omit) }}"
+    data_write_path: "{{ __storage_protect_node_item.data_write_path | default(omit) }}"
+    data_read_path: "{{ __storage_protect_node_item.data_read_path | default(omit) }}"
+    target_level: "{{ __storage_protect_node_item.target_level | default(omit) }}"
+    session_initiation: "{{ __storage_protect_node_item.session_initiation | default(omit) }}"
+    session_ip: "{{ __storage_protect_node_item.session_ip | default(omit) }}"
+    session_port: "{{ __storage_protect_node_item.session_port | default(omit) }}"
+    email: "{{ __storage_protect_node_item.email | default(omit) }}"
+    deduplication: "{{ __storage_protect_node_item.deduplication | default(omit) }}"
+    backup_initiation: "{{ __storage_protect_node_item.backup_initiation | default(omit) }}"
+    repl_state: "{{ __storage_protect_node_item.repl_state | default(omit) }}"
+    backup_repl_rule_default: "{{ __storage_protect_node_item.backup_repl_rule_default | default(omit) }}"
+    archive_repl_rule_default: "{{ __storage_protect_node_item.archive_repl_rule_default | default(omit) }}"
+    space_repl_rule_default: "{{ __storage_protect_node_item.space_repl_rule_default | default(omit) }}"
+    recover_damaged: "{{ __storage_protect_node_item.recover_damaged | default(omit) }}"
+    role_override: "{{ __storage_protect_node_item.role_override | default(omit) }}"
+    auth_method: "{{ __storage_protect_node_item.auth_method | default(omit) }}"
+    session_security: "{{ __storage_protect_node_item.session_security | default(omit) }}"
+    split_large_objects: "{{ __storage_protect_node_item.split_large_objects | default(omit) }}"
+    min_extent_size: "{{ __storage_protect_node_item.min_extent_size | default(omit) }}"
+    state: "{{ __storage_protect_node_item.state | default(storage_protect_state | default('present')) }}"
+
+    # Role Standard Options
+    server_name: "{{ storage_protect_server_name | default(omit) }}"
+    username: "{{ storage_protect_username | default(omit) }}"
+    password: "{{ storage_protect_password | default(omit) }}"
+    request_timeout: "{{ storage_protect_request_timeout | default(omit) }}"
+  loop: "{{ storage_protect_nodes }}"
+  loop_control:
+    loop_var: __storage_protect_node_item
+    label: "{{ __operation.verb }} node {{ __storage_protect_node_item.name }}"
+    pause: "{{ storage_protect_nodes_loop_delay }}"
+  no_log: "{{ storage_protect_nodes_secure_logging }}"
+  async: "{{ ansible_check_mode | ternary(0, 1000) }}"
+  poll: 0
+  register: __node_job_async
+  changed_when: "(__node_job_async.changed if ansible_check_mode else false)"
+  vars:
+    __operation: "{{ operation_translate[__storage_protect_node_item.state | default(storage_protect_state) | default('present')] }}"
+    ansible_async_dir: '{{ storage_protect_async_dir }}'
+
+- name: "Flag for errors (check mode only)"
+  ansible.builtin.set_fact:
+    error_flag: true
+  when: ansible_check_mode and __node_job_async.failed is defined and __node_job_async.failed
+
+- name: "Managing Storage Protect Nodes | Wait for finish the nodes management"
+  ansible.builtin.async_status:
+    jid: "{{ __node_job_async_result_item.ansible_job_id }}"
+  register: __node_job_async_result
+  until: __node_job_async_result.finished
+  retries: "{{ storage_protect_nodes_async_retries }}"
+  delay: "{{ storage_protect_nodes_async_delay }}"
+  loop: "{{ __node_job_async.results }}"
+  loop_control:
+    loop_var: __node_job_async_result_item
+    label: "{{ __operation.verb }} Storage Protect node {{ __node_job_async_result_item.__storage_protect_node_item.name }} | Wait for finish the node {{ __operation.action }}"
+  when: not ansible_check_mode and __node_job_async_result_item.ansible_job_id is defined
+  no_log: "{{ storage_protect_nodes_secure_logging }}"
+  vars:
+    __operation: "{{ operation_translate[__node_job_async_result_item.__storage_protect_node_item.state | default(storage_protect_state) | default('present')] }}"
+    ansible_async_dir: '{{ aap_configuration_async_dir }}'
+...
