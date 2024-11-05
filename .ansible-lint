@@ -1,0 +1,9 @@
+---
+exclude_paths:
+  - '.github/'
+  - '.py'
+parseable: true
+use_default_rules: true
+skip_list:
+  - var-naming[no-role-prefix]
+...
