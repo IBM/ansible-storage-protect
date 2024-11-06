@@ -45,11 +45,11 @@ See [using Ansible collections](https://docs.ansible.com/ansible/devel/user_guid
 
 ### Preparing the dsmadmc connection
 
-The dsmadmc CLI requires a `dsm.sys` file to be created to be able to point at IBM Storage Protect instance. The `sysfile` module exists to prepare this file in readiness for runing modules if this file has not already been creaed. You can use the following example code:
+The dsmadmc CLI requires a `dsm.sys` file to be created to be able to point at IBM Storage Protect instance. The `dsm_sysfile` module exists to prepare this file in readiness for runing modules if this file has not already been creaed. You can use the following example code:
 
 ```
 - name: Create dsm.sys
-  ibm.storage_protect.sysfile:
+  ibm.storage_protect.dsm_sysfile:
     server_name: "ibmsp01"
     tcp_server_address: "10.10.10.10"
 ```

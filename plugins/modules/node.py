@@ -296,7 +296,7 @@ EXAMPLES = '''
 ...
 '''
 
-from ..module_utils.storage_protect_api import StorageProtectModule
+from ..module_utils.dsmadmc_adapter import StorageProtectModule
 
 
 def main():

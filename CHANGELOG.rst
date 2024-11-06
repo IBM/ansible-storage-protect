@@ -11,7 +11,7 @@ v1.0.0
 Major Changes
 -------------
 
-- Added sysfile module to allow creation of dsm.sys file
+- Added dsm_sysfile module to allow creation of dsm.sys file
 - Added node module to create node
 - Added nodes role to wrap around node module
 
