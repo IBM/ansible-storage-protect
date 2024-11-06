@@ -20,7 +20,7 @@
 
   pre_tasks:
     - name: Create dsm.sys
-      ibm.storage_protect.sysfile:
+      ibm.storage_protect.dsm_sysfile:
         server_name: "{{ storage_protect_server_name }}"
         tcp_server_address: "{{ ansible_host }}"
 

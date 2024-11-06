@@ -21,7 +21,7 @@ ANSIBLE_METADATA = {'metadata_version': '1.1', 'status': ['preview'], 'supported
 
 DOCUMENTATION = '''
 ---
-module: node
+module: dsm_sysfile
 author: "Tom page (@Tompage1994)"
 short_description: Create a dsm.sys file for interaction with IBM Storage Protect
 description:
@@ -76,12 +76,12 @@ options:
 
 EXAMPLES = '''
 - name: Create dsm.sys
-  ibm.storage_protect.sysfile:
+  ibm.storage_protect.dsm_sysfile:
     server_name: "ibmsp01"
     tcp_server_address: "10.10.10.10"
 
 - name: Create dsm copy in /tmp
-  ibm.storage_protect.sysfile:
+  ibm.storage_protect.dsm_sysfile:
     server_name: "ibmsp01test"
     tcp_server_address: "10.10.10.10"
     sysfile_path: /tmp/dsm.sym
