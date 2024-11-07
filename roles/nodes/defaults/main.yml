@@ -1,0 +1,9 @@
+---
+# defaults file for nodes
+storage_protect_nodes: []
+storage_protect_nodes_secure_logging: "{{ storage_protect_secure_logging | default('false') }}"
+storage_protect_nodes_async_retries: "{{ storage_protect_async_retries | default(30) }}"
+storage_protect_nodes_async_delay: "{{ storage_protect_async_delay | default(1) }}"
+storage_protect_nodes_loop_delay: "{{ storage_protect_loop_delay | default(0) }}"
+storage_protect_async_dir: null
+...
