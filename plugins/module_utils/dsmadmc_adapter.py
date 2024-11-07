@@ -6,7 +6,7 @@ from ansible.module_utils.basic import AnsibleModule, env_fallback
 import subprocess
 
 
-class StorageProtectModule(AnsibleModule):
+class DsmadmcAdapter(AnsibleModule):
     url = None
     AUTH_ARGSPEC = dict(
         server_name=dict(required=False, fallback=(env_fallback, ['STORAGE_PROTECT_SERVERNAME'])),
@@ -26,7 +26,7 @@ class StorageProtectModule(AnsibleModule):
 
     def __init__(self, argument_spec=None, direct_params=None, error_callback=None, warn_callback=None, **kwargs):
         full_argspec = {}
-        full_argspec.update(StorageProtectModule.AUTH_ARGSPEC)
+        full_argspec.update(DsmadmcAdapter.AUTH_ARGSPEC)
         full_argspec.update(argument_spec)
         kwargs['supports_check_mode'] = True
 
@@ -40,7 +40,7 @@ class StorageProtectModule(AnsibleModule):
         else:
             super().__init__(argument_spec=full_argspec, **kwargs)
 
-        for param, _ in list(StorageProtectModule.AUTH_ARGSPEC.items()):
+        for param, _ in list(DsmadmcAdapter.AUTH_ARGSPEC.items()):
             setattr(self, param, self.params.get(param))
 
     def run_command(self, command, auto_exit=True, dataonly=True, exit_on_fail=True):
