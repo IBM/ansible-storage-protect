@@ -275,13 +275,13 @@ EXAMPLES = '''
 - name: Register node
   ibm.storage_protect.node:
     name: "{{ physical_node }}"
-    node_password: P@ssword
+    node_password: P@ssword123456789
     node_password_expiry: 90
     policy_domain: "DOMAIN1"
     compression: true
     auth_method: "local"
     contact: "admin@company.com"
-    hostname: "{{ tcp_node_address }}"
+    server_name: "{{ tcp_node_address }}"
     username: "{{ username }}"
     password: "{{ password }}"
     state: registered
@@ -289,7 +289,7 @@ EXAMPLES = '''
 - name: Deregister node
   ibm.storage_protect.node:
     name: "{{ physical_node }}"
-    hostname: "{{ tcp_node_address }}"
+    server_name: "{{ tcp_node_address }}"
     username: "{{ username }}"
     password: "{{ password }}"
     state: deregistered

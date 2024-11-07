@@ -101,7 +101,14 @@ For further details on options, see the underlying `ibm.spectrum_protect.node` m
 ```yaml
 ---
 storage_protect_nodes:
-  - name: Test
+  - name: Test_node_1
+    node_password: P@ssword123456789
+    state: present
+    session_security: transitional
+    node_password_expiry: 90
+    can_archive_delete: true
+    min_extent_size: 250
+  - name: Test_node_2
     node_password: P@ssword123456789
     state: present
     session_security: transitional
