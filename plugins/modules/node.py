@@ -296,7 +296,7 @@ EXAMPLES = '''
 ...
 '''
 
-from ..module_utils.dsmadmc_adapter import StorageProtectModule
+from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
 
 
 def main():
@@ -349,7 +349,7 @@ def main():
         'schedules': 'policy_domain',
     }
 
-    module = StorageProtectModule(argument_spec=argument_spec, supports_check_mode=True, required_by=required_by)
+    module = DsmadmcAdapter(argument_spec=argument_spec, supports_check_mode=True, required_by=required_by)
 
     name = module.params.get('name')
     state = module.params.get('state')
