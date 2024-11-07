@@ -1,7 +1,21 @@
 ---
 - name: Add dsm.sys file to clients
-  hosts: storage_protect_client
+  hosts: storage_protect_clients
   tasks:
+    - name: Check TIVsm RPMs are installed
+      ansible.builtin.command:
+        cmd: rpm -qa | grep -i tivsm
+      changed_when: false
+
+    - name: Check required files exist
+      ansible.builtin.stat:
+        path: "/opt/tivoli/tsm/client/ba/bin/{{ item }}"
+      loop:
+        - dsmc
+        - dsm.opt
+      register: required_files
+      failed_when: not required_files.stat.exists
+
     - name: Create dsm.sys
       ibm.storage_protect.dsm_sysfile:
         server_name: "{{ storage_protect_server_name }}"
