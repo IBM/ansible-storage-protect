@@ -4,13 +4,24 @@
 
 NOTE: This collection is under development
 
-This collection provides a series of Ansible modules and plugins for interacting with the IBM Storage Protect product. For more information regarding this product, see [IBM Documentation](https://ibm.com/docs/en).
+This collection provides a series of Ansible modules and plugins to help automate the deployment and configuration of a Storage Protect landscape comprising of multiple Storage Protect servers and clients. It can be used to automate perform simple [data protection operations](https://www.ibm.com/docs/en/storage-protect/8.1.24?topic=overview-data-protection-services) such as backup / restore, archive / retrieve - of the data or workloads supported by the IBM Storage Protect product. You can also automate the overall data protection governance for the enterprise, using policy-based data management. For more information regarding this product, see [IBM Documentation](https://ibm.com/docs/en).
 
 
 ## Requirements
 
-This collection requires the `dsmadmc` CLI to be installed on the target host.
+### Ansible version compatibility
 
+This collection has been tested against following Ansible versions: >=2.15.0.
+
+### Python
+
+Collection supports 3.9+
+
+### IBM Storage Protect
+
+This collection supports IBM Storage Protect versions >= 8.1.23.
+The Storage Protect Client (including dsmadmc CLI) must be pre-installed in the target client-node.
+Refer to [IBM documentation](https://www.ibm.com/docs/en/storage-protect/8.1.24?topic=windows-install-unix-linux-backup-archive-clients) for more details
 
 ## Installation
 
@@ -45,9 +56,12 @@ See [using Ansible collections](https://docs.ansible.com/ansible/devel/user_guid
 
 ## Use Cases
 
-### Preparing the dsmadmc connection
+### Preparing Storage Protect client system-option file
 
-The dsmadmc CLI requires a `dsm.sys` file to be created to be able to point at IBM Storage Protect instance. The `dsm_sysfile` module exists to prepare this file in readiness for runing modules if this file has not already been creaed. You can use the following example code:
+- The client-system options file (dsm.sys) configures the Storage Protect client (and dsmadmc CLI) with the Storage Protect server details and the communication methods.
+- Refer to https://www.ibm.com/docs/en/storage-protect/8.1.24?topic=overview-creating-modifying-client-system-options-file for more details.
+
+You can use the following example code:
 
 ```
 - name: Create dsm.sys
@@ -56,9 +70,11 @@ The dsmadmc CLI requires a `dsm.sys` file to be created to be able to point at I
     tcp_server_address: "10.10.10.10"
 ```
 
-### Managing resources in IBM Storage Protect
+### Setting up the Storage Protect landscape
 
-Most of the modules in this collection exist to add, update or remove resources on the IBM Storage Protect instance. An example is adding (registering) a node. The following task will do this:
+The modules in this collection are used to setup a Storage Protect landscape comprising of multiple Storage Protect server instance and multiple Storage Protect client nodes. Here is an example of adding or registering an existing client node, to an existing Storage Protect server instance.
+
+The following task will do this:
 
 ```
 - name: Register hosts
@@ -80,7 +96,7 @@ Most of the modules in this collection exist to add, update or remove resources 
 
 ## Testing
 
-Tests should be defined in the `tests` repository of this collection. Here test playbooks should be created which can be run against an instance to ensure the modules are working correctly.
+The `tests` directory contains configuration for running sanity and integration tests using ansible-test.
 
 
 ## License Information

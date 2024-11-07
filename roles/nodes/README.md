@@ -84,13 +84,13 @@ For further details on options, see the underlying `ibm.spectrum_protect.node` m
 |`email`|""|no|str|Specifies email address associated with this node.|
 |`deduplication`|""|no|str|Specifies deduplication for this node. Either `clientorserver` or `serveronly`.|
 |`backup_initiation`|""|no|str|Specifies backup initiation type for this node. Either `all` or `root`.|
-|`repl_state`|""|no|str|Specifies the replication state for this node. Either `enabled` or `disabled`.|
+|`replication_state`|""|no|str|Specifies the replication state for this node. Either `enabled` or `disabled`.|
 |`backup_repl_rule_default`|""|no|str|Specifies default rule for backup replication for this node.|
 |`archive_repl_rule_default`|""|no|str|Specifies default rule for archive replication for this node.|
 |`space_repl_rule_default`|""|no|str|Specifies default rule for space replication for this node.|
 |`recover_damaged`|""|no|bool|Specifies if node should recover damaged objects.|
 |`role_override`|""|no|str|Specifies role_override for this node. Either `client`, `server`, `other` or `usereported`.|
-|`auth_method`|""|no|str|Specifies auth_method for this node. Either `ldap` or `local`.|
+|`authentication_method`|""|no|str|Specifies authentication_method for this node. Either `ldap` or `local`.|
 |`session_security`|""|no|str|Specifies whether the node must use the most secure settings to communicate for this node. Either `strict` or `transitional`.|
 |`split_large_objects`|""|no|bool|Specifies if large objects should be split during backup for this node.|
 |`min_extent_size`|""|no|str|Specifies minimum size of extents in KB (50, 250, or 750) for this node.|
