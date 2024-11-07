@@ -37,7 +37,7 @@
         node_password_expiry: 90
         can_archive_delete: true
         min_extent_size: 250
-        repl_state: enabled
+        replication_state: enabled
         backup_repl_rule_default: NONE
 
   pre_tasks:

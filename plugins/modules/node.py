@@ -4,13 +4,6 @@
 # (c) 2024,Tom page <tpage@redhat.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-# ibm.storage_protect.register:
-#    node: "{{ physical_node }}"
-#    url: "{{ tcp_node_address }}"
-#    username: "{{ username }}"
-#    password: "{{ password }}"
-#    state: present
-
 from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
@@ -53,16 +46,22 @@ options:
         - You can set the password expiration period 0 - 9999 days. A value of 0 means that the password never expires.
         - If you do not specify this parameter, the server common-password expiration period is used which is 90 days unless changed.
       type: int
-    user_id:
+      aliases:
+        - passexp
+    admin_user_id:
       description:
         - Administrative user ID with client owner authority or 'NONE' (the default value).
       required: false
       type: str
-    contact:
+      aliases:
+        - user_id
+    node_contact:
       description:
         - Contact information for the node, up to 255 characters.
       required: false
       type: str
+      aliases:
+        - contact
     policy_domain:
       description:
         - The policy domain to assign the node to. Default is 'STANDARD'.
@@ -80,27 +79,37 @@ options:
         - Specifies whether the node can delete archived data.
       required: false
       type: bool
+      aliases:
+        - archdelete
     can_backup_delete:
       description:
         - Specifies whether the node can delete backed-up data.
       required: false
       type: bool
+      aliases:
+        - backdelete
     option_set:
       description:
         - Client option set to be used by the node.
       required: false
       type: str
+      aliases:
+        - cloptset
     force_password_reset:
       description:
         - Forces a password reset on the node upon the next login.
       required: false
       type: bool
+      aliases:
+        - forcepwreset
     node_type:
       description:
         - Specifies the type of node being registered. System default is 'Client'.
       choices: ['client', 'nas', 'server', 'objectclient']
       required: false
       type: str
+      aliases:
+        - type
     url:
       description:
         - URL associated with the node.
@@ -117,6 +126,8 @@ options:
         - The default value is 1. You can specify an integer in the range 0 - 999.
       required: false
       type: int
+      aliases:
+        - maxnummp
     auto_rename_file_spaces:
       description:
         - Specifies whether file spaces should be automatically renamed.
@@ -124,11 +135,15 @@ options:
       default: 'No'
       required: false
       type: str
+      aliases:
+        - autofsrename
     keep_mount_points:
       description:
         - Specifies if mount points should persist after use.
       required: false
       type: bool
+      aliases:
+        - keepmp
     max_transaction_group:
       description:
         - Maximum number of objects in a single transaction group.
@@ -136,6 +151,8 @@ options:
         - To use a value other than the server global value, specify a value in the range 4 - 65000.
       required: false
       type: int
+      aliases:
+        - tnxgroupmax
     data_write_path:
       description:
         - Defines the data write path.
@@ -143,6 +160,8 @@ options:
       default: 'any'
       required: false
       type: str
+      aliases:
+        - datawritepath
     data_read_path:
       description:
         - Defines the data read path.
@@ -150,6 +169,8 @@ options:
       default: 'any'
       required: false
       type: str
+      aliases:
+        - datareadpath
     target_level:
       description:
         - Specifies the target replication level for the node.
@@ -157,6 +178,8 @@ options:
         - You can substitute an applicable release package for Version.Release.Modification.Fix (V.R.M.F) Level. For example: TARGETLevel=7.1.0.0.
       required: false
       type: str
+      aliases:
+        - targetlevel
     session_initiation:
       description:
         - Determines whether the session is initiated by the client or server.
@@ -164,18 +187,24 @@ options:
       default: 'clientorserver'
       required: false
       type: str
-    session_ip:
+      aliases:
+        - sessioninitiation
+    session_client_ip:
       description:
         - Specifies the client IP address that the server contacts to initiate scheduled events.
         - Matches to the HLAddress Parameter for the dsmadmc CLI.
       required: false
       type: str
-    session_port:
+      aliases:
+        - hladdress
+    session_client_port:
       description:
         - Specifies the client port number on which the client listens for sessions from the server.
         - Matches to the LLAddress Parameter for the dsmadmc CLI.
       required: false
       type: int
+      aliases:
+        - lladdress
     email:
       description:
         - Email address associated with the node.
@@ -195,35 +224,47 @@ options:
       default: 'all'
       required: false
       type: str
-    repl_state:
+      aliases:
+        - backupinitiation
+    replication_state:
       description:
         - Controls the replication state for the node.
       choices: ['enabled', 'disabled']
       required: false
       type: str
+      aliases:
+        - replstate
     backup_repl_rule_default:
       description:
         - Default rule for backup replication.
       choices: ['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE']
       required: false
       type: str
+      aliases:
+        - bkreplruledefault
     archive_repl_rule_default:
       description:
         - Default rule for archive replication.
       choices: ['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE']
       required: false
       type: str
+      aliases:
+        - arreplruledefault
     space_repl_rule_default:
       description:
         - Default rule for space replication.
       choices: ['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE']
       required: false
       type: str
+      aliases:
+        - spreplruledefault
     recover_damaged:
       description:
         - Specifies if the node should recover damaged objects.
       required: false
       type: bool
+      aliases:
+        - recovedamaged
     role_override:
       description:
         - Specifies the role override.
@@ -231,13 +272,17 @@ options:
       default: 'usereported'
       required: false
       type: str
-    auth_method:
+      aliases:
+        - roleoverride
+    authentication_method:
       description:
         - Authentication method for the node.
       choices: ['local', 'ldap']
       default: 'local'
       required: false
       type: str
+      aliases:
+        - authentication
     session_security:
       description:
         - Specifies whether the node must use the most secure settings to communicate with an IBM Storage Protect server.
@@ -245,11 +290,15 @@ options:
       choices: ["strict", "transitional"]
       default: 'transitional'
       type: str
+      aliases:
+        - sessionsecurity
     split_large_objects:
       description:
         - Specifies if large objects should be split during backup.
       required: false
       type: bool
+      aliases:
+        - splitlargeobject
     min_extent_size:
       description:
         - Minimum size of extents in KB (50, 250, or 750).
@@ -257,6 +306,8 @@ options:
       default: 50
       required: false
       type: int
+      aliases:
+        - minimumextentsize
     state:
       description:
         - Desired state of the registration.
@@ -279,8 +330,8 @@ EXAMPLES = '''
     node_password_expiry: 90
     policy_domain: "DOMAIN1"
     compression: true
-    auth_method: "local"
-    contact: "admin@company.com"
+    authentication_method: "local"
+    node_contact: "admin@company.com"
     server_name: "{{ tcp_node_address }}"
     username: "{{ username }}"
     password: "{{ password }}"
@@ -304,48 +355,48 @@ def main():
         name=dict(required=True, aliases=['node']),
         schedules=dict(type='list', elements='str'),
         node_password=dict(no_log=True),
-        node_password_expiry=dict(type='int', no_log=False),
-        user_id=dict(),
-        contact=dict(),
+        node_password_expiry=dict(type='int', no_log=False, aliases=['passexp']),
+        admin_user_id=dict(aliases=['user_id']),
+        node_contact=dict(),
         policy_domain=dict(),
         compression=dict(choices=['client', 'true', 'false'], default='client'),
-        can_archive_delete=dict(type='bool'),
-        can_backup_delete=dict(type='bool'),
-        option_set=dict(),
-        force_password_reset=dict(type='bool', no_log=False),
-        node_type=dict(choices=['client', 'nas', 'server', 'objectclient']),
+        can_archive_delete=dict(type='bool', aliases=['archdelete']),
+        can_backup_delete=dict(type='bool', aliases=['backdelete']),
+        option_set=dict(aliases=['cloptset']),
+        force_password_reset=dict(type='bool', no_log=False, aliases=['forcepwreset']),
+        node_type=dict(choices=['client', 'nas', 'server', 'objectclient'], aliases=['type']),
         url=dict(),
         utility_url=dict(),
-        max_mount_points=dict(type='int'),
-        auto_rename_file_spaces=dict(choices=['client', 'true', 'false'], default='false'),
-        keep_mount_points=dict(type='bool'),
-        max_transaction_group=dict(type='int'),
-        data_write_path=dict(choices=['any', 'lan', 'lanfree'], default='any'),
-        data_read_path=dict(choices=['any', 'lan', 'lanfree'], default='any'),
-        target_level=dict(),
-        session_initiation=dict(choices=['clientorserver', 'serveronly'], default='clientorserver'),
-        session_ip=dict(),
-        session_port=dict(),
+        max_mount_points=dict(type='int', aliases=['maxnummp']),
+        auto_rename_file_spaces=dict(choices=['client', 'true', 'false'], default='false', aliases=['autofsrename']),
+        keep_mount_points=dict(type='bool', aliases=['keepmp']),
+        max_transaction_group=dict(type='int', aliases=['tnxgroupmax']),
+        data_write_path=dict(choices=['any', 'lan', 'lanfree'], default='any', aliases=['datawritepath']),
+        data_read_path=dict(choices=['any', 'lan', 'lanfree'], default='any', aliases=['datareadpath']),
+        target_level=dict(aliases=['targetlevel']),
+        session_initiation=dict(choices=['clientorserver', 'serveronly'], default='clientorserver', aliases=['sessioninitiation']),
+        session_client_ip=dict(aliases=['hladdress']),
+        session_client_port=dict(aliases=['lladdress']),
         email=dict(),
         deduplication=dict(choices=['clientorserver', 'serveronly'], default='clientorserver'),
-        backup_initiation=dict(choices=['all', 'root'], default='all'),
-        repl_state=dict(choices=['enabled', 'disabled']),
-        backup_repl_rule_default=dict(choices=['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE']),
-        archive_repl_rule_default=dict(choices=['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE']),
-        space_repl_rule_default=dict(choices=['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE']),
-        recover_damaged=dict(type='bool'),
-        role_override=dict(choices=['client', 'server', 'other', 'usereported'], default='usereported'),
-        auth_method=dict(choices=['local', 'ldap'], default='local'),
-        session_security=dict(choices=['transitional', 'strict'], default='transitional'),
-        split_large_objects=dict(type='bool'),
-        min_extent_size=dict(type='int', choices=[50, 250, 750], default=50),
+        backup_initiation=dict(choices=['all', 'root'], default='all', aliases=['backupinitiation']),
+        replication_state=dict(choices=['enabled', 'disabled'], aliases=['replstate']),
+        backup_repl_rule_default=dict(choices=['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE'], aliases=['bkreplruledefault']),
+        archive_repl_rule_default=dict(choices=['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE'], aliases=['arreplruledefault']),
+        space_repl_rule_default=dict(choices=['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE'], aliases=['spreplruledefault']),
+        recover_damaged=dict(type='bool', aliases=['recovedamaged']),
+        role_override=dict(choices=['client', 'server', 'other', 'usereported'], default='usereported', aliases=['roleoverride']),
+        authentication_method=dict(choices=['local', 'ldap'], default='local', aliases=['authentication']),
+        session_security=dict(choices=['transitional', 'strict'], default='transitional', aliases=['sessionsecurity']),
+        split_large_objects=dict(type='bool', aliases=['splitlargeobject']),
+        min_extent_size=dict(type='int', choices=[50, 250, 750], default=50, aliases=['minimumextentsize']),
         state=dict(choices=['present', 'absent', 'registered', 'deregistered', 'removed'], default='present'),
     )
 
     required_by = {
-        'backup_repl_rule_default': 'repl_state',
-        'archive_repl_rule_default': 'repl_state',
-        'space_repl_rule_default': 'repl_state',
+        'backup_repl_rule_default': 'replication_state',
+        'archive_repl_rule_default': 'replication_state',
+        'space_repl_rule_default': 'replication_state',
         'schedules': 'policy_domain',
     }
 
@@ -360,8 +411,8 @@ def main():
     else:
         options_params = {
             'node_password_expiry': 'PASSExp',
-            'user_id': 'USerid',
-            'contact': 'CONtact',
+            'admin_user_id': 'USerid',
+            'node_contact': 'CONtact',
             'policy_domain': 'DOmain',
             'compression': 'COMPression',
             'can_archive_delete': 'ARCHDELete',
@@ -379,24 +430,24 @@ def main():
             'data_read_path': 'DATAReadpath',
             'target_level': 'TARGETLevel',
             'session_initiation': 'SESSIONINITiation',
-            'session_ip': 'HLAddress',
-            'session_port': 'LLAddress',
+            'session_client_ip': 'HLAddress',
+            'session_client_port': 'LLAddress',
             'email': 'EMAILADdress',
             'deduplication': 'DEDUPlication',
             'backup_initiation': 'BACKUPINITiation',
-            'repl_state': 'REPLState',
+            'replication_state': 'REPLState',
             'backup_repl_rule_default': 'BKREPLRuledefault',
             'archive_repl_rule_default': 'ARREPLRuledefault',
             'space_repl_rule_default': 'SPREPLRuledefault',
             'recover_damaged': 'RECOVERDamaged',
             'role_override': 'ROLEOVERRIDE',
-            'auth_method': 'AUTHentication',
+            'authentication_method': 'AUTHentication',
             'session_security': 'SESSIONSECurity',
             'split_large_objects': 'SPLITLARGEObjects',
             'min_extent_size': 'MINIMUMExtentsize',
         }
 
-        not_on_update = ['node_type', 'backup_repl_rule_default', 'archive_repl_rule_default', 'space_repl_rule_default', 'user_id', 'option_set']
+        not_on_update = ['node_type', 'backup_repl_rule_default', 'archive_repl_rule_default', 'space_repl_rule_default', 'admin_user_id', 'option_set']
 
         node_password = module.params.get('node_password')
         if node_password:

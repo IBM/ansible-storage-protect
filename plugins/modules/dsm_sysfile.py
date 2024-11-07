@@ -25,7 +25,7 @@ module: dsm_sysfile
 author: "Tom page (@Tompage1994)"
 short_description: Create a dsm.sys file for interaction with IBM Storage Protect
 description:
-    - Create a dsm.sys file for interaction with IBM Storage Protect
+    - Create or update a dsm.sys file for interaction with IBM Storage Protect
     - Creates the file on the machine you are connected to.
     - Works also for localhost for running the modules in this collection against a remote IBM Storage Protect Server.
 options:
