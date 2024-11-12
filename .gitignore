@@ -1,3 +1,7 @@
 .vscode
 *.tar.gz
 __pycache__
+# Ignore specific Ansible files
+playbook.yml
+inventory.ini
+ansible.cfg
