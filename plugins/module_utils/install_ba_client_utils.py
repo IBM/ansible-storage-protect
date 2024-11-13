@@ -93,7 +93,7 @@ class SystemInfoCollector:
             "df -h /": "Filesystem Disk Space",
             "cat /etc/os-release": "OS Release Info",
             "df -T": "Filesystem Type",
-            "java -version": "Java Version",  # This command may fail if java is not installed
+            "java -version": "Java Version",
         }
         result = {}
         for command, description in command_mapping.items():
