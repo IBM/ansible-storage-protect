@@ -1,6 +1,6 @@
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.command_executor import CommandExecutor
-from ansible.module_utils.sp_client_utils import CompatibilityChecker, SystemInfoCollector
+from ansible.module_utils.install_ba_client_utils import CompatibilityChecker, SystemInfoCollector
 
 
 def main():
