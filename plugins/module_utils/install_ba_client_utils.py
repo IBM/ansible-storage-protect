@@ -1,5 +1,10 @@
 import logging
 import re
+import  os
+
+from ansible.module_utils.command_executor import CommandExecutor
+
+
 class CompatibilityChecker:
     """Checks system compatibility based on defined requirements."""
 
@@ -207,3 +212,99 @@ def check_os_compatibility(os_name, os_version):
     return False
 
 
+def extract_tar(module, path, dest_folder):
+    """
+    This function checks if the .tar file exists and extracts it to the destination folder.
+    """
+    try:
+        # Check if the .tar file exists on the remote machine
+        module.log(msg=f"Checking if file {path} exists on the remote host.")
+        if not os.path.exists(path):
+            module.fail_json(msg=f"Error: File {path} does not exist on the remote host.")
+        module.log(msg=f"File {path} found.")
+
+        # Check if the destination directory exists, create if not
+        module.log(msg=f"Checking if destination folder {dest_folder} exists.")
+        if not os.path.exists(dest_folder):
+            module.log(msg=f"Destination folder {dest_folder} does not exist. Creating it.")
+            os.makedirs(dest_folder)
+        else:
+            module.log(msg=f"Destination folder {dest_folder} already exists.")
+
+        # Prepare the command to extract the tar file
+        extract_command = f"tar -xvf {path} -C {dest_folder}"
+        module.log(msg=f"Running extract command: {extract_command}")
+
+        # Execute the command to extract the tar file
+        rc, stdout, stderr = module.run_command(extract_command)
+
+        # Handle errors during extraction
+        if rc != 0:
+            module.fail_json(msg=f"Failed to extract tar file. Command Error: {stderr}")
+
+        # Successful extraction
+        module.log(msg="Tar file extracted successfully.")
+        return {'changed': True, 'msg': 'Tar file extracted successfully.'}
+
+    except PermissionError as e:
+        module.fail_json(msg=f"Permission denied error: {str(e)}. Check directory permissions for {dest_folder}.")
+    except FileNotFoundError as e:
+        module.fail_json(msg=f"File not found error: {str(e)}. Ensure the tar file {path} exists.")
+    except Exception as e:
+        module.fail_json(msg=f"An unexpected error occurred: {str(e)}")
+
+
+def execute_command(command):
+    """
+    Execute a command and handle potential errors.
+    Returns a dictionary with command output or error message.
+    """
+    try:
+        result = CommandExecutor.execute(command)
+        if isinstance(result, dict):
+            return result
+        else:
+            return {"output": result}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def install_rpm_packages():
+    """
+    Installs necessary RPM packages in sequence and captures output.
+    Returns a dictionary of installation results.
+    """
+    packages = [
+        'gskcrypt64-8.0.55.31.linux.x86_64.rpm',
+        'gskssl64-8.0.55.31.linux.x86_64.rpm',
+        'TIVsm-API64.x86_64.rpm',
+        'TIVsm-APIcit.x86_64.rpm',
+        'TIVsm-BA.x86_64.rpm',
+        'TIVsm-BAcit.x86_64.rpm',
+        'TIVsm-BAhdw.x86_64.rpm'
+    ]
+
+    results = {}
+    for package in packages:
+        command = f'sudo rpm -ivh {package}'
+        results[package] = execute_command(command)
+    return results
+
+
+def run_dsmc_command():
+    """
+    Runs the dsmc command and checks for specific error messages.
+    Returns a message based on the output of the dsmc command.
+    """
+    command = 'sudo dsmc'
+    result = execute_command(command)
+
+    # Check if specific error messages are in the output
+    if 'ANS0990W' in result.get("output", "") and 'ANS1035S' in result.get("output", ""):
+        return "BA client is successfully installed, set the options file."
+    elif 'ANS0990W' in result.get("output", ""):
+        return "BA client is successfully installed, set the dsm.opt file."
+    elif 'ANS1035S' in result.get("output", ""):
+        return "BA client is successfully installed, set the dsm.sys file."
+    else:
+        return "BA client installed successfully, but no specific errors detected."
