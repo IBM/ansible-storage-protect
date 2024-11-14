@@ -26,6 +26,7 @@ def main():
         system_info['compatibility'] = compatibility
         result.update(system_info)
 
+        # if system is compatible install the necessary packaages and BA client
         if result["compatibility"].get('compatible', False):
             # Attempt to extract files and change to destination directory
             try:
