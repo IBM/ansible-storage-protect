@@ -88,7 +88,7 @@ class CompatibilityChecker:
 
 
 class SystemInfoCollector:
-    """Collects system information using shell commands and processes the output."""
+    """Collects system information using commands and processes the output."""
 
     def __init__(self, command_executor):
         self.command_executor = command_executor
@@ -137,7 +137,7 @@ class SystemInfoCollector:
 
 # Helper functions
 def extract_architecture(output):
-    # Use regex to extract architecture from the 'lscpu' output
+    # Using regex to extract architecture from the 'lscpu' output
     match = re.search(r'Architecture:\s+(\S+)', output)
     if match:
         return match.group(1)  # Return the architecture value
@@ -146,13 +146,13 @@ def extract_architecture(output):
 
 
 def extract_disk_info(output):
-    """Extract disk space information from the df -h / output."""
+    """Extracting disk space information from the df -h / output."""
     logging.debug(f"Raw df output: {output}")
     if not isinstance(output, str) or not output.strip():
 
         return {"status": False, "message": "Invalid or empty disk space output."}
 
-    # Use regex to extract the disk information from the 'df -h /' output
+    # Using regex to extract the disk information from the 'df -h /' output
     match = re.search(r'(/dev/[^\s]+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)', output)
     if match:
         filesystem = match.group(1)
@@ -180,7 +180,7 @@ def extract_disk_info(output):
 
 
 def extract_os_info(output):
-    # Use regex to extract the OS name and version from the '/etc/os-release' output
+    # Using regex to extract the OS name and version from the '/etc/os-release' output
     name_match = re.search(r'NAME="([^"]+)"', output)
     version_id_match = re.search(r'VERSION_ID="([^"]+)"', output)
 

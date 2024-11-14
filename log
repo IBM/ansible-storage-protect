@@ -342,3 +342,70 @@ meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_a
 2024-11-14 15:04:15,437 p=2975 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
 2024-11-14 15:04:15,437 p=2975 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
 2024-11-14 15:04:15,437 p=2975 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-14 23:04:16,399 p=10138 u=sarthak n=ansible |  [ERROR]: User interrupted execution
+
+2024-11-14 23:04:21,927 p=10156 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-14 23:04:21,930 p=10156 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-14 23:04:38,653 p=10156 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-14 23:04:38,653 p=10156 u=sarthak n=ansible | ok: [v2]
+2024-11-14 23:04:38,660 p=10156 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-14 23:04:53,250 p=10156 u=sarthak n=ansible | ok: [v2]
+2024-11-14 23:04:53,257 p=10156 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-14 23:04:53,272 p=10156 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "76G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "17%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "TIVsm-API64.x86_64.rpm": {
+                "output": "Error: warning: TIVsm-API64.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-API64-8.1.24-0.x86_64 is already installed"
+            },
+            "TIVsm-APIcit.x86_64.rpm": {
+                "output": "Error: warning: TIVsm-APIcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-APIcit-8.1.24-0.x86_64 is already installed"
+            },
+            "TIVsm-BA.x86_64.rpm": {
+                "output": "Error: warning: TIVsm-BA.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BA-8.1.24-0.x86_64 is already installed"
+            },
+            "TIVsm-BAcit.x86_64.rpm": {
+                "output": "Error: warning: TIVsm-BAcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAcit-8.1.24-0.x86_64 is already installed"
+            },
+            "TIVsm-BAhdw.x86_64.rpm": {
+                "output": "Error: warning: TIVsm-BAhdw.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAhdw-8.1.24-0.x86_64 is already installed"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc_message": "BA client installed successfully, but no specific errors detected.",
+            "extract_result": {
+                "changed": true,
+                "msg": "Tar file extracted successfully."
+            },
+            "gskcrypt64-8.0.55.31.linux.x86_64.rpm": {
+                "output": "Error: warning: gskcrypt64-8.0.55.31.linux.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID 96e7c766: NOKEY\n\tpackage gskcrypt64-8.0-55.31.x86_64 is already installed"
+            },
+            "gskssl64-8.0.55.31.linux.x86_64.rpm": {
+                "output": "Error: warning: gskssl64-8.0.55.31.linux.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID 96e7c766: NOKEY\n\tpackage gskssl64-8.0-55.31.x86_64 is already installed"
+            }
+        }
+    }
+}
+2024-11-14 23:04:53,281 p=10156 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-14 23:04:53,281 p=10156 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
