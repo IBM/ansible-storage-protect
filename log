@@ -1,0 +1,344 @@
+2024-11-14 14:48:57,502 p=2429 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-14 14:48:57,505 p=2429 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-14 14:48:58,573 p=2429 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-14 14:48:58,573 p=2429 u=sarthak n=ansible | ok: [v1]
+2024-11-14 14:48:58,578 p=2429 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-14 14:48:58,964 p=2429 u=sarthak n=ansible | ok: [v1]
+2024-11-14 14:48:58,968 p=2429 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-14 14:48:58,980 p=2429 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "aarch64",
+            "Filesystem Disk Space": {
+                "avail": "9.2G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "17G",
+                "status": true,
+                "use_percent": "45%",
+                "used": "7.3G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "Error: Command failed with no stderr output.",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": false,
+                "details": [
+                    "Incompatible architecture. x86_64 required.",
+                    "Invalid or empty disk space output."
+                ],
+                "reason": "Incompatible system."
+            }
+        }
+    }
+}
+2024-11-14 14:48:58,987 p=2429 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-14 14:48:58,987 p=2429 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-14 14:52:12,375 p=2511 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-14 14:52:12,378 p=2511 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-14 14:52:13,429 p=2511 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-14 14:52:13,429 p=2511 u=sarthak n=ansible | ok: [v1]
+2024-11-14 14:52:13,434 p=2511 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-14 14:52:13,808 p=2511 u=sarthak n=ansible | ok: [v1]
+2024-11-14 14:52:13,810 p=2511 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-14 14:52:13,822 p=2511 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "aarch64",
+            "Filesystem Disk Space": {
+                "avail": "9.2G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "17G",
+                "status": true,
+                "use_percent": "45%",
+                "used": "7.3G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "Error: Command failed with no stderr output.",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": false,
+                "details": [
+                    "Incompatible architecture. x86_64 required.",
+                    "Invalid or empty disk space output."
+                ],
+                "reason": "Incompatible system."
+            }
+        }
+    }
+}
+2024-11-14 14:52:13,828 p=2511 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-14 14:52:13,828 p=2511 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-14 14:52:36,726 p=2574 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-14 14:52:36,729 p=2574 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-14 14:52:37,581 p=2574 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-14 14:52:37,581 p=2574 u=sarthak n=ansible | ok: [v1]
+2024-11-14 14:52:37,587 p=2574 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-14 14:52:37,974 p=2574 u=sarthak n=ansible | ok: [v1]
+2024-11-14 14:52:37,977 p=2574 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-14 14:52:37,987 p=2574 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "aarch64",
+            "Filesystem Disk Space": {
+                "avail": "9.2G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "17G",
+                "status": true,
+                "use_percent": "45%",
+                "used": "7.3G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "Error: Command failed with no stderr output.",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": false,
+                "details": [
+                    "Incompatible architecture. x86_64 required.",
+                    "Invalid or empty disk space output."
+                ],
+                "reason": "Incompatible system."
+            }
+        }
+    }
+}
+2024-11-14 14:52:37,993 p=2574 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-14 14:52:37,993 p=2574 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-14 14:53:28,785 p=2633 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-14 14:53:28,789 p=2633 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-14 14:53:29,626 p=2633 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-14 14:53:29,627 p=2633 u=sarthak n=ansible | ok: [v1]
+2024-11-14 14:53:29,632 p=2633 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-14 14:53:30,007 p=2633 u=sarthak n=ansible | An exception occurred during task execution. To see the full traceback, use -vvv. The error was: ValueError: 'stream' or 'filename' should not be specified together with 'handlers'
+2024-11-14 14:53:30,008 p=2633 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "module_stderr": "Shared connection to 172.16.7.128 closed.\r\n", "module_stdout": "Traceback (most recent call last):\r\n  File \"/home/ansibleuser/.ansible/tmp/ansible-tmp-1731576209.684968-2654-150403943728389/AnsiballZ_install_ba_client.py\", line 107, in <module>\r\n    _ansiballz_main()\r\n  File \"/home/ansibleuser/.ansible/tmp/ansible-tmp-1731576209.684968-2654-150403943728389/AnsiballZ_install_ba_client.py\", line 99, in _ansiballz_main\r\n    invoke_module(zipped_mod, temp_path, ANSIBALLZ_PARAMS)\r\n  File \"/home/ansibleuser/.ansible/tmp/ansible-tmp-1731576209.684968-2654-150403943728389/AnsiballZ_install_ba_client.py\", line 47, in invoke_module\r\n    runpy.run_module(mod_name='ansible.modules.install_ba_client', init_globals=dict(_module_fqn='ansible.modules.install_ba_client', _modlib_path=modlib_path),\r\n  File \"/usr/lib64/python3.9/runpy.py\", line 225, in run_module\r\n    return _run_module_code(code, init_globals, run_name, mod_spec)\r\n  File \"/usr/lib64/python3.9/runpy.py\", line 97, in _run_module_code\r\n    _run_code(code, mod_globals, init_globals,\r\n  File \"/usr/lib64/python3.9/runpy.py\", line 87, in _run_code\r\n    exec(code, run_globals)\r\n  File \"/tmp/ansible_install_ba_client_payload_ctxypuix/ansible_install_ba_client_payload.zip/ansible/modules/install_ba_client.py\", line 4, in <module>\r\n  File \"<frozen importlib._bootstrap>\", line 1007, in _find_and_load\r\n  File \"<frozen importlib._bootstrap>\", line 986, in _find_and_load_unlocked\r\n  File \"<frozen importlib._bootstrap>\", line 664, in _load_unlocked\r\n  File \"<frozen importlib._bootstrap>\", line 627, in _load_backward_compatible\r\n  File \"<frozen zipimport>\", line 259, in load_module\r\n  File \"/tmp/ansible_install_ba_client_payload_ctxypuix/ansible_install_ba_client_payload.zip/ansible/module_utils/install_ba_client_utils.py\", line 5, in <module>\r\n  File \"/usr/lib64/python3.9/logging/__init__.py\", line 1995, in basicConfig\r\n    raise ValueError(\"'stream' or 'filename' should not be \"\r\nValueError: 'stream' or 'filename' should not be specified together with 'handlers'\r\n", "msg": "MODULE FAILURE\nSee stdout/stderr for the exact error", "rc": 1}
+2024-11-14 14:53:30,008 p=2633 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-14 14:53:30,009 p=2633 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-14 14:55:33,713 p=2762 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-14 14:55:33,717 p=2762 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-14 14:55:34,772 p=2762 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-14 14:55:34,772 p=2762 u=sarthak n=ansible | ok: [v1]
+2024-11-14 14:55:34,777 p=2762 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-14 14:55:35,158 p=2762 u=sarthak n=ansible | ok: [v1]
+2024-11-14 14:55:35,160 p=2762 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-14 14:55:35,172 p=2762 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "aarch64",
+            "Filesystem Disk Space": {
+                "avail": "9.2G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "17G",
+                "status": true,
+                "use_percent": "45%",
+                "used": "7.3G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "Error: Command failed with no stderr output.",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": false,
+                "details": [
+                    "Incompatible architecture. x86_64 required.",
+                    "Invalid or empty disk space output."
+                ],
+                "reason": "Incompatible system."
+            }
+        }
+    }
+}
+2024-11-14 14:55:35,179 p=2762 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-14 14:55:35,179 p=2762 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-14 15:02:52,171 p=2854 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-14 15:02:52,174 p=2854 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-14 15:02:53,271 p=2854 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-14 15:02:53,272 p=2854 u=sarthak n=ansible | ok: [v1]
+2024-11-14 15:02:53,277 p=2854 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-14 15:02:53,668 p=2854 u=sarthak n=ansible | ok: [v1]
+2024-11-14 15:02:53,671 p=2854 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-14 15:02:53,682 p=2854 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "aarch64",
+            "Filesystem Disk Space": {
+                "avail": "9.2G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "17G",
+                "status": true,
+                "use_percent": "45%",
+                "used": "7.3G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "Error: Command failed with no stderr output.",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": false,
+                "details": [
+                    "Incompatible architecture. x86_64 required.",
+                    "Invalid or empty disk space output."
+                ],
+                "reason": "Incompatible system."
+            }
+        }
+    }
+}
+2024-11-14 15:02:53,688 p=2854 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-14 15:02:53,688 p=2854 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-14 15:03:12,064 p=2918 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-14 15:03:12,067 p=2918 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-14 15:03:12,914 p=2918 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-14 15:03:12,914 p=2918 u=sarthak n=ansible | ok: [v1]
+2024-11-14 15:03:12,920 p=2918 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-14 15:03:13,302 p=2918 u=sarthak n=ansible | ok: [v1]
+2024-11-14 15:03:13,306 p=2918 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-14 15:03:13,317 p=2918 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "aarch64",
+            "Filesystem Disk Space": {
+                "avail": "9.2G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "17G",
+                "status": true,
+                "use_percent": "45%",
+                "used": "7.3G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "Error: Command failed with no stderr output.",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": false,
+                "details": [
+                    "Incompatible architecture. x86_64 required."
+                ],
+                "reason": "Incompatible system."
+            }
+        }
+    }
+}
+2024-11-14 15:03:13,325 p=2918 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-14 15:03:13,325 p=2918 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-14 15:03:31,745 p=2975 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-14 15:03:31,753 p=2975 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-14 15:03:33,505 p=2975 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-14 15:03:33,505 p=2975 u=sarthak n=ansible | ok: [v1]
+2024-11-14 15:04:01,129 p=2975 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-14 15:04:01,130 p=2975 u=sarthak n=ansible | ok: [v2]
+2024-11-14 15:04:01,143 p=2975 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-14 15:04:01,559 p=2975 u=sarthak n=ansible | ok: [v1]
+2024-11-14 15:04:15,392 p=2975 u=sarthak n=ansible | ok: [v2]
+2024-11-14 15:04:15,399 p=2975 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-14 15:04:15,416 p=2975 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "aarch64",
+            "Filesystem Disk Space": {
+                "avail": "9.2G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "17G",
+                "status": true,
+                "use_percent": "45%",
+                "used": "7.3G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "Error: Command failed with no stderr output.",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": false,
+                "details": [
+                    "Incompatible architecture. x86_64 required."
+                ],
+                "reason": "Incompatible system."
+            }
+        }
+    }
+}
+2024-11-14 15:04:15,422 p=2975 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "79G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "14%",
+                "used": "12G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            }
+        }
+    }
+}
+2024-11-14 15:04:15,437 p=2975 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-14 15:04:15,437 p=2975 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-14 15:04:15,437 p=2975 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
