@@ -3,10 +3,6 @@ from ansible.module_utils.command_executor import CommandExecutor
 from ansible.module_utils.install_ba_client_utils import CompatibilityChecker, SystemInfoCollector, extract_tar, execute_command, install_rpm_packages, run_dsmc_command
 import os
 
-
-
-
-
 def main():
     module_args = dict(
         run_commands=dict(type='bool', required=True),
