@@ -38,6 +38,11 @@ options:
 
 EXAMPLES = '''
 ---
+- name: Copy file to remote node
+      copy:
+        src: ./8.1.24.0-TIV-TSMBAC-LinuxX86.tar  # Path on the control node
+        dest: /tmp/8.1.24.0-TIV-TSMBAC-LinuxX86.tar
+
 - name: Install IBM Storage Protect BA Client on remote system
   install_ba_client:
     install: true
