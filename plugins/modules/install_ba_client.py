@@ -38,7 +38,7 @@ options:
 
 EXAMPLES = '''
 ---
-- name: Copy file to remote node
+- name: Copy folder to remote node
       copy:
         src: ./8.1.24.0-TIV-TSMBAC-LinuxX86.tar  # Path on the control node
         dest: /tmp/8.1.24.0-TIV-TSMBAC-LinuxX86.tar
