@@ -1,6 +1,6 @@
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.command_executor import CommandExecutor
-from ansible.module_utils.install_ba_client_utils import CompatibilityChecker, SystemInfoCollector, extract_tar, execute_command, install_rpm_packages, run_dsmc_command
+from ansible.module_utils.install_ba_client_utils import CompatibilityChecker, SystemInfoCollector, extract_tar, install_rpm_packages_in_sequence, run_dsmc_command
 import os
 
 def main():
@@ -13,7 +13,7 @@ def main():
     result = {}
 
     if module.params['run_commands']:
-        # Collect system information and compatibility
+        # Collecting system information and compatibility
         command_executor = CommandExecutor()
         system_info_collector = SystemInfoCollector(command_executor)
         system_info = system_info_collector.collect()
@@ -22,23 +22,23 @@ def main():
         system_info['compatibility'] = compatibility
         result.update(system_info)
 
-        # if system is compatible install the necessary packaages and BA client
+        # If system is compatible, proceed with installation
         if result["compatibility"].get('compatible', False):
-            # Attempt to extract files and change to destination directory
             try:
+                # Extract files and change to destination directory
                 extract_result = extract_tar(module, module.params['path'], module.params['dest_folder'])
                 result.update({"extract_result": extract_result})
                 os.chdir(module.params['dest_folder'])
             except Exception as e:
                 module.fail_json(msg=f"Failed to extract or change directory: {str(e)}")
 
-            # Install RPM packages and capture the results
-            install_results = install_rpm_packages()
-            result.update(install_results)
+            # Identify and install RPM packages in sequence
+            try:
+                install_results = install_rpm_packages_in_sequence(module.params['dest_folder'])
+                result.update({"install_results": install_results})
+            except Exception as e:
+                module.fail_json(msg=f"Installation failed: {str(e)}")
 
-            # Run the dsmc command and handle output
-            dsmc_message = run_dsmc_command()
-            result.update({"dsmc_message": dsmc_message})
 
         else:
             module.fail_json(msg="System compatibility check failed.", result=result)
@@ -46,7 +46,6 @@ def main():
         module.exit_json(result=result)
     else:
         module.exit_json(msg="No commands executed, flag 'run_commands' is set to False.")
-
 
 if __name__ == '__main__':
     main()
