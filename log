@@ -409,3 +409,176 @@ meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_a
 }
 2024-11-14 23:04:53,281 p=10156 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
 2024-11-14 23:04:53,281 p=10156 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 09:58:23,287 p=12027 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 09:58:23,292 p=12027 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 09:58:39,577 p=12027 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 09:58:39,577 p=12027 u=sarthak n=ansible | ok: [v2]
+2024-11-18 09:58:39,584 p=12027 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 09:58:47,745 p=12027 u=sarthak n=ansible | An exception occurred during task execution. To see the full traceback, use -vvv. The error was: ImportError: cannot import name 'run_dsmc_command' from 'ansible.module_utils.install_ba_client_utils' (/tmp/ansible_install_ba_client_payload_xqra76o0/ansible_install_ba_client_payload.zip/ansible/module_utils/install_ba_client_utils.py)
+2024-11-18 09:58:47,746 p=12027 u=sarthak n=ansible | fatal: [v2]: FAILED! => {"changed": false, "module_stderr": "Shared connection to 9.11.69.84 closed.\r\n", "module_stdout": "Traceback (most recent call last):\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731904120.489012-12051-36644908980761/AnsiballZ_install_ba_client.py\", line 107, in <module>\r\n    _ansiballz_main()\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731904120.489012-12051-36644908980761/AnsiballZ_install_ba_client.py\", line 99, in _ansiballz_main\r\n    invoke_module(zipped_mod, temp_path, ANSIBALLZ_PARAMS)\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731904120.489012-12051-36644908980761/AnsiballZ_install_ba_client.py\", line 47, in invoke_module\r\n    runpy.run_module(mod_name='ansible.modules.install_ba_client', init_globals=dict(_module_fqn='ansible.modules.install_ba_client', _modlib_path=modlib_path),\r\n  File \"<frozen runpy>\", line 226, in run_module\r\n  File \"<frozen runpy>\", line 98, in _run_module_code\r\n  File \"<frozen runpy>\", line 88, in _run_code\r\n  File \"/tmp/ansible_install_ba_client_payload_xqra76o0/ansible_install_ba_client_payload.zip/ansible/modules/install_ba_client.py\", line 3, in <module>\r\nImportError: cannot import name 'run_dsmc_command' from 'ansible.module_utils.install_ba_client_utils' (/tmp/ansible_install_ba_client_payload_xqra76o0/ansible_install_ba_client_payload.zip/ansible/module_utils/install_ba_client_utils.py)\r\n", "msg": "MODULE FAILURE\nSee stdout/stderr for the exact error", "rc": 1}
+2024-11-18 09:58:47,748 p=12027 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 09:58:47,748 p=12027 u=sarthak n=ansible | v2                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 09:59:23,366 p=12092 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 09:59:23,369 p=12092 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 09:59:34,588 p=12092 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 09:59:34,589 p=12092 u=sarthak n=ansible | ok: [v2]
+2024-11-18 09:59:34,595 p=12092 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:00:16,344 p=12092 u=sarthak n=ansible | An exception occurred during task execution. To see the full traceback, use -vvv. The error was: AttributeError: 'tuple' object has no attribute 'get'
+2024-11-18 10:00:16,345 p=12092 u=sarthak n=ansible | fatal: [v2]: FAILED! => {"changed": false, "module_stderr": "Shared connection to 9.11.69.84 closed.\r\n", "module_stdout": "Traceback (most recent call last):\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731904175.4814029-12113-278977070608101/AnsiballZ_install_ba_client.py\", line 107, in <module>\r\n    _ansiballz_main()\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731904175.4814029-12113-278977070608101/AnsiballZ_install_ba_client.py\", line 99, in _ansiballz_main\r\n    invoke_module(zipped_mod, temp_path, ANSIBALLZ_PARAMS)\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731904175.4814029-12113-278977070608101/AnsiballZ_install_ba_client.py\", line 47, in invoke_module\r\n    runpy.run_module(mod_name='ansible.modules.install_ba_client', init_globals=dict(_module_fqn='ansible.modules.install_ba_client', _modlib_path=modlib_path),\r\n  File \"<frozen runpy>\", line 226, in run_module\r\n  File \"<frozen runpy>\", line 98, in _run_module_code\r\n  File \"<frozen runpy>\", line 88, in _run_code\r\n  File \"/tmp/ansible_install_ba_client_payload_9k6a_jng/ansible_install_ba_client_payload.zip/ansible/modules/install_ba_client.py\", line 100, in <module>\r\n  File \"/tmp/ansible_install_ba_client_payload_9k6a_jng/ansible_install_ba_client_payload.zip/ansible/modules/install_ba_client.py\", line 89, in main\r\n  File \"/tmp/ansible_install_ba_client_payload_9k6a_jng/ansible_install_ba_client_payload.zip/ansible/module_utils/install_ba_client_utils.py\", line 304, in run_dsmc_command\r\nAttributeError: 'tuple' object has no attribute 'get'\r\n", "msg": "MODULE FAILURE\nSee stdout/stderr for the exact error", "rc": 1}
+2024-11-18 10:00:16,346 p=12092 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:00:16,346 p=12092 u=sarthak n=ansible | v2                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:01:52,727 p=12160 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:01:52,730 p=12160 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:02:19,021 p=12160 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:02:19,022 p=12160 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:02:19,028 p=12160 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:02:34,212 p=12160 u=sarthak n=ansible | An exception occurred during task execution. To see the full traceback, use -vvv. The error was: TypeError: argument of type 'int' is not iterable
+2024-11-18 10:02:34,212 p=12160 u=sarthak n=ansible | fatal: [v2]: FAILED! => {"changed": false, "module_stderr": "Shared connection to 9.11.69.84 closed.\r\n", "module_stdout": "Traceback (most recent call last):\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731904340.0310268-12185-173863054330554/AnsiballZ_install_ba_client.py\", line 107, in <module>\r\n    _ansiballz_main()\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731904340.0310268-12185-173863054330554/AnsiballZ_install_ba_client.py\", line 99, in _ansiballz_main\r\n    invoke_module(zipped_mod, temp_path, ANSIBALLZ_PARAMS)\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731904340.0310268-12185-173863054330554/AnsiballZ_install_ba_client.py\", line 47, in invoke_module\r\n    runpy.run_module(mod_name='ansible.modules.install_ba_client', init_globals=dict(_module_fqn='ansible.modules.install_ba_client', _modlib_path=modlib_path),\r\n  File \"<frozen runpy>\", line 226, in run_module\r\n  File \"<frozen runpy>\", line 98, in _run_module_code\r\n  File \"<frozen runpy>\", line 88, in _run_code\r\n  File \"/tmp/ansible_install_ba_client_payload_j6q2oxgc/ansible_install_ba_client_payload.zip/ansible/modules/install_ba_client.py\", line 100, in <module>\r\n  File \"/tmp/ansible_install_ba_client_payload_j6q2oxgc/ansible_install_ba_client_payload.zip/ansible/modules/install_ba_client.py\", line 89, in main\r\n  File \"/tmp/ansible_install_ba_client_payload_j6q2oxgc/ansible_install_ba_client_payload.zip/ansible/module_utils/install_ba_client_utils.py\", line 313, in run_dsmc_command\r\nTypeError: argument of type 'int' is not iterable\r\n", "msg": "MODULE FAILURE\nSee stdout/stderr for the exact error", "rc": 1}
+2024-11-18 10:02:34,213 p=12160 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:02:34,213 p=12160 u=sarthak n=ansible | v2                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:02:55,081 p=12234 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:02:55,084 p=12234 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:03:08,526 p=12234 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:03:08,527 p=12234 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:03:08,533 p=12234 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:03:27,476 p=12234 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:03:27,485 p=12234 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 10:03:27,501 p=12234 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "extract_result": {
+                "changed": true,
+                "msg": "Tar file extracted successfully."
+            },
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-API64.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-API64-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-APIcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-APIcit-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BA.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BA-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAcit-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAhdw.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAhdw-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                }
+            }
+        }
+    }
+}
+2024-11-18 10:03:27,510 p=12234 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:03:27,510 p=12234 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:07:38,182 p=12301 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:07:38,186 p=12301 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:08:00,546 p=12301 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:08:00,546 p=12301 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:08:00,553 p=12301 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:08:44,806 p=12301 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:08:44,813 p=12301 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 10:08:44,828 p=12301 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "78G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "15%",
+                "used": "13G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "extract_result": {
+                "changed": true,
+                "msg": "Tar file extracted successfully."
+            },
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-API64.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-API64-8.1.24-0                  ########################################\n"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-APIcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-APIcit-8.1.24-0                 ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-BA.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BA-8.1.24-0                     ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BAcit-8.1.24-0                  ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAhdw.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BAhdw-8.1.24-0                  ########################################\n"
+                }
+            }
+        }
+    }
+}
+2024-11-18 10:08:44,836 p=12301 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:08:44,836 p=12301 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   

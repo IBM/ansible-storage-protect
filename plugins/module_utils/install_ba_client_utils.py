@@ -1,6 +1,7 @@
 import logging
 import re
 import  os
+import subprocess
 
 from ansible.module_utils.command_executor import CommandExecutor
 
@@ -208,7 +209,7 @@ def check_os_compatibility(os_name, os_version):
     if "ubuntu" in os_name and os_version in ubuntu_versions:
         return True
 
-    # If none of the conditions are met, return False
+
     return False
 
 
@@ -217,13 +218,13 @@ def extract_tar(module, path, dest_folder):
     This function checks if the .tar file exists and extracts it to the destination folder.
     """
     try:
-        # Check if the .tar file exists on the remote machine
+
         module.log(msg=f"Checking if file {path} exists on the remote host.")
         if not os.path.exists(path):
             module.fail_json(msg=f"Error: File {path} does not exist on the remote host.")
         module.log(msg=f"File {path} found.")
 
-        # Check if the destination directory exists, create if not
+
         module.log(msg=f"Checking if destination folder {dest_folder} exists.")
         if not os.path.exists(dest_folder):
             module.log(msg=f"Destination folder {dest_folder} does not exist. Creating it.")
@@ -231,18 +232,18 @@ def extract_tar(module, path, dest_folder):
         else:
             module.log(msg=f"Destination folder {dest_folder} already exists.")
 
-        # Prepare the command to extract the tar file
+
         extract_command = f"tar -xvf {path} -C {dest_folder}"
         module.log(msg=f"Running extract command: {extract_command}")
 
-        # Execute the command to extract the tar file
+
         rc, stdout, stderr = module.run_command(extract_command)
 
-        # Handle errors during extraction
+
         if rc != 0:
             module.fail_json(msg=f"Failed to extract tar file. Command Error: {stderr}")
 
-        # Successful extraction
+
         module.log(msg="Tar file extracted successfully.")
         return {'changed': True, 'msg': 'Tar file extracted successfully.'}
 
@@ -268,29 +269,6 @@ def execute_command(command):
     except Exception as e:
         return {"error": str(e)}
 
-
-def install_rpm_packages():
-    """
-    Installs necessary RPM packages in sequence and captures output.
-    Returns a dictionary of installation results.
-    """
-    packages = [
-        'gskcrypt64-8.0.55.31.linux.x86_64.rpm',
-        'gskssl64-8.0.55.31.linux.x86_64.rpm',
-        'TIVsm-API64.x86_64.rpm',
-        'TIVsm-APIcit.x86_64.rpm',
-        'TIVsm-BA.x86_64.rpm',
-        'TIVsm-BAcit.x86_64.rpm',
-        'TIVsm-BAhdw.x86_64.rpm'
-    ]
-
-    results = {}
-    for package in packages:
-        command = f'sudo rpm -ivh {package}'
-        results[package] = execute_command(command)
-    return results
-
-
 def run_dsmc_command():
     """
     Runs the dsmc command and checks for specific error messages.
@@ -299,12 +277,77 @@ def run_dsmc_command():
     command = 'sudo dsmc'
     result = execute_command(command)
 
-    # Check if specific error messages are in the output
-    if 'ANS0990W' in result.get("output", "") and 'ANS1035S' in result.get("output", ""):
+
+    if isinstance(result, tuple):
+
+        output = result[0] if len(result) > 0 else ""
+    elif isinstance(result, dict):
+        output = result.get("output", "")
+    else:
+        output = ""
+
+
+    if 'ANS0990W' in output and 'ANS1035S' in output:
         return "BA client is successfully installed, set the options file."
-    elif 'ANS0990W' in result.get("output", ""):
+    elif 'ANS0990W' in output:
         return "BA client is successfully installed, set the dsm.opt file."
-    elif 'ANS1035S' in result.get("output", ""):
+    elif 'ANS1035S' in output:
         return "BA client is successfully installed, set the dsm.sys file."
     else:
         return "BA client installed successfully, but no specific errors detected."
+
+
+def install_rpm_packages_in_sequence(directory):
+    """
+    Installs RPM packages in the specified sequence.
+    Returns a dictionary of installation results.
+    """
+    sequence = {
+        "GSKit": [],
+        "API": [],
+        "BA": [],
+        "Additional": []
+    }
+
+    # Categorize packages into the specified sequence
+    try:
+        for root, _, files in os.walk(directory):
+            for file in files:
+                if file.endswith('.rpm'):
+                    filepath = os.path.join(root, file)
+                    if "gskit" in file.lower():
+                        sequence["GSKit"].append(filepath)
+                    elif "api" in file.lower():
+                        sequence["API"].append(filepath)
+                    elif "ba" in file.lower():
+                        sequence["BA"].append(filepath)
+                    elif "additional" in file.lower():
+                        sequence["Additional"].append(filepath)
+    except Exception as e:
+        raise Exception(f"Error identifying RPM packages: {str(e)}")
+
+    # Install packages in the defined sequence
+    results = {}
+    for category in ["GSKit", "API", "BA", "Additional"]:
+        for package in sequence[category]:
+            command = f'sudo rpm -ivh {package}'
+            try:
+                rc, stdout, stderr = execute_command(command)
+                results[package] = {
+                    "rc": rc,
+                    "stdout": stdout,
+                    "stderr": stderr
+                }
+            except Exception as e:
+                results[package] = {"error": str(e)}
+    return results
+
+
+# Example helper function to execute commands
+def execute_command(command):
+    """
+    Executes a shell command and returns the return code, stdout, and stderr.
+    """
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    return process.returncode, stdout.decode('utf-8'), stderr.decode('utf-8')
