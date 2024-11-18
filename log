@@ -1688,3 +1688,71 @@ meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_a
 2024-11-18 11:23:54,584 p=15204 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
 2024-11-18 11:23:54,584 p=15204 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
 2024-11-18 11:23:54,585 p=15204 u=sarthak n=ansible | v2                         : ok=3    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:29:53,071 p=15834 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 11:29:53,080 p=15834 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 11:29:54,527 p=15834 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:29:54,527 p=15834 u=sarthak n=ansible | ok: [v1]
+2024-11-18 11:30:08,648 p=15834 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:30:08,648 p=15834 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:30:08,662 p=15834 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:30:09,093 p=15834 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 11:30:21,843 p=15834 u=sarthak n=ansible | changed: [v2]
+2024-11-18 11:30:21,851 p=15834 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 11:30:21,869 p=15834 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": true,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-18 11:30:21,878 p=15834 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:30:21,878 p=15834 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:30:21,878 p=15834 u=sarthak n=ansible | v2                         : ok=3    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   

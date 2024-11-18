@@ -3,16 +3,61 @@ from ansible.module_utils.command_executor import CommandExecutor
 from ansible.module_utils.install_ba_client_utils import CompatibilityChecker, SystemInfoCollector, extract_tar, install_rpm_packages_in_sequence, parse_dsm_output
 import os
 
+from plugins.modules.node import DOCUMENTATION
+
+# Module Documentation
+DOCUMENTATION = '''
+---
+module: install_ba_client
+author: "Sarthak Kshirsagar"
+short_description: Install IBM Storage Protect BA Client on remote machines
+description:
+    - This Ansible module automates the installation of IBM Storage Protect BA Client on remote Linux machines. It performs system compatibility checks, extracts the provided BA client `.tar` folder, installs RPM packages, and executes the `dsmc` command to ensure the installation is successful.
+    - The module ensures that the system meets compatibility requirements before proceeding with the installation, making it suitable for automating the deployment of IBM Storage Protect BA Client on multiple remote hosts.
+options:
+    install:
+        description:
+            - A boolean flag that controls whether the BA Client should be installed. Set to true to install the client, false to skip installation.
+        required: true
+        type: bool
+    path:
+        description:
+            - The path to the BA Client `.tar` folder containing the installation files.
+        required: true
+        type: str
+    dest_folder:
+        description:
+            - The path to the destination folder where the BA Client should be installed.
+        required: true
+        type: str
+'''
+
+EXAMPLES = '''
+---
+- name: Install IBM Storage Protect BA Client on remote system
+  install_ba_client:
+    install: true
+    path: /tmp/8.1.24.0-TIV-TSMBAC-LinuxX86.tar
+    dest_folder: /opt/baClient
+  register: result
+
+- name: Skip installation if not required
+  install_ba_client:
+    install: false
+    path: /tmp/8.1.24.0-TIV-TSMBAC-LinuxX86.tar
+    dest_folder: /opt/baClient
+'''
+
 def main():
     module_args = dict(
-        run_commands=dict(type='bool', required=True),
+        install=dict(type='bool', required=True),
         path=dict(type='str', required=True),
         dest_folder=dict(type='str', required=True),
     )
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=False)
     result = {}
 
-    if module.params['run_commands']:
+    if module.params['install']:
         # Collecting system information and compatibility
         command_executor = CommandExecutor()
         system_info_collector = SystemInfoCollector(command_executor)
