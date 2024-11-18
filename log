@@ -582,3 +582,1109 @@ meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_a
 }
 2024-11-18 10:08:44,836 p=12301 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
 2024-11-18 10:08:44,836 p=12301 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:43:51,709 p=13193 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:43:51,712 p=13193 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:44:07,649 p=13193 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:44:07,650 p=13193 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:44:07,656 p=13193 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:44:21,062 p=13193 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:44:21,069 p=13193 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 10:44:21,086 p=13193 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "extract_result": {
+                "changed": true,
+                "msg": "Tar file extracted successfully."
+            },
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-API64.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-API64-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-APIcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-APIcit-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BA.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BA-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAcit-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAhdw.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAhdw-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                }
+            }
+        }
+    }
+}
+2024-11-18 10:44:21,095 p=13193 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:44:21,095 p=13193 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:44:49,481 p=13261 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:44:49,490 p=13261 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:44:50,987 p=13261 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:44:50,988 p=13261 u=sarthak n=ansible | ok: [v1]
+2024-11-18 10:44:59,948 p=13261 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:44:59,948 p=13261 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:44:59,962 p=13261 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:45:00,394 p=13261 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 10:45:13,668 p=13261 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:45:13,677 p=13261 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 10:45:13,694 p=13261 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "extract_result": {
+                "changed": true,
+                "msg": "Tar file extracted successfully."
+            },
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-API64.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-API64-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-APIcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-APIcit-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BA.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BA-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAcit-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAhdw.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAhdw-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                }
+            }
+        }
+    }
+}
+2024-11-18 10:45:13,703 p=13261 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:45:13,703 p=13261 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:45:13,703 p=13261 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:47:58,770 p=13406 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:47:58,779 p=13406 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:48:00,174 p=13406 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:48:00,174 p=13406 u=sarthak n=ansible | ok: [v1]
+2024-11-18 10:48:15,745 p=13406 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:48:15,745 p=13406 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:48:15,759 p=13406 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:48:16,198 p=13406 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 10:48:29,815 p=13406 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:48:29,824 p=13406 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 10:48:29,842 p=13406 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "ANS0990W Options file '/opt/tivoli/tsm/client/ba/bin/dsm.opt' could not be found. Default option values will be used.\nANS1035S Options file '/opt/tivoli/tsm/client/ba/bin/dsm.sys' could not be found, or it cannot be read.",
+            "extract_result": {
+                "changed": true,
+                "msg": "Tar file extracted successfully."
+            },
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-API64.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-API64-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-APIcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-APIcit-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BA.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BA-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAcit-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAhdw.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAhdw-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                }
+            }
+        }
+    }
+}
+2024-11-18 10:48:29,851 p=13406 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:48:29,851 p=13406 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:48:29,851 p=13406 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:52:45,639 p=13538 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:52:45,648 p=13538 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:52:47,052 p=13538 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:52:47,052 p=13538 u=sarthak n=ansible | ok: [v1]
+2024-11-18 10:53:01,963 p=13538 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:53:01,964 p=13538 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:53:01,978 p=13538 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:53:02,414 p=13538 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 10:53:15,443 p=13538 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:53:15,452 p=13538 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 10:53:15,467 p=13538 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys"
+        }
+    }
+}
+2024-11-18 10:53:15,476 p=13538 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:53:15,476 p=13538 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:53:15,476 p=13538 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:54:38,479 p=13643 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:54:38,488 p=13643 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:54:39,864 p=13643 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:54:39,864 p=13643 u=sarthak n=ansible | ok: [v1]
+2024-11-18 10:54:57,313 p=13643 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:54:57,313 p=13643 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:54:57,327 p=13643 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:54:57,763 p=13643 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 10:55:07,631 p=13643 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:55:07,640 p=13643 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 10:55:07,656 p=13643 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys"
+        }
+    }
+}
+2024-11-18 10:55:07,666 p=13643 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:55:07,666 p=13643 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:55:07,666 p=13643 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:55:56,444 p=13745 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:55:56,453 p=13745 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:55:57,686 p=13745 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:55:57,687 p=13745 u=sarthak n=ansible | ok: [v1]
+2024-11-18 10:56:08,785 p=13745 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:56:08,785 p=13745 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:56:08,799 p=13745 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:56:09,237 p=13745 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 10:56:21,710 p=13745 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:56:21,719 p=13745 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 10:56:21,735 p=13745 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "error": "name 'execute_command' is not defined"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "error": "name 'execute_command' is not defined"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "error": "name 'execute_command' is not defined"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "error": "name 'execute_command' is not defined"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "error": "name 'execute_command' is not defined"
+                }
+            }
+        }
+    }
+}
+2024-11-18 10:56:21,744 p=13745 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:56:21,744 p=13745 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:56:21,744 p=13745 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:57:08,091 p=13851 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:57:08,101 p=13851 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:57:09,325 p=13851 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:57:09,325 p=13851 u=sarthak n=ansible | ok: [v1]
+2024-11-18 10:57:24,365 p=13851 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:57:24,366 p=13851 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:57:24,379 p=13851 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:57:24,819 p=13851 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 10:57:38,318 p=13851 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:57:38,327 p=13851 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 10:57:38,344 p=13851 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "error": "not enough values to unpack (expected 3, got 1)"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "error": "not enough values to unpack (expected 3, got 1)"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "error": "not enough values to unpack (expected 3, got 1)"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "error": "not enough values to unpack (expected 3, got 1)"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "error": "not enough values to unpack (expected 3, got 1)"
+                }
+            }
+        }
+    }
+}
+2024-11-18 10:57:38,353 p=13851 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:57:38,353 p=13851 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:57:38,353 p=13851 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:58:32,149 p=13952 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:58:32,158 p=13952 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:58:33,570 p=13952 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:58:33,570 p=13952 u=sarthak n=ansible | ok: [v1]
+2024-11-18 10:58:45,335 p=13952 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:58:45,335 p=13952 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:58:45,349 p=13952 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 10:58:45,790 p=13952 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 10:58:59,060 p=13952 u=sarthak n=ansible | fatal: [v2]: FAILED! => {"changed": false, "msg": "Installation failed: too many values to unpack (expected 2)"}
+2024-11-18 10:58:59,063 p=13952 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 10:58:59,064 p=13952 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:58:59,064 p=13952 u=sarthak n=ansible | v2                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 10:59:44,408 p=14061 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 10:59:44,417 p=14061 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 10:59:45,613 p=14061 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:59:45,613 p=14061 u=sarthak n=ansible | ok: [v1]
+2024-11-18 10:59:59,928 p=14061 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 10:59:59,928 p=14061 u=sarthak n=ansible | ok: [v2]
+2024-11-18 10:59:59,942 p=14061 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:00:00,383 p=14061 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 11:00:15,830 p=14061 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:00:15,839 p=14061 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 11:00:15,856 p=14061 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-API64.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-API64-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-APIcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-APIcit-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BA.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BA-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAcit-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAhdw.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAhdw-8.1.24-0.x86_64 is already installed\n",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\n"
+                }
+            }
+        }
+    }
+}
+2024-11-18 11:00:15,866 p=14061 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:00:15,866 p=14061 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:00:15,866 p=14061 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:02:14,131 p=14184 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 11:02:14,140 p=14184 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 11:02:15,584 p=14184 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:02:15,584 p=14184 u=sarthak n=ansible | ok: [v1]
+2024-11-18 11:02:30,341 p=14184 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:02:30,342 p=14184 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:02:30,354 p=14184 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:02:30,803 p=14184 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 11:02:40,132 p=14184 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:02:40,141 p=14184 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 11:02:40,158 p=14184 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "error": "type object 'CommandExecutor' has no attribute 'execute_command'"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "error": "type object 'CommandExecutor' has no attribute 'execute_command'"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "error": "type object 'CommandExecutor' has no attribute 'execute_command'"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "error": "type object 'CommandExecutor' has no attribute 'execute_command'"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "error": "type object 'CommandExecutor' has no attribute 'execute_command'"
+                }
+            }
+        }
+    }
+}
+2024-11-18 11:02:40,167 p=14184 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:02:40,167 p=14184 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:02:40,167 p=14184 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:03:05,765 p=14289 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 11:03:05,773 p=14289 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 11:03:06,960 p=14289 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:03:06,961 p=14289 u=sarthak n=ansible | ok: [v1]
+2024-11-18 11:03:17,096 p=14289 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:03:17,096 p=14289 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:03:17,108 p=14289 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:03:17,544 p=14289 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 11:03:30,614 p=14289 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:03:30,624 p=14289 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 11:03:30,641 p=14289 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-18 11:03:30,650 p=14289 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:03:30,650 p=14289 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:03:30,650 p=14289 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:06:26,376 p=14416 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 11:06:26,385 p=14416 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 11:06:28,845 p=14416 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:06:28,845 p=14416 u=sarthak n=ansible | ok: [v1]
+2024-11-18 11:06:42,420 p=14416 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:06:42,421 p=14416 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:06:42,435 p=14416 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:06:42,874 p=14416 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 11:06:56,285 p=14416 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:06:56,294 p=14416 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 11:06:56,311 p=14416 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-18 11:06:56,320 p=14416 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:06:56,320 p=14416 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:06:56,320 p=14416 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:09:27,364 p=14533 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 11:09:27,373 p=14533 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 11:09:28,754 p=14533 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:09:28,754 p=14533 u=sarthak n=ansible | ok: [v1]
+2024-11-18 11:09:43,350 p=14533 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:09:43,350 p=14533 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:09:43,364 p=14533 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:09:43,806 p=14533 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 11:10:22,266 p=14533 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:10:22,275 p=14533 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 11:10:22,291 p=14533 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "14G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 0,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-API64-8.1.24-0                  ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 0,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-APIcit-8.1.24-0                 ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 0,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BA-8.1.24-0                     ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-18 11:10:22,300 p=14533 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:10:22,300 p=14533 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:10:22,300 p=14533 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:11:27,917 p=14644 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 11:11:27,926 p=14644 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 11:11:29,305 p=14644 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:11:29,306 p=14644 u=sarthak n=ansible | ok: [v1]
+2024-11-18 11:11:44,942 p=14644 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:11:44,942 p=14644 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:11:44,956 p=14644 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:11:45,400 p=14644 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "module_stderr": "Shared connection to 172.16.7.128 closed.\r\n", "module_stdout": "\r\nTraceback (most recent call last):\r\n  File \"/home/ansibleuser/.ansible/tmp/ansible-tmp-1731908505.02796-14690-32559114915399/AnsiballZ_install_ba_client.py\", line 107, in <module>\r\n    _ansiballz_main()\r\n  File \"/home/ansibleuser/.ansible/tmp/ansible-tmp-1731908505.02796-14690-32559114915399/AnsiballZ_install_ba_client.py\", line 99, in _ansiballz_main\r\n    invoke_module(zipped_mod, temp_path, ANSIBALLZ_PARAMS)\r\n  File \"/home/ansibleuser/.ansible/tmp/ansible-tmp-1731908505.02796-14690-32559114915399/AnsiballZ_install_ba_client.py\", line 47, in invoke_module\r\n    runpy.run_module(mod_name='ansible.modules.install_ba_client', init_globals=dict(_module_fqn='ansible.modules.install_ba_client', _modlib_path=modlib_path),\r\n  File \"/usr/lib64/python3.9/runpy.py\", line 225, in run_module\r\n    return _run_module_code(code, init_globals, run_name, mod_spec)\r\n  File \"/usr/lib64/python3.9/runpy.py\", line 97, in _run_module_code\r\n    _run_code(code, mod_globals, init_globals,\r\n  File \"/usr/lib64/python3.9/runpy.py\", line 87, in _run_code\r\n    exec(code, run_globals)\r\n  File \"/tmp/ansible_install_ba_client_payload_l5861z14/ansible_install_ba_client_payload.zip/ansible/modules/install_ba_client.py\", line 6, in <module>\r\nModuleNotFoundError: No module named 'ansible_collections'\r\n", "msg": "MODULE FAILURE\nSee stdout/stderr for the exact error", "rc": 1}
+2024-11-18 11:11:54,919 p=14644 u=sarthak n=ansible | An exception occurred during task execution. To see the full traceback, use -vvv. The error was: ModuleNotFoundError: No module named 'ansible_collections'
+2024-11-18 11:11:54,920 p=14644 u=sarthak n=ansible | fatal: [v2]: FAILED! => {"changed": false, "module_stderr": "Shared connection to 9.11.69.84 closed.\r\n", "module_stdout": "Traceback (most recent call last):\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731908505.862014-14691-53950035801734/AnsiballZ_install_ba_client.py\", line 107, in <module>\r\n    _ansiballz_main()\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731908505.862014-14691-53950035801734/AnsiballZ_install_ba_client.py\", line 99, in _ansiballz_main\r\n    invoke_module(zipped_mod, temp_path, ANSIBALLZ_PARAMS)\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731908505.862014-14691-53950035801734/AnsiballZ_install_ba_client.py\", line 47, in invoke_module\r\n    runpy.run_module(mod_name='ansible.modules.install_ba_client', init_globals=dict(_module_fqn='ansible.modules.install_ba_client', _modlib_path=modlib_path),\r\n  File \"<frozen runpy>\", line 226, in run_module\r\n  File \"<frozen runpy>\", line 98, in _run_module_code\r\n  File \"<frozen runpy>\", line 88, in _run_code\r\n  File \"/tmp/ansible_install_ba_client_payload_1twxn892/ansible_install_ba_client_payload.zip/ansible/modules/install_ba_client.py\", line 6, in <module>\r\nModuleNotFoundError: No module named 'ansible_collections'\r\n", "msg": "MODULE FAILURE\nSee stdout/stderr for the exact error", "rc": 1}
+2024-11-18 11:11:54,922 p=14644 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:11:54,923 p=14644 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:11:54,923 p=14644 u=sarthak n=ansible | v2                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:12:09,371 p=14743 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 11:12:09,380 p=14743 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 11:12:10,576 p=14743 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:12:10,576 p=14743 u=sarthak n=ansible | ok: [v1]
+2024-11-18 11:12:26,687 p=14743 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:12:26,688 p=14743 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:12:26,697 p=14743 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:12:27,122 p=14743 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "module_stderr": "Shared connection to 172.16.7.128 closed.\r\n", "module_stdout": "\r\nTraceback (most recent call last):\r\n  File \"/home/ansibleuser/.ansible/tmp/ansible-tmp-1731908546.767285-14783-216847524061696/AnsiballZ_install_ba_client.py\", line 107, in <module>\r\n    _ansiballz_main()\r\n  File \"/home/ansibleuser/.ansible/tmp/ansible-tmp-1731908546.767285-14783-216847524061696/AnsiballZ_install_ba_client.py\", line 99, in _ansiballz_main\r\n    invoke_module(zipped_mod, temp_path, ANSIBALLZ_PARAMS)\r\n  File \"/home/ansibleuser/.ansible/tmp/ansible-tmp-1731908546.767285-14783-216847524061696/AnsiballZ_install_ba_client.py\", line 47, in invoke_module\r\n    runpy.run_module(mod_name='ansible.modules.install_ba_client', init_globals=dict(_module_fqn='ansible.modules.install_ba_client', _modlib_path=modlib_path),\r\n  File \"/usr/lib64/python3.9/runpy.py\", line 225, in run_module\r\n    return _run_module_code(code, init_globals, run_name, mod_spec)\r\n  File \"/usr/lib64/python3.9/runpy.py\", line 97, in _run_module_code\r\n    _run_code(code, mod_globals, init_globals,\r\n  File \"/usr/lib64/python3.9/runpy.py\", line 87, in _run_code\r\n    exec(code, run_globals)\r\n  File \"/tmp/ansible_install_ba_client_payload_b7drjiyp/ansible_install_ba_client_payload.zip/ansible/modules/install_ba_client.py\", line 6, in <module>\r\nModuleNotFoundError: No module named 'ansible_collections'\r\n", "msg": "MODULE FAILURE\nSee stdout/stderr for the exact error", "rc": 1}
+2024-11-18 11:12:36,020 p=14743 u=sarthak n=ansible | An exception occurred during task execution. To see the full traceback, use -vvv. The error was: ModuleNotFoundError: No module named 'ansible_collections'
+2024-11-18 11:12:36,021 p=14743 u=sarthak n=ansible | fatal: [v2]: FAILED! => {"changed": false, "module_stderr": "Shared connection to 9.11.69.84 closed.\r\n", "module_stdout": "Traceback (most recent call last):\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731908547.570892-14784-203818477784975/AnsiballZ_install_ba_client.py\", line 107, in <module>\r\n    _ansiballz_main()\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731908547.570892-14784-203818477784975/AnsiballZ_install_ba_client.py\", line 99, in _ansiballz_main\r\n    invoke_module(zipped_mod, temp_path, ANSIBALLZ_PARAMS)\r\n  File \"/root/.ansible/tmp/ansible-tmp-1731908547.570892-14784-203818477784975/AnsiballZ_install_ba_client.py\", line 47, in invoke_module\r\n    runpy.run_module(mod_name='ansible.modules.install_ba_client', init_globals=dict(_module_fqn='ansible.modules.install_ba_client', _modlib_path=modlib_path),\r\n  File \"<frozen runpy>\", line 226, in run_module\r\n  File \"<frozen runpy>\", line 98, in _run_module_code\r\n  File \"<frozen runpy>\", line 88, in _run_code\r\n  File \"/tmp/ansible_install_ba_client_payload_rtc90vgq/ansible_install_ba_client_payload.zip/ansible/modules/install_ba_client.py\", line 6, in <module>\r\nModuleNotFoundError: No module named 'ansible_collections'\r\n", "msg": "MODULE FAILURE\nSee stdout/stderr for the exact error", "rc": 1}
+2024-11-18 11:12:36,023 p=14743 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:12:36,023 p=14743 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:12:36,023 p=14743 u=sarthak n=ansible | v2                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:13:51,825 p=14845 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 11:13:51,833 p=14845 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 11:13:53,259 p=14845 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:13:53,260 p=14845 u=sarthak n=ansible | ok: [v1]
+2024-11-18 11:14:07,569 p=14845 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:14:07,570 p=14845 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:14:07,583 p=14845 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:14:08,024 p=14845 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 11:14:21,315 p=14845 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:14:21,324 p=14845 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 11:14:21,341 p=14845 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-18 11:14:21,350 p=14845 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:14:21,350 p=14845 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:14:21,350 p=14845 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:18:04,387 p=14989 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 11:18:04,395 p=14989 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 11:18:06,819 p=14989 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:18:06,819 p=14989 u=sarthak n=ansible | ok: [v1]
+2024-11-18 11:18:24,930 p=14989 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:18:24,930 p=14989 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:18:24,944 p=14989 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:18:25,399 p=14989 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 11:18:39,638 p=14989 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:18:39,647 p=14989 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 11:18:39,663 p=14989 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "changed": true,
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-18 11:18:39,672 p=14989 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:18:39,672 p=14989 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:18:39,672 p=14989 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:19:33,348 p=15094 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 11:19:33,356 p=15094 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 11:19:34,814 p=15094 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:19:34,814 p=15094 u=sarthak n=ansible | ok: [v1]
+2024-11-18 11:19:47,422 p=15094 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:19:47,423 p=15094 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:19:47,437 p=15094 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:19:47,875 p=15094 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 11:20:01,666 p=15094 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:20:01,674 p=15094 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 11:20:01,690 p=15094 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "changed": true,
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-18 11:20:01,698 p=15094 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:20:01,698 p=15094 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:20:01,699 p=15094 u=sarthak n=ansible | v2                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:23:22,293 p=15204 u=sarthak n=ansible | PLAY [Execute system commands] ****************************************************************************************************************************************************
+2024-11-18 11:23:22,302 p=15204 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-18 11:23:24,681 p=15204 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.9, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:23:24,681 p=15204 u=sarthak n=ansible | ok: [v1]
+2024-11-18 11:23:39,441 p=15204 u=sarthak n=ansible | [WARNING]: Platform linux on host v2 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-18 11:23:39,441 p=15204 u=sarthak n=ansible | ok: [v2]
+2024-11-18 11:23:39,454 p=15204 u=sarthak n=ansible | TASK [Run system commands and get output] *****************************************************************************************************************************************
+2024-11-18 11:23:39,894 p=15204 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "System compatibility check failed.", "result": {"Architecture": "aarch64", "Filesystem Disk Space": {"avail": "8.6G", "filesystem": "/dev/mapper/rhel-root", "mounted_on": "/", "size": "17G", "status": true, "use_percent": "48%", "used": "7.9G"}, "Filesystem Type": "xfs", "Java Version": "Java is not installed on the system.", "OS Release Info": {"os_name": "Red Hat Enterprise Linux", "os_version": "9.4"}, "compatibility": {"compatible": false, "details": ["Incompatible architecture. x86_64 required.", "Java is not installed. Please install Java."], "reason": "Incompatible system."}}}
+2024-11-18 11:23:54,549 p=15204 u=sarthak n=ansible | changed: [v2]
+2024-11-18 11:23:54,559 p=15204 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-18 11:23:54,575 p=15204 u=sarthak n=ansible | ok: [v2] => {
+    "result": {
+        "changed": true,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "77G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "91G",
+                "status": true,
+                "use_percent": "16%",
+                "used": "15G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "java version \"1.8.0_421\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "8.10"
+            },
+            "changed": true,
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-18 11:23:54,584 p=15204 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-18 11:23:54,584 p=15204 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-18 11:23:54,585 p=15204 u=sarthak n=ansible | v2                         : ok=3    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
