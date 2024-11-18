@@ -1,16 +1,15 @@
 import subprocess
+
 class CommandExecutor:
-    """Executes commands and returns the output."""
+    """Executes commands and returns the output and the return code."""
 
     @staticmethod
     def execute(command):
-        """Executes a command and returns its output."""
+        """Executes a command and returns its output and return code."""
         try:
             result = subprocess.run(command, shell=True, text=True, capture_output=True)
 
-            if result.returncode == 0:
-                return result.stdout.strip()
-            else:
-                return f"Error: {result.stderr.strip() or 'Command failed with no stderr output.'}"
+            # Return both the command output and the return code
+            return result.stdout.strip(), result.returncode
         except FileNotFoundError as e:
-            return f"FileNotFoundError: {str(e)}"
+            return f"FileNotFoundError: {str(e)}", 1  # Non-zero return code on error

@@ -88,6 +88,53 @@ class CompatibilityChecker:
 
 
 
+# class SystemInfoCollector:
+#     """Collects system information using commands and processes the output."""
+#
+#     def __init__(self, command_executor):
+#         self.command_executor = command_executor
+#
+#     def collect(self):
+#         """Collects system information like architecture, disk space, OS details, etc."""
+#         system_info = {}
+#
+#         # Collect architecture info
+#
+#         lscpu_output = self.command_executor.execute("lscpu")
+#         system_info['Architecture'] = extract_architecture(lscpu_output)
+#
+#
+#         # Collect disk space info
+#
+#         df_output = self.command_executor.execute("df -h /")
+#
+#         system_info['Filesystem Disk Space'] = extract_disk_info(df_output)
+#
+#         # Collect OS release info
+#
+#         os_release_output = self.command_executor.execute("cat /etc/os-release")
+#         os_info = extract_os_info(os_release_output)
+#         system_info['OS Release Info'] = os_info
+#
+#
+#         # Collect filesystem type info
+#
+#         fs_type_output = self.command_executor.execute("df -T /")
+#         system_info['Filesystem Type'] = fs_type_output.splitlines()[1].split()[1]  # Extract file system type
+#
+#
+#         # Collect Java version info
+#
+#         java_version_output = self.command_executor.execute("java -version 2>&1")
+#         if "not found" in java_version_output:
+#             system_info['Java Version'] = "Java is not installed on the system."
+#         else:
+#             system_info['Java Version'] = java_version_output.splitlines()[0]
+#
+#
+#         return system_info
+
+
 class SystemInfoCollector:
     """Collects system information using commands and processes the output."""
 
@@ -99,41 +146,42 @@ class SystemInfoCollector:
         system_info = {}
 
         # Collect architecture info
-
-        lscpu_output = self.command_executor.execute("lscpu")
-        system_info['Architecture'] = extract_architecture(lscpu_output)
-
+        lscpu_output, lscpu_code = self.command_executor.execute("lscpu")
+        if lscpu_code == 0:
+            system_info['Architecture'] = extract_architecture(lscpu_output)
+        else:
+            system_info['Architecture'] = f"Error: {lscpu_output}"
 
         # Collect disk space info
-
-        df_output = self.command_executor.execute("df -h /")
-
-        system_info['Filesystem Disk Space'] = extract_disk_info(df_output)
+        df_output, df_code = self.command_executor.execute("df -h /")
+        if df_code == 0:
+            system_info['Filesystem Disk Space'] = extract_disk_info(df_output)
+        else:
+            system_info['Filesystem Disk Space'] = f"Error: {df_output}"
 
         # Collect OS release info
-
-        os_release_output = self.command_executor.execute("cat /etc/os-release")
-        os_info = extract_os_info(os_release_output)
-        system_info['OS Release Info'] = os_info
-
+        os_release_output, os_release_code = self.command_executor.execute("cat /etc/os-release")
+        if os_release_code == 0:
+            os_info = extract_os_info(os_release_output)
+            system_info['OS Release Info'] = os_info
+        else:
+            system_info['OS Release Info'] = f"Error: {os_release_output}"
 
         # Collect filesystem type info
-
-        fs_type_output = self.command_executor.execute("df -T /")
-        system_info['Filesystem Type'] = fs_type_output.splitlines()[1].split()[1]  # Extract file system type
-
+        fs_type_output, fs_type_code = self.command_executor.execute("df -T /")
+        if fs_type_code == 0:
+            system_info['Filesystem Type'] = fs_type_output.splitlines()[1].split()[1]  # Extract file system type
+        else:
+            system_info['Filesystem Type'] = f"Error: {fs_type_output}"
 
         # Collect Java version info
-
-        java_version_output = self.command_executor.execute("java -version 2>&1")
-        if "not found" in java_version_output:
+        java_version_output, java_version_code = self.command_executor.execute("java -version 2>&1")
+        if java_version_code != 0:
             system_info['Java Version'] = "Java is not installed on the system."
         else:
             system_info['Java Version'] = java_version_output.splitlines()[0]
 
-
         return system_info
-
 
 
 # Helper functions
@@ -255,48 +303,6 @@ def extract_tar(module, path, dest_folder):
         module.fail_json(msg=f"An unexpected error occurred: {str(e)}")
 
 
-def execute_command(command):
-    """
-    Execute a command and handle potential errors.
-    Returns a dictionary with command output or error message.
-    """
-    try:
-        result = CommandExecutor.execute(command)
-        if isinstance(result, dict):
-            return result
-        else:
-            return {"output": result}
-    except Exception as e:
-        return {"error": str(e)}
-
-def run_dsmc_command():
-    """
-    Runs the dsmc command and checks for specific error messages.
-    Returns a message based on the output of the dsmc command.
-    """
-    command = 'sudo dsmc'
-    result = execute_command(command)
-
-
-    if isinstance(result, tuple):
-
-        output = result[0] if len(result) > 0 else ""
-    elif isinstance(result, dict):
-        output = result.get("output", "")
-    else:
-        output = ""
-
-
-    if 'ANS0990W' in output and 'ANS1035S' in output:
-        return "BA client is successfully installed, set the options file."
-    elif 'ANS0990W' in output:
-        return "BA client is successfully installed, set the dsm.opt file."
-    elif 'ANS1035S' in output:
-        return "BA client is successfully installed, set the dsm.sys file."
-    else:
-        return "BA client installed successfully, but no specific errors detected."
-
-
 def install_rpm_packages_in_sequence(directory):
     """
     Installs RPM packages in the specified sequence.
@@ -332,22 +338,29 @@ def install_rpm_packages_in_sequence(directory):
         for package in sequence[category]:
             command = f'sudo rpm -ivh {package}'
             try:
-                rc, stdout, stderr = execute_command(command)
+                stdout, rc = CommandExecutor.execute(command)
                 results[package] = {
                     "rc": rc,
                     "stdout": stdout,
-                    "stderr": stderr
                 }
             except Exception as e:
                 results[package] = {"error": str(e)}
     return results
 
 
-# Example helper function to execute commands
-def execute_command(command):
+
+def parse_dsm_output(output):
     """
-    Executes a shell command and returns the return code, stdout, and stderr.
+    Parses the output of the DSM command and checks for specific warning messages.
+
+    Args:
+        output (str): The output from the DSM command.
+
+    Returns:
+        str: A message indicating the status of the installation or configuration.
     """
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    return process.returncode, stdout.decode('utf-8'), stderr.decode('utf-8')
+    if "ANS0990W" in output:
+        return "BA Client installed successfully. Configure the dsm.opt and dsm.sys", True
+
+    # You can add more conditions here if necessary to check other warnings or errors
+    return "BA Client installation encountered issues. Please check the logs for details.", False
