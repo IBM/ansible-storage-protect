@@ -1,3 +1,7 @@
+#!/usr/bin/python
+# coding: utf-8 -*-
+
+
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.command_executor import CommandExecutor
 from ansible.module_utils.install_ba_client_utils import CompatibilityChecker, SystemInfoCollector, extract_tar, install_rpm_packages_in_sequence, parse_dsm_output
