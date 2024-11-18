@@ -87,54 +87,6 @@ class CompatibilityChecker:
         return {"compatible": False, "reason": "Incompatible system.", "details": self.incompatible_reasons}
 
 
-
-# class SystemInfoCollector:
-#     """Collects system information using commands and processes the output."""
-#
-#     def __init__(self, command_executor):
-#         self.command_executor = command_executor
-#
-#     def collect(self):
-#         """Collects system information like architecture, disk space, OS details, etc."""
-#         system_info = {}
-#
-#         # Collect architecture info
-#
-#         lscpu_output = self.command_executor.execute("lscpu")
-#         system_info['Architecture'] = extract_architecture(lscpu_output)
-#
-#
-#         # Collect disk space info
-#
-#         df_output = self.command_executor.execute("df -h /")
-#
-#         system_info['Filesystem Disk Space'] = extract_disk_info(df_output)
-#
-#         # Collect OS release info
-#
-#         os_release_output = self.command_executor.execute("cat /etc/os-release")
-#         os_info = extract_os_info(os_release_output)
-#         system_info['OS Release Info'] = os_info
-#
-#
-#         # Collect filesystem type info
-#
-#         fs_type_output = self.command_executor.execute("df -T /")
-#         system_info['Filesystem Type'] = fs_type_output.splitlines()[1].split()[1]  # Extract file system type
-#
-#
-#         # Collect Java version info
-#
-#         java_version_output = self.command_executor.execute("java -version 2>&1")
-#         if "not found" in java_version_output:
-#             system_info['Java Version'] = "Java is not installed on the system."
-#         else:
-#             system_info['Java Version'] = java_version_output.splitlines()[0]
-#
-#
-#         return system_info
-
-
 class SystemInfoCollector:
     """Collects system information using commands and processes the output."""
 
