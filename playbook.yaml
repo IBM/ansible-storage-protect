@@ -1,0 +1,19 @@
+- name: Test register server in IBM Storage Protect
+  hosts: storage_protect
+  vars:
+    ibmsp_host: 10.240.64.6
+    ibmsp_username: "{{ lookup('env', 'IBM_SP_USERNAME') }}"
+    ibmsp_password: "{{ lookup('env', 'IBM_SP_PASSWORD') }}"
+  tasks:
+    - name: Register hosts
+      ibm.storage_protect.node:
+        node: 10.240.64.8
+        node_password: "{{ lookup('env', 'NODE_PASSWORD') }}"
+        state: "{{ ibmsp_state | default(omit) }}"
+        session_security: transitional
+        node_password_expiry: 90
+        can_archive_delete: true
+        min_extent_size: 250
+        server_name: "{{ ibmsp_host }}"
+        username: "{{ ibmsp_username }}"
+        password: "{{ ibmsp_password }}"
