@@ -1756,3 +1756,618 @@ meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_a
 2024-11-18 11:30:21,878 p=15834 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
 2024-11-18 11:30:21,878 p=15834 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
 2024-11-18 11:30:21,878 p=15834 u=sarthak n=ansible | v2                         : ok=3    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:10:00,655 p=18508 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:10:00,665 p=18508 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:10:01,787 p=18508 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"msg": "Using a SSH password instead of a key is not possible because Host Key checking is enabled and sshpass does not support this.  Please add this host's fingerprint to your known_hosts file to manage this host."}
+2024-11-19 11:10:01,788 p=18508 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:10:01,788 p=18508 u=sarthak n=ansible | v1                         : ok=0    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:10:27,958 p=18535 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:10:27,962 p=18535 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:10:29,144 p=18535 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"msg": "Using a SSH password instead of a key is not possible because Host Key checking is enabled and sshpass does not support this.  Please add this host's fingerprint to your known_hosts file to manage this host."}
+2024-11-19 11:10:29,145 p=18535 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:10:29,145 p=18535 u=sarthak n=ansible | v1                         : ok=0    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:11:57,881 p=18674 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:11:57,885 p=18674 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:12:03,267 p=18674 u=sarthak n=ansible | fatal: [v1]: UNREACHABLE! => {"changed": false, "msg": "Invalid/incorrect password: Permission denied, please try again.", "unreachable": true}
+2024-11-19 11:12:03,269 p=18674 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:12:03,269 p=18674 u=sarthak n=ansible | v1                         : ok=0    changed=0    unreachable=1    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:13:03,004 p=18715 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:13:03,007 p=18715 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:13:08,496 p=18715 u=sarthak n=ansible | fatal: [v1]: UNREACHABLE! => {"changed": false, "msg": "Invalid/incorrect password: Permission denied, please try again.", "unreachable": true}
+2024-11-19 11:13:08,497 p=18715 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:13:08,498 p=18715 u=sarthak n=ansible | v1                         : ok=0    changed=0    unreachable=1    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:14:19,327 p=18765 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:14:19,331 p=18765 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:14:36,741 p=18765 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:14:36,741 p=18765 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:14:36,748 p=18765 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:14:43,697 p=18765 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:14:43,705 p=18765 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-19 11:14:43,719 p=18765 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "msg": "System compatibility check passed. No installation performed.",
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "445G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "491G",
+                "status": true,
+                "use_percent": "10%",
+                "used": "46G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "openjdk version \"1.8.0_432\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            }
+        }
+    }
+}
+2024-11-19 11:14:43,729 p=18765 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:14:43,729 p=18765 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:17:08,876 p=18850 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:17:08,880 p=18850 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:17:23,375 p=18850 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:17:23,375 p=18850 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:17:23,382 p=18850 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:17:30,354 p=18850 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "An unexpected error occurred: stat: path should be string, bytes, os.PathLike or integer, not NoneType"}
+2024-11-19 11:17:30,355 p=18850 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:17:30,356 p=18850 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:18:14,574 p=18921 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:18:14,577 p=18921 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:18:24,483 p=18921 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:18:24,483 p=18921 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:18:24,490 p=18921 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:18:31,451 p=18921 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "An unexpected error occurred: stat: path should be string, bytes, os.PathLike or integer, not NoneType"}
+2024-11-19 11:18:31,452 p=18921 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:18:31,453 p=18921 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:18:45,527 p=18976 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:18:45,531 p=18976 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:18:55,522 p=18976 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:18:55,522 p=18976 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:18:55,529 p=18976 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:19:02,462 p=18976 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "An unexpected error occurred: stat: path should be string, bytes, os.PathLike or integer, not NoneType"}
+2024-11-19 11:19:02,463 p=18976 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:19:02,464 p=18976 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:19:08,843 p=19034 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:19:08,847 p=19034 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:19:18,662 p=19034 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:19:18,662 p=19034 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:19:18,669 p=19034 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:19:25,588 p=19034 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "An unexpected error occurred: stat: path should be string, bytes, os.PathLike or integer, not NoneType"}
+2024-11-19 11:19:25,589 p=19034 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:19:25,589 p=19034 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:20:06,837 p=19098 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:20:06,840 p=19098 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:20:16,624 p=19098 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:20:16,625 p=19098 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:20:16,632 p=19098 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:20:23,455 p=19098 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "Error: File /tmp/8.1.24.0-TIV-TSMBAC-LinuxX86.tar does not exist on the remote host."}
+2024-11-19 11:20:23,456 p=19098 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:20:23,457 p=19098 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:21:31,151 p=19169 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:21:31,154 p=19169 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:21:44,983 p=19169 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:21:44,983 p=19169 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:21:44,990 p=19169 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:21:51,835 p=19169 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "An unexpected error occurred: stat: path should be string, bytes, os.PathLike or integer, not NoneType"}
+2024-11-19 11:21:51,837 p=19169 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:21:51,837 p=19169 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:23:16,241 p=19296 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:23:16,244 p=19296 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:23:30,482 p=19296 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:23:30,483 p=19296 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:23:30,490 p=19296 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:23:37,399 p=19296 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "An unexpected error occurred: stat: path should be string, bytes, os.PathLike or integer, not NoneType"}
+2024-11-19 11:23:37,400 p=19296 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:23:37,401 p=19296 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:28:10,604 p=19401 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:28:10,607 p=19401 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:28:24,884 p=19401 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:28:24,884 p=19401 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:28:24,891 p=19401 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:28:31,686 p=19401 u=sarthak n=ansible | fatal: [v1]: FAILED! => {"changed": false, "msg": "The 'path' parameter is required when 'install' is set to True."}
+2024-11-19 11:28:31,688 p=19401 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:28:31,688 p=19401 u=sarthak n=ansible | v1                         : ok=1    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:28:41,339 p=19462 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:28:41,343 p=19462 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:28:51,819 p=19462 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:28:51,819 p=19462 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:28:51,826 p=19462 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:28:58,714 p=19462 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:28:58,722 p=19462 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-19 11:28:58,738 p=19462 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "msg": "No commands executed, 'install' is set to False.",
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "445G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "491G",
+                "status": true,
+                "use_percent": "10%",
+                "used": "46G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "openjdk version \"1.8.0_432\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            }
+        }
+    }
+}
+2024-11-19 11:28:58,748 p=19462 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:28:58,748 p=19462 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:55:26,039 p=21117 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:55:26,044 p=21117 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:55:40,879 p=21117 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:55:40,879 p=21117 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:55:40,886 p=21117 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:55:48,087 p=21117 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:55:48,097 p=21117 u=sarthak n=ansible | TASK [copy the module on the remote host] *****************************************************************************************************************************************
+2024-11-19 11:55:48,112 p=21117 u=sarthak n=ansible | [DEPRECATION WARNING]: The connection's stdin object is deprecated. Call display.prompt_until(msg) instead. This feature will be removed in version 2.19. Deprecation warnings can
+ be disabled by setting deprecation_warnings=False in ansible.cfg.
+2024-11-19 11:56:01,549 p=21117 u=sarthak n=ansible |  [ERROR]: User interrupted execution
+
+2024-11-19 11:56:32,548 p=21198 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:56:32,552 p=21198 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:56:42,727 p=21198 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:56:42,727 p=21198 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:56:42,734 p=21198 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 11:56:49,972 p=21198 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:56:49,981 p=21198 u=sarthak n=ansible | TASK [copy the module on the remote host] *****************************************************************************************************************************************
+2024-11-19 11:56:49,997 p=21198 u=sarthak n=ansible | [DEPRECATION WARNING]: The connection's stdin object is deprecated. Call display.prompt_until(msg) instead. This feature will be removed in version 2.19. Deprecation warnings can
+ be disabled by setting deprecation_warnings=False in ansible.cfg.
+2024-11-19 11:58:35,815 p=21198 u=sarthak n=ansible | changed: [v1]
+2024-11-19 11:58:35,820 p=21198 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-19 11:58:35,831 p=21198 u=sarthak n=ansible | ok: [v1] => {
+    "copy_result": {
+        "changed": true,
+        "cmd": "sshpass -d3 /usr/bin/rsync --delay-updates -F --compress --archive --rsh='/usr/bin/ssh -S none -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' --rsync-path='sudo -u root rsync' --out-format='<<CHANGED>>%i %n%L' /Users/sarthak/PycharmProjects/ansible-storage-protect/8.1.24.0-TIV-TSMBAC-LinuxX86.tar root@bonjovi-vm76.storage.tucson.ibm.com:/tmp/",
+        "failed": false,
+        "msg": "<f+++++++ 8.1.24.0-TIV-TSMBAC-LinuxX86.tar\n",
+        "rc": 0,
+        "stdout_lines": [
+            "<f+++++++ 8.1.24.0-TIV-TSMBAC-LinuxX86.tar"
+        ]
+    }
+}
+2024-11-19 11:58:35,840 p=21198 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 11:58:35,840 p=21198 u=sarthak n=ansible | v1                         : ok=4    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-19 11:59:40,408 p=21291 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 11:59:40,411 p=21291 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 11:59:54,838 p=21291 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 11:59:54,839 p=21291 u=sarthak n=ansible | ok: [v1]
+2024-11-19 11:59:54,844 p=21291 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 12:00:04,299 p=21291 u=sarthak n=ansible | ok: [v1]
+2024-11-19 12:00:04,306 p=21291 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-19 12:00:04,323 p=21291 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "444G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "491G",
+                "status": true,
+                "use_percent": "10%",
+                "used": "47G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "openjdk version \"1.8.0_432\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installation encountered issues. Please check the logs for details.",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": ""
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": ""
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": ""
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": ""
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": ""
+                }
+            }
+        }
+    }
+}
+2024-11-19 12:00:04,333 p=21291 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 12:00:04,333 p=21291 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-19 12:09:02,580 p=21387 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 12:09:02,583 p=21387 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 12:09:18,326 p=21387 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 12:09:18,326 p=21387 u=sarthak n=ansible | ok: [v1]
+2024-11-19 12:09:18,333 p=21387 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 12:09:27,308 p=21387 u=sarthak n=ansible | ok: [v1]
+2024-11-19 12:09:27,311 p=21387 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-19 12:09:27,323 p=21387 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": false,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "444G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "491G",
+                "status": true,
+                "use_percent": "10%",
+                "used": "48G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "openjdk version \"1.8.0_432\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installation encountered issues. Please check the logs for details.",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": ""
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": ""
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": ""
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": ""
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": ""
+                }
+            }
+        }
+    }
+}
+2024-11-19 12:09:27,332 p=21387 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 12:09:27,332 p=21387 u=sarthak n=ansible | v1                         : ok=3    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-19 12:14:08,864 p=21454 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 12:14:08,868 p=21454 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 12:14:23,792 p=21454 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 12:14:23,793 p=21454 u=sarthak n=ansible | ok: [v1]
+2024-11-19 12:14:23,799 p=21454 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 12:14:46,506 p=21454 u=sarthak n=ansible | changed: [v1]
+2024-11-19 12:14:46,513 p=21454 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-19 12:14:46,530 p=21454 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": true,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "443G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "491G",
+                "status": true,
+                "use_percent": "10%",
+                "used": "48G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "openjdk version \"1.8.0_432\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 0,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BAcit-8.1.24-0                  ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 0,
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BAhdw-8.1.24-0                  ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-19 12:14:46,540 p=21454 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 12:14:46,540 p=21454 u=sarthak n=ansible | v1                         : ok=3    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-19 12:32:51,119 p=21624 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 12:32:51,123 p=21624 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 12:33:05,373 p=21624 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 12:33:05,373 p=21624 u=sarthak n=ansible | ok: [v1]
+2024-11-19 12:33:05,380 p=21624 u=sarthak n=ansible | TASK [Check system compatibility] *************************************************************************************************************************************************
+2024-11-19 12:34:20,832 p=21624 u=sarthak n=ansible | changed: [v1]
+2024-11-19 12:34:20,839 p=21624 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-19 12:34:20,854 p=21624 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": true,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "444G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "491G",
+                "status": true,
+                "use_percent": "10%",
+                "used": "47G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "openjdk version \"1.8.0_432\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-API64.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-API64-8.1.24-0                  ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-APIcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-APIcit-8.1.24-0                 ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-BA.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BA-8.1.24-0                     ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BAcit-8.1.24-0                  ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAhdw.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BAhdw-8.1.24-0                  ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-19 12:34:20,864 p=21624 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 12:34:20,865 p=21624 u=sarthak n=ansible | v1                         : ok=3    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-19 13:47:39,936 p=22095 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 13:47:39,941 p=22095 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 13:47:54,183 p=22095 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 13:47:54,183 p=22095 u=sarthak n=ansible | ok: [v1]
+2024-11-19 13:47:54,191 p=22095 u=sarthak n=ansible | TASK [copy the module on the remote host] *****************************************************************************************************************************************
+2024-11-19 13:47:54,200 p=22095 u=sarthak n=ansible | [DEPRECATION WARNING]: The connection's stdin object is deprecated. Call display.prompt_until(msg) instead. This feature will be removed in version 2.19. Deprecation warnings can
+ be disabled by setting deprecation_warnings=False in ansible.cfg.
+2024-11-19 13:49:58,509 p=22095 u=sarthak n=ansible | changed: [v1]
+2024-11-19 13:49:58,513 p=22095 u=sarthak n=ansible | TASK [Install ba client] **********************************************************************************************************************************************************
+2024-11-19 13:51:19,338 p=22095 u=sarthak n=ansible | changed: [v1]
+2024-11-19 13:51:19,347 p=22095 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-19 13:51:19,364 p=22095 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": true,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "444G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "491G",
+                "status": true,
+                "use_percent": "10%",
+                "used": "47G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "openjdk version \"1.8.0_432\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-API64.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-API64-8.1.24-0                  ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-APIcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-APIcit-8.1.24-0                 ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-BA.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BA-8.1.24-0                     ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BAcit-8.1.24-0                  ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 0,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAhdw.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################\nUpdating / installing...\nTIVsm-BAhdw-8.1.24-0                  ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-19 13:51:19,374 p=22095 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 13:51:19,374 p=22095 u=sarthak n=ansible | v1                         : ok=4    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+2024-11-19 13:59:30,482 p=22234 u=sarthak n=ansible | PLAY [Install BA Client] **********************************************************************************************************************************************************
+2024-11-19 13:59:30,485 p=22234 u=sarthak n=ansible | TASK [Gathering Facts] ************************************************************************************************************************************************************
+2024-11-19 13:59:45,301 p=22234 u=sarthak n=ansible | [WARNING]: Platform linux on host v1 is using the discovered Python interpreter at /usr/bin/python3.11, but future installation of another Python interpreter could change the
+meaning of that path. See https://docs.ansible.com/ansible-core/2.17/reference_appendices/interpreter_discovery.html for more information.
+
+2024-11-19 13:59:45,301 p=22234 u=sarthak n=ansible | ok: [v1]
+2024-11-19 13:59:45,309 p=22234 u=sarthak n=ansible | TASK [copy the module on the remote host] *****************************************************************************************************************************************
+2024-11-19 13:59:45,317 p=22234 u=sarthak n=ansible | [DEPRECATION WARNING]: The connection's stdin object is deprecated. Call display.prompt_until(msg) instead. This feature will be removed in version 2.19. Deprecation warnings can
+ be disabled by setting deprecation_warnings=False in ansible.cfg.
+2024-11-19 13:59:50,804 p=22234 u=sarthak n=ansible | ok: [v1]
+2024-11-19 13:59:50,808 p=22234 u=sarthak n=ansible | TASK [Install ba client] **********************************************************************************************************************************************************
+2024-11-19 14:00:05,741 p=22234 u=sarthak n=ansible | changed: [v1]
+2024-11-19 14:00:05,748 p=22234 u=sarthak n=ansible | TASK [Show the result] ************************************************************************************************************************************************************
+2024-11-19 14:00:05,765 p=22234 u=sarthak n=ansible | ok: [v1] => {
+    "result": {
+        "changed": true,
+        "failed": false,
+        "result": {
+            "Architecture": "x86_64",
+            "Filesystem Disk Space": {
+                "avail": "443G",
+                "filesystem": "/dev/mapper/rhel-root",
+                "mounted_on": "/",
+                "size": "491G",
+                "status": true,
+                "use_percent": "10%",
+                "used": "48G"
+            },
+            "Filesystem Type": "xfs",
+            "Java Version": "openjdk version \"1.8.0_432\"",
+            "OS Release Info": {
+                "os_name": "Red Hat Enterprise Linux",
+                "os_version": "9.4"
+            },
+            "compatibility": {
+                "compatible": true,
+                "reason": "System is compatible."
+            },
+            "dsmc output": "BA Client installed successfully. Configure the dsm.opt and dsm.sys",
+            "install_results": {
+                "/opt/baClient/TIVsm-API64.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-API64.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-API64-8.1.24-0.x86_64 is already installed",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-APIcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-APIcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-APIcit-8.1.24-0.x86_64 is already installed",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BA.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BA.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BA-8.1.24-0.x86_64 is already installed",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAcit.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAcit.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAcit-8.1.24-0.x86_64 is already installed",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                },
+                "/opt/baClient/TIVsm-BAhdw.x86_64.rpm": {
+                    "rc": 1,
+                    "stderr": "warning: /opt/baClient/TIVsm-BAhdw.x86_64.rpm: Header V4 RSA/SHA256 Signature, key ID e58157a3: NOKEY\n\tpackage TIVsm-BAhdw-8.1.24-0.x86_64 is already installed",
+                    "stdout": "Verifying...                          ########################################\nPreparing...                          ########################################"
+                }
+            }
+        }
+    }
+}
+2024-11-19 14:00:05,775 p=22234 u=sarthak n=ansible | PLAY RECAP ************************************************************************************************************************************************************************
+2024-11-19 14:00:05,775 p=22234 u=sarthak n=ansible | v1                         : ok=4    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   

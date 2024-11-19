@@ -98,21 +98,21 @@ class SystemInfoCollector:
         system_info = {}
 
         # Collect architecture info
-        lscpu_output, lscpu_code = self.command_executor.execute("lscpu")
+        lscpu_output, lscpu_code, lscpu_err = self.command_executor.execute("lscpu")
         if lscpu_code == 0:
             system_info['Architecture'] = extract_architecture(lscpu_output)
         else:
             system_info['Architecture'] = f"Error: {lscpu_output}"
 
         # Collect disk space info
-        df_output, df_code = self.command_executor.execute("df -h /")
+        df_output, df_code, df_err = self.command_executor.execute("df -h /")
         if df_code == 0:
             system_info['Filesystem Disk Space'] = extract_disk_info(df_output)
         else:
             system_info['Filesystem Disk Space'] = f"Error: {df_output}"
 
         # Collect OS release info
-        os_release_output, os_release_code = self.command_executor.execute("cat /etc/os-release")
+        os_release_output, os_release_code, os_release_err = self.command_executor.execute("cat /etc/os-release")
         if os_release_code == 0:
             os_info = extract_os_info(os_release_output)
             system_info['OS Release Info'] = os_info
@@ -120,14 +120,14 @@ class SystemInfoCollector:
             system_info['OS Release Info'] = f"Error: {os_release_output}"
 
         # Collect filesystem type info
-        fs_type_output, fs_type_code = self.command_executor.execute("df -T /")
+        fs_type_output, fs_type_code, fs_type_err = self.command_executor.execute("df -T /")
         if fs_type_code == 0:
             system_info['Filesystem Type'] = fs_type_output.splitlines()[1].split()[1]  # Extract file system type
         else:
             system_info['Filesystem Type'] = f"Error: {fs_type_output}"
 
         # Collect Java version info
-        java_version_output, java_version_code = self.command_executor.execute("java -version 2>&1")
+        java_version_output, java_version_code, java_version_err = self.command_executor.execute("java -version 2>&1")
         if java_version_code != 0:
             system_info['Java Version'] = "Java is not installed on the system."
         else:
@@ -290,10 +290,11 @@ def install_rpm_packages_in_sequence(directory):
         for package in sequence[category]:
             command = f'sudo rpm -ivh {package}'
             try:
-                stdout, rc = CommandExecutor.execute(command)
+                stdout, rc, err = CommandExecutor.execute(command)
                 results[package] = {
                     "rc": rc,
                     "stdout": stdout,
+                    "stderr":err
                 }
             except Exception as e:
                 results[package] = {"error": str(e)}
