@@ -27,7 +27,7 @@
     storage_protect_server_name: "{{ storage_protect_server_name }}"
     storage_protect_username: "{{ storage_protect_username }}"
     storage_protect_password: "{{ storage_protect_password }}"
-    # The 'storage_protect_nodes' now directly handles client registration
+    # The 'storage_protect_nodes' now directly handles client registration..
     storage_protect_nodes:
       - name: "{{ client_name }}"
         policy_domain: "{{ client_policy_domain }}"
