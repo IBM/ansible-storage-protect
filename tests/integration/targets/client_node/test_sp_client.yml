@@ -1,7 +1,17 @@
 ---
-- name: Add dsm.sys file to client
-  hosts: "{{ client_name }}"
+# Playbook for IBM Storage Protect Clients and Server
+
+# Step 1: Add dsm.sys file to clients
+- name: Add dsm.sys file to clients
+  hosts: "{{ client_hosts }}"  # Dynamic client hosts passed via extra vars
+  gather_facts: false
   tasks:
+    - name: Validate required variables for clients
+      ansible.builtin.debug:
+        msg:
+          - "Server Name: {{ storage_protect_server_name }}"
+          - "Server IP: {{ storage_protect_server_ip }}"
+
     - name: Check TIVsm RPMs are installed
       ansible.builtin.command:
         cmd: rpm -qa | grep -i tivsm
@@ -21,17 +31,28 @@
         server_name: "{{ storage_protect_server_name }}"
         tcp_server_address: "{{ storage_protect_server_ip }}"
 
+# Step 2: Test register server in IBM Storage Protect
 - name: Test register server in IBM Storage Protect
-  hosts: "{{ SP_SERVER_NAME }}"
+  hosts: "{{ server_host }}"  # Dynamic server host passed via extra vars
+  gather_facts: false
   vars:
-    storage_protect_server_name: "{{ storage_protect_server_name }}"
-    storage_protect_username: "{{ storage_protect_username }}"
-    storage_protect_password: "{{ storage_protect_password }}"
-    # The 'storage_protect_nodes' now directly handles client registration..
     storage_protect_nodes:
-      - name: "{{ client_name }}"
-        policy_domain: "{{ client_policy_domain }}"
-        node_password: "{{ client_password }}"
+      - name: Test2
+        policy_domain: STANDARD
+        schedules:
+          - my_sched
+        node_password: P@ssword123456789
+        session_security: strict
+        node_password_expiry: 90
+        can_archive_delete: true
+        min_extent_size: 250
+        replication_state: enabled
+        backup_repl_rule_default: NONE
+      - name: Test3
+        policy_domain: STANDARD
+        schedules:
+          - my_sched
+        node_password: P@ssword123456789
         session_security: strict
         node_password_expiry: 90
         can_archive_delete: true
@@ -40,10 +61,18 @@
         backup_repl_rule_default: NONE
 
   pre_tasks:
+    - name: Validate required variables for server
+      ansible.builtin.debug:
+        msg:
+          - "Server Name: {{ storage_protect_server_name }}"
+          - "Server IP: {{ ansible_host }}"
+          - "Username: {{ storage_protect_username }}"
+
     - name: Create dsm.sys
       ibm.storage_protect.dsm_sysfile:
         server_name: "{{ storage_protect_server_name }}"
-        tcp_server_address: "{{ storage_protect_server_ip }}"
+        tcp_server_address: "{{ ansible_host }}"
 
   roles:
     - ibm.storage_protect.nodes
+...
