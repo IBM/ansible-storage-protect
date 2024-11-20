@@ -3,7 +3,7 @@
 
 # Step 1: Add dsm.sys file to clients
 - name: Add dsm.sys file to clients
-  hosts: "{{ CLIENT_NAME }}"  # Dynamic client hosts passed via extra vars
+  hosts: 10.240.64.8 # Dynamic client hosts passed via extra vars
   gather_facts: false
   tasks:
     - name: Validate required variables for clients
@@ -33,11 +33,11 @@
 
 # Step 2: Test register server in IBM Storage Protect
 - name: Test register server in IBM Storage Protect
-  hosts: "{{ SP_SERVER_NAME }}"  # Dynamic server host passed via extra vars
+  hosts: "10.240.64.6"  # Dynamic server host passed via extra vars
   gather_facts: false
   vars:
     storage_protect_nodes:
-      - name: "{{ CLIENT_NAME }}"
+      - name: "10.240.64.8"
         policy_domain: "{{ client_policy_domain }}"
         node_password: "{{ client_password }}"
         session_security: strict
@@ -46,15 +46,6 @@
         min_extent_size: 250
         replication_state: enabled
         backup_repl_rule_default: NONE
-    tasks:
-    - name: Validate required variables for server
-      ansible.builtin.debug:
-        msg:
-          - "server_name: {{ storage_protect_server_name }}"
-          - "server_ip: {{ storage_protect_server_ip }}"
-          - "username: {{ storage_protect_username }}"
-          - "password: {{ storage_protect_password }}"
-          - "client_name: {{ CLIENT_NAME }}"
 
   pre_tasks:
     - name: Validate required variables for server
@@ -66,7 +57,7 @@
 
     - name: Create dsm.sys
       ibm.storage_protect.dsm_sysfile:
-        server_name: "{{ storage_protect_server_name }}"
+        server_name: "10.240.64.6"
         tcp_server_address: "{{ ansible_host }}"
 
   roles:
