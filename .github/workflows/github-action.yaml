@@ -1,5 +1,59 @@
 
-name: Register SP Client
+# name: Register SP Client
+
+# on:
+#   push:
+#     branches:
+#       - dev-gitops
+#   workflow_dispatch:
+
+# jobs:
+#   register-client:
+#     runs-on: self-hosted
+
+#     steps:
+#       # Step 1: Check out the repository
+#       - name: Check out the repository
+#         uses: actions/checkout@v3
+
+#       # Step 2: Configure SSH for the SP server
+#       - name: Configure SSH for SP Server
+#         env:
+#           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+#           SSH_USER: ${{ secrets.SSH_USER }}
+#           SP_SERVER: ${{ secrets.SP_SERVER }}
+#         run: |
+#           mkdir -p ~/.ssh
+#           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+#           chmod 600 ~/.ssh/id_rsa
+#           ssh-keyscan -H $SP_SERVER >> ~/.ssh/known_hosts
+
+#       # Step 3: Set up Python and Install Ansible
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: '3.x'
+
+#       - name: Install Ansible
+#         run: |
+#           python -m venv ansible_env
+#           source ansible_env/bin/activate
+#           pip install --upgrade pip
+#           pip install ansible
+
+#       # Step 4: Run Ansible Playbook
+#       - name: Run Ansible Playbook to Register SP Client
+#         env:
+#           ANSIBLE_HOST_KEY_CHECKING: false
+#           SP_CLIENT_NODE: ${{ secrets.SP_CLIENT_NODE }}
+#           SP_CLIENT_PASSWORD: ${{ secrets.SP_CLIENT_PASSWORD }}
+#           SP_USERNAME: ${{ secrets.SP_USERNAME }}
+#           SP_PASSWORD: ${{ secrets.SP_PASSWORD }}
+#         run: |
+#           source ansible_env/bin/activate
+#           ansible-playbook -i inventory.yml playbook.yml --extra-vars "ibmsp_host=${{ secrets.SP_SERVER }} ibmsp_username=${{ secrets.SP_USERNAME }} ibmsp_password=${{ secrets.SP_PASSWORD }} node=${{ secrets.SP_CLIENT_NODE }} node_password=${{ secrets.SP_CLIENT_PASSWORD }}"
+
+name: Run Ansible Tests
 
 on:
   push:
@@ -8,47 +62,23 @@ on:
   workflow_dispatch:
 
 jobs:
-  register-client:
+  run-tests:
     runs-on: self-hosted
-
     steps:
-      # Step 1: Check out the repository
-      - name: Check out the repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      # Step 2: Configure SSH for the SP server
-      - name: Configure SSH for SP Server
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SP_SERVER: ${{ secrets.SP_SERVER }}
+      - name: Install dependencies
         run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H $SP_SERVER >> ~/.ssh/known_hosts
-
-      # Step 3: Set up Python and Install Ansible
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
-      - name: Install Ansible
-        run: |
-          python -m venv ansible_env
-          source ansible_env/bin/activate
-          pip install --upgrade pip
+          python3 -m pip install --upgrade pip
           pip install ansible
 
-      # Step 4: Run Ansible Playbook
-      - name: Run Ansible Playbook to Register SP Client
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: false
-          SP_CLIENT_NODE: ${{ secrets.SP_CLIENT_NODE }}
-          SP_CLIENT_PASSWORD: ${{ secrets.SP_CLIENT_PASSWORD }}
-          SP_USERNAME: ${{ secrets.SP_USERNAME }}
-          SP_PASSWORD: ${{ secrets.SP_PASSWORD }}
+      - name: Run Ansible Playbook
         run: |
-          source ansible_env/bin/activate
-          ansible-playbook -i inventory.yml playbook.yml --extra-vars "ibmsp_host=${{ secrets.SP_SERVER }} ibmsp_username=${{ secrets.SP_USERNAME }} ibmsp_password=${{ secrets.SP_PASSWORD }} node=${{ secrets.SP_CLIENT_NODE }} node_password=${{ secrets.SP_CLIENT_PASSWORD }}"
+          ansible-playbook tests/integration/targets/client_node/test_sp_client.yml \
+            -i localhost, \
+            --extra-vars "storage_protect_server_name=${{ secrets.SP_SERVER_NAME }} \
+                          storage_protect_server_ip=${{ secrets.SP_SERVER_IP }} \
+                          storage_protect_username=${{ secrets.SP_SERVER_USERNAME }} \
+                          storage_protect_password=${{ secrets.SP_SERVER_PASSWORD }} \
+                          storage_protect_nodes='${{ secrets.SP_NODES }}'"
