@@ -37,10 +37,11 @@ jobs:
           SP_SERVER_USERNAME: ${{ secrets.SP_SERVER_USERNAME }}
         run: |
           ansible-playbook tests/integration/targets/client_node/test_sp_client.yml \
-            -e "client_name=${CLIENT_NAME}" \
-            -e "client_password=${CLIENT_PASSWORD}" \
-            -e "client_policy_domain=${CLIENT_POLICY_DOMAIN}" \
-            -e "storage_protect_server_ip=${SP_SERVER_IP}" \
-            -e "storage_protect_server_name=${SP_SERVER_NAME}" \
-            -e "storage_protect_username=${SP_SERVER_USERNAME}" \
-            -e "storage_protect_password=${SP_SERVER_PASSWORD}"
+              -i "10.240.64.8,10.240.64.6," \
+              -e "storage_protect_server_name=${{ secrets.SP_SERVER_NAME }}" \
+              -e "storage_protect_server_ip=${{ secrets.SP_SERVER_IP }}" \
+              -e "storage_protect_username=${{ secrets.SP_SERVER_USERNAME }}" \
+              -e "storage_protect_password=${{ secrets.SP_SERVER_PASSWORD }}" \
+              -e "client_name=${{ secrets.CLIENT_NAME }}" \
+              -e "client_password=${{ secrets.CLIENT_PASSWORD }}" \
+              -e "client_policy_domain=${{ secrets.CLIENT_POLICY_DOMAIN }}"
