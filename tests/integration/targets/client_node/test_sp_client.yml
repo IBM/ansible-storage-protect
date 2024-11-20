@@ -54,7 +54,7 @@
           - "server_ip: {{ storage_protect_server_ip }}"
           - "username: {{ storage_protect_username }}"
           - "password: {{ storage_protect_password }}"
-          - "client_name: {{ client_name }}"
+          - "client_name: {{ CLIENT_NAME }}"
 
   pre_tasks:
     - name: Validate required variables for server
