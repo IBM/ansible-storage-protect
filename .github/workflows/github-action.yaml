@@ -17,6 +17,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install ansible
+          
+      - name: Set environment variable to disable SSH host key checking
+        run: |
+          export ANSIBLE_HOST_KEY_CHECKING=False
 
       - name: Install IBM Storage Protect Collection
         run: ansible-galaxy collection install ibm.storage_protect
