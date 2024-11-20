@@ -1,6 +1,6 @@
 ---
 - name: Add dsm.sys file to client
-  hosts: storage_protect_clients
+  hosts: {{ client_name }}
   tasks:
     - name: Check TIVsm RPMs are installed
       ansible.builtin.command:
@@ -22,7 +22,7 @@
         tcp_server_address: "{{ storage_protect_server_ip }}"
 
 - name: Test register server in IBM Storage Protect
-  hosts: storage_protect_server
+  hosts: {{ SP_SERVER_NAME }}
   vars:
     storage_protect_server_name: "{{ storage_protect_server_name }}"
     storage_protect_username: "{{ storage_protect_username }}"
