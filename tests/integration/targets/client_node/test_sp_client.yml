@@ -1,5 +1,5 @@
 ---
-- name: Add dsm.sys file to clients
+- name: Add dsm.sys file to client
   hosts: storage_protect_clients
   tasks:
     - name: Check TIVsm RPMs are installed
@@ -27,13 +27,23 @@
     storage_protect_server_name: "{{ storage_protect_server_name }}"
     storage_protect_username: "{{ storage_protect_username }}"
     storage_protect_password: "{{ storage_protect_password }}"
-    storage_protect_nodes: "{{ storage_protect_nodes }}"
+    # The 'storage_protect_nodes' now directly handles client registration.
+    storage_protect_nodes:
+      - name: "{{ client_name }}"
+        policy_domain: "{{ client_policy_domain }}"
+        node_password: "{{ client_password }}"
+        session_security: strict
+        node_password_expiry: 90
+        can_archive_delete: true
+        min_extent_size: 250
+        replication_state: enabled
+        backup_repl_rule_default: NONE
 
   pre_tasks:
     - name: Create dsm.sys
       ibm.storage_protect.dsm_sysfile:
         server_name: "{{ storage_protect_server_name }}"
-        tcp_server_address: "{{ ansible_host }}"
+        tcp_server_address: "{{ storage_protect_server_ip }}"
 
   roles:
     - ibm.storage_protect.nodes
