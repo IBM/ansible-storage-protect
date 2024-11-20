@@ -18,6 +18,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install ansible
 
+      - name: Install IBM Storage Protect Collection
+        run: ansible-galaxy collection install ibm.storage_protect
+
       - name: Run Ansible Playbook to Register Client
         run: |
           ansible-playbook tests/integration/targets/client_node/test_sp_client.yml \
