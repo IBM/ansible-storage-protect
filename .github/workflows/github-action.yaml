@@ -21,8 +21,26 @@ jobs:
       - name: Install IBM Storage Protect Collection
         run: ansible-galaxy collection install ibm.storage_protect
 
-      - name: Run Ansible Playbook to Register Client
+      # - name: Run Ansible Playbook to Register Client
+      #   run: |
+      #     ansible-playbook tests/integration/targets/client_node/test_sp_client.yml \
+      #       -i localhost, \
+      #        --extra-vars "{\"storage_protect_server_name\": \"***\", \"storage_protect_server_ip\": \"***\", \"storage_protect_username\": \"***\", \"storage_protect_password\": \"***\", \"client_name\": \"***\", \"client_password\": \"***\", \"client_policy_domain\": \"***\"}"
+      - name: Run Ansible Playbook
+        env:
+          CLIENT_NAME: ${{ secrets.CLIENT_NAME }}
+          CLIENT_PASSWORD: ${{ secrets.CLIENT_PASSWORD }}
+          CLIENT_POLICY_DOMAIN: ${{ secrets.CLIENT_POLICY_DOMAIN }}
+          SP_SERVER_IP: ${{ secrets.SP_SERVER_IP }}
+          SP_SERVER_NAME: ${{ secrets.SP_SERVER_NAME }}
+          SP_SERVER_PASSWORD: ${{ secrets.SP_SERVER_PASSWORD }}
+          SP_SERVER_USERNAME: ${{ secrets.SP_SERVER_USERNAME }}
         run: |
           ansible-playbook tests/integration/targets/client_node/test_sp_client.yml \
-            -i localhost, \
-             --extra-vars "{\"storage_protect_server_name\": \"***\", \"storage_protect_server_ip\": \"***\", \"storage_protect_username\": \"***\", \"storage_protect_password\": \"***\", \"client_name\": \"***\", \"client_password\": \"***\", \"client_policy_domain\": \"***\"}"
+            -e "client_name=${CLIENT_NAME}" \
+            -e "client_password=${CLIENT_PASSWORD}" \
+            -e "client_policy_domain=${CLIENT_POLICY_DOMAIN}" \
+            -e "storage_protect_server_ip=${SP_SERVER_IP}" \
+            -e "storage_protect_server_name=${SP_SERVER_NAME}" \
+            -e "storage_protect_username=${SP_SERVER_USERNAME}" \
+            -e "storage_protect_password=${SP_SERVER_PASSWORD}"
