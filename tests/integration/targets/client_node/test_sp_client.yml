@@ -37,7 +37,7 @@
   gather_facts: false
   vars:
     storage_protect_nodes:
-      - name: "{{ client_name }}"
+      - name: "{{ CLIENT_NAME }}"
         policy_domain: "{{ client_policy_domain }}"
         node_password: "{{ client_password }}"
         session_security: strict
