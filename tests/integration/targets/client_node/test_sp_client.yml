@@ -1,5 +1,5 @@
 ---
-# Playbook for IBM Storage Protect Clients and Server
+# Playbook for IBM Storage Protect Clients and Server.
 
 # Step 1: Add dsm.sys file to clients
 - name: Add dsm.sys file to clients
