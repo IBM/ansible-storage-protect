@@ -21,7 +21,7 @@ jobs:
       - name: Set environment variable to disable SSH host key checking
         run: |
           export ANSIBLE_HOST_KEY_CHECKING=False
-
+          
       - name: Install IBM Storage Protect Collection
         run: ansible-galaxy collection install ibm.storage_protect
 
@@ -34,11 +34,12 @@ jobs:
           # Start the SSH agent
           eval $(ssh-agent -s)
           ssh-add ~/.ssh/id_rsa
-          
-      # Add the host to known_hosts to avoid SSH key verification failure
-      - name: Add SSH host key to known_hosts
+
+      # Disable StrictHostKeyChecking and add the host to known_hosts
+      - name: Add SSH host key to known_hosts and disable StrictHostKeyChecking
         run: |
           mkdir -p ~/.ssh
+          echo -e "Host *\n  StrictHostKeyChecking no\n  UserKnownHostsFile=/dev/null" > ~/.ssh/config
           ssh-keyscan -H 10.240.64.6 >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
