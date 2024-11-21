@@ -41,12 +41,14 @@ jobs:
           mkdir -p ~/.ssh
           echo -e "Host *\n  StrictHostKeyChecking no\n  UserKnownHostsFile=/dev/null" > ~/.ssh/config
           ssh-keyscan -H 10.240.64.6 >> ~/.ssh/known_hosts
+          ssh-keyscan -H 10.240.64.8 >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
       # Debug SSH connection: Add verbose SSH logging
       - name: Test SSH connection with verbose logging
         run: |
           ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.6 exit
+          ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.8 exit
 
       # Run Ansible Playbook
       - name: Run Ansible Playbook
