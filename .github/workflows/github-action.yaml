@@ -7,25 +7,28 @@ on:
 
 jobs:
   run_ansible_playbook:
-    runs-on: Self-hosted
+    runs-on: self-hosted
 
     steps:
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      # Step 2: Set up Python and Ansible
       - name: Set up Python and Ansible
         run: |
           python -m pip install --upgrade pip
           pip install ansible
-          
+
+      # Step 3: Set environment variable to disable SSH host key checking
       - name: Set environment variable to disable SSH host key checking
-        run: |
-          export ANSIBLE_HOST_KEY_CHECKING=False
-          
+        run: echo "ANSIBLE_HOST_KEY_CHECKING=False" >> $GITHUB_ENV
+
+      # Step 4: Install IBM Storage Protect Collection
       - name: Install IBM Storage Protect Collection
         run: ansible-galaxy collection install ibm.storage_protect
 
-      # Add SSH private key using SSH Agent
+      # Step 5: Set up SSH agent and add private key
       - name: Set up SSH agent and add private key
         run: |
           mkdir -p ~/.ssh
@@ -35,22 +38,23 @@ jobs:
           eval $(ssh-agent -s)
           ssh-add ~/.ssh/id_rsa
 
-      # Disable StrictHostKeyChecking and add the host to known_hosts
+      # Step 6: Disable StrictHostKeyChecking and add SSH host keys for both server and client
       - name: Add SSH host key to known_hosts and disable StrictHostKeyChecking
         run: |
           mkdir -p ~/.ssh
           echo -e "Host *\n  StrictHostKeyChecking no\n  UserKnownHostsFile=/dev/null" > ~/.ssh/config
+          # Add server and client host keys to known_hosts
           ssh-keyscan -H 10.240.64.6 >> ~/.ssh/known_hosts
           ssh-keyscan -H 10.240.64.8 >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      # Debug SSH connection: Add verbose SSH logging
+      # Step 7: Debug SSH connection: Add verbose SSH logging
       - name: Test SSH connection with verbose logging
         run: |
           ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.6 exit
           ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.8 exit
 
-      # Run Ansible Playbook
+      # Step 8: Run Ansible Playbook
       - name: Run Ansible Playbook
         env:
           CLIENT_NAME: ${{ secrets.CLIENT_NAME }}
