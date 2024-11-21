@@ -18,19 +18,27 @@ jobs:
           python -m pip install --upgrade pip
           pip install ansible
           
-      - name: Set environment variable to disable SSH host key checking
-        run: |
-          export ANSIBLE_HOST_KEY_CHECKING=False
+      # - name: Set environment variable to disable SSH host key checking
+      #   run: |
+      #     export ANSIBLE_HOST_KEY_CHECKING=False
 
       - name: Install IBM Storage Protect Collection
         run: ansible-galaxy collection install ibm.storage_protect
 
+      # Add SSH private key
       - name: Add SSH private key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
+      # Add the host to known_hosts to avoid SSH key verification failure
+      - name: Add SSH host key to known_hosts
+        run: |
+          ssh-keyscan -H 10.240.64.6 >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      # Run Ansible Playbook
       - name: Run Ansible Playbook
         env:
           CLIENT_NAME: ${{ secrets.CLIENT_NAME }}
