@@ -25,11 +25,12 @@ jobs:
       - name: Install IBM Storage Protect Collection
         run: ansible-galaxy collection install ibm.storage_protect
 
-      # - name: Run Ansible Playbook to Register Client
-      #   run: |
-      #     ansible-playbook tests/integration/targets/client_node/test_sp_client.yml \
-      #       -i localhost, \
-      #        --extra-vars "{\"storage_protect_server_name\": \"***\", \"storage_protect_server_ip\": \"***\", \"storage_protect_username\": \"***\", \"storage_protect_password\": \"***\", \"client_name\": \"***\", \"client_password\": \"***\", \"client_policy_domain\": \"***\"}"
+      - name: Add SSH private key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
       - name: Run Ansible Playbook
         env:
           CLIENT_NAME: ${{ secrets.CLIENT_NAME }}
