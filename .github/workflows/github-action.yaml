@@ -54,8 +54,8 @@ jobs:
           ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.6 exit
           ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.8 exit
 
-      # Step 8: Run Ansible Playbook
-      - name: Run Ansible Playbook
+      # Step 8: Run Ansible Playbook for Client Registration
+      - name: Run Ansible Playbook for Client Registration
         env:
           CLIENT_NAME: ${{ secrets.CLIENT_NAME }}
           CLIENT_PASSWORD: ${{ secrets.CLIENT_PASSWORD }}
@@ -66,11 +66,12 @@ jobs:
           SP_SERVER_USERNAME: ${{ secrets.SP_SERVER_USERNAME }}
         run: |
           ansible-playbook tests/integration/targets/client_node/test_sp_client.yml \
-              -i "10.240.64.8,10.240.64.6," \
+              -i "${{ secrets.CLIENT_HOST }},${{ secrets.SP_SERVER_IP }}" \
               -e "storage_protect_server_name=${{ secrets.SP_SERVER_NAME }}" \
               -e "storage_protect_server_ip=${{ secrets.SP_SERVER_IP }}" \
               -e "storage_protect_username=${{ secrets.SP_SERVER_USERNAME }}" \
               -e "storage_protect_password=${{ secrets.SP_SERVER_PASSWORD }}" \
               -e "client_name=${{ secrets.CLIENT_NAME }}" \
               -e "client_password=${{ secrets.CLIENT_PASSWORD }}" \
-              -e "client_policy_domain=${{ secrets.CLIENT_POLICY_DOMAIN }}"
+              -e "client_policy_domain=${{ secrets.CLIENT_POLICY_DOMAIN }}" \
+              --extra-vars "ansible_ssh_user=root ansible_ssh_private_key_file=~/.ssh/id_rsa ansible_ssh_host=${{ secrets.CLIENT_HOST }}"
