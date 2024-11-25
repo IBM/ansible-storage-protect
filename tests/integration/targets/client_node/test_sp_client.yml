@@ -9,8 +9,8 @@
     - name: Validate required variables for clients
       ansible.builtin.debug:
         msg:
-          - "Server Name: {{ storage_protect_server_name }}"
-          - "Server IP: {{ storage_protect_server_ip }}"
+          - "Server Name: {{ SP_SERVER_NAME }}"
+          - "Server IP: {{ SP_SERVER_IP }}"
 
     - name: Check TIVsm RPMs are installed
       ansible.builtin.command:
@@ -28,8 +28,8 @@
 
     - name: Create dsm.sys
       ibm.storage_protect.dsm_sysfile:
-        server_name: "ansible-ibm-sp-host05"
-        tcp_server_address: "10.240.64.6"
+        server_name: ansible-ibm-sp-host05
+        tcp_server_address: 10.240.64.6
 
 # Step 2: Test register server in IBM Storage Protect
 - name: Test register server in IBM Storage Protect
@@ -51,9 +51,9 @@
     - name: Validate required variables for server
       ansible.builtin.debug:
         msg:
-          - "Server Name: {{ storage_protect_server_name }}"
-          - "Server IP: {{ ansible_host }}"
-          - "Username: {{ storage_protect_username }}"
+          - "Server Name: {{ SP_SERVER_NAME }}"
+          - "Server IP: {{ SP_SERVER_IP }}"
+          - "Username: {{ SP_SERVER_USERNAME }}"
 
     - name: Create dsm.sys
       ibm.storage_protect.dsm_sysfile:
