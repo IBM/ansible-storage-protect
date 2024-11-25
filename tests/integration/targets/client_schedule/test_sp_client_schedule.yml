@@ -1,0 +1,33 @@
+---
+- name: Configure IBM Storage Protect backup schedules
+  hosts: storage_protect_server
+  vars:
+    storage_protect_server_name: IBMSPSVR01
+    storage_protect_username: adminuser
+    storage_protect_password: adminPassword12345678
+    storage_protect_nodes:
+      - name: Test2
+        policy_domain: STANDARD
+        schedules:
+          - my_sched  # This needs to previously exist. Once a schedule module is created, replace with that
+        node_password: P@ssword123456789
+        session_security: strict
+        node_password_expiry: 90
+        can_archive_delete: true
+        min_extent_size: 250
+        replication_state: enabled
+        backup_repl_rule_default: NONE
+      - name: Test3
+        policy_domain: STANDARD
+        schedules:
+          - my_sched  # This needs to previously exist. Once a schedule module is created, replace with that
+        node_password: P@ssword123456789
+        session_security: strict
+        node_password_expiry: 90
+        can_archive_delete: true
+        min_extent_size: 250
+        replication_state: enabled
+        backup_repl_rule_default: NONE
+  roles:
+    - sp_client_policy
+...
