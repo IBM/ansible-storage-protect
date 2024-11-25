@@ -28,8 +28,8 @@
 
     - name: Create dsm.sys
       ibm.storage_protect.dsm_sysfile:
-        server_name: "{{ storage_protect_server_name }}"
-        tcp_server_address: "{{ storage_protect_server_ip }}"
+        server_name: "ansible-ibm-sp-host05"
+        tcp_server_address: "10.240.64.6"
 
 # Step 2: Test register server in IBM Storage Protect
 - name: Test register server in IBM Storage Protect
@@ -58,7 +58,7 @@
     - name: Create dsm.sys
       ibm.storage_protect.dsm_sysfile:
         server_name: "10.240.64.6"
-        tcp_server_address: "{{ ansible_host }}"
+        tcp_server_address: "ansible-ibm-sp-host05"
 
   roles:
     - ibm.storage_protect.nodes
