@@ -95,7 +95,7 @@ def main():
     exists, existing = module.find_one('sp_client_policy', schedule_name)
 
     if state == 'absent' or state == 'deregistered' or state == 'removed':
-        module.perform_action('remove', 'sp_client_policy', schedule_name, exists=exists)
+        module.perform_action('remove', 'schedule', schedule_name, exists=exists)
     else:
         options_params = {
             'schedule_type': 'Client',
