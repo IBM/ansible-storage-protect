@@ -112,13 +112,6 @@ def main():
             value = module.params.get(opt)
             if value is not None and not (exists and opt in not_on_update):
                 value = str(value)
-                if value.lower() == 'true':
-                    value = 'Yes'
-                elif value.lower() == 'false':
-                    value = 'No'
-                if opt == 'min_extent_size':
-                    value = f'{value}KB'
-                options += f" {options_params[opt]}={value}"
             elif value is not None and exists and opt in not_on_update:
                 module.warn(f'{opt} can not be updated so will not change if different from existing value.')
 
