@@ -106,13 +106,7 @@ def main():
 
         not_on_update = ['type']
 
-        node_password = module.params.get('node_password')
-        if node_password:
-            module.warn(
-                'The node_password field has encrypted data and may inaccurately report task is changed.'
-            )
-
-        options = f"{node_password if node_password else ''}"
+        options = ""
 
         for opt in options_params.keys():
             value = module.params.get(opt)
