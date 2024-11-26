@@ -98,11 +98,10 @@ def main():
         module.perform_action('remove', 'schedule', schedule_name, exists=exists)
     else:
         options_params = {
-            'schedule_type': 'Client',
-            'start_time': 'current_time',
-            'period': '1',
-            'period_unit': 'DAYS',
-            'client_nodes': 'client_nodes',
+            'schedule_type': 'Type',
+            'start_time': 'STARTTime',
+            'period': 'PERiod',
+            'period_unit': 'PERUnits',
         }
 
         not_on_update = ['node_type', 'backup_repl_rule_default', 'archive_repl_rule_default', 'space_repl_rule_default', 'admin_user_id', 'option_set']
