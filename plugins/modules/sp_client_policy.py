@@ -80,7 +80,7 @@ def main():
     )
 
 
-    module = DsmadmcAdapter(argument_spec=argument_spec, supports_check_mode=True, required_by=required_by)
+    module = DsmadmcAdapter(argument_spec=argument_spec, supports_check_mode=True)
     
 
     schedule_name = module.params["schedule_name"]
