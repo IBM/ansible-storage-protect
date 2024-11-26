@@ -129,21 +129,6 @@ def main():
             elif value is not None and exists and opt in not_on_update:
                 module.warn(f'{opt} can not be updated so will not change if different from existing value.')
 
-        schedules = module.params.get('schedules')
-        policy_domain = module.params.get('policy_domain')
-        node_schedules = []
-        if schedules:
-            if exists:
-                _, all_schedules, _ = module.run_command(f'-comma q association {policy_domain}', auto_exit=False)
-                all_schedules = all_schedules.split('\n')
-                for sched in all_schedules:
-                    sched = sched.split(',')
-                    if len(sched) == 3 and sched[2] == schedule_name.upper():
-                        node_schedules += [sched[1]]
-
-            for schedule in schedules:
-                # Test if schedule exists and fail if not
-                module.find_one('schedule', f'{policy_domain} {schedule}', fail_on_not_found=True)
 
         module.perform_action('sp_client_policy', schedule_name, options=options, exists=exists, existing=existing, auto_exit=schedules is None)
 
