@@ -104,7 +104,7 @@ def main():
             'period_unit': 'PERUnits',
         }
 
-        not_on_update = ['node_type', 'backup_repl_rule_default', 'archive_repl_rule_default', 'space_repl_rule_default', 'admin_user_id', 'option_set']
+        not_on_update = ['type']
 
         node_password = module.params.get('node_password')
         if node_password:
