@@ -132,25 +132,6 @@ def main():
 
         module.perform_action('sp_client_policy', schedule_name, options=options, exists=exists, existing=existing, auto_exit=schedules is None)
 
-        if schedules:
-            for schedule in schedules:
-                if schedule.upper() not in node_schedules:
-                    module.perform_action('define', 'association', f"DEFINE SCHEDULE {schedule_name} "
-            f"TYPE={schedule_type} "
-            f"STARTDATE=TODAY STARTTIME={start_time} "
-            f"PERIOD={period} PERIODUNIT={period_unit}", auto_exit=False)
-                else:
-                    # Remove them from the list because we will use this list to remove extra ones
-                    node_schedules.remove(schedule.upper())
-
-            # if any schedules exist for the node which weren't listed, then disassociate them
-            for schedule in node_schedules:
-                module.perform_action('delete', 'association', f"DEFINE SCHEDULE {schedule_name} "
-            f"TYPE={schedule_type} "
-            f"STARTDATE=TODAY STARTTIME={start_time} "
-            f"PERIOD={period} PERIODUNIT={period_unit}", exists=True, auto_exit=False)
-
-            module.exit_json(**module.json_output)
 
 
 if __name__ == "__main__":
