@@ -79,12 +79,6 @@ def main():
         client_nodes=dict(type="list", elements="str", required=True)
     )
 
-    required_by = {
-        'backup_repl_rule_default': 'replication_state',
-        'archive_repl_rule_default': 'replication_state',
-        'space_repl_rule_default': 'replication_state',
-        # 'schedules': 'policy_domain',
-    }
 
     module = DsmadmcAdapter(argument_spec=argument_spec, supports_check_mode=True, required_by=required_by)
     
