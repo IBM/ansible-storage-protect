@@ -116,7 +116,7 @@ def main():
                 module.warn(f'{opt} can not be updated so will not change if different from existing value.')
 
 
-        module.perform_action('sp_client_policy', schedule_name, options=options, exists=exists, existing=existing, auto_exit=schedules is None)
+        module.perform_action('schedule', schedule_name, options=options, exists=exists, existing=existing, auto_exit=True)
 
 
 
