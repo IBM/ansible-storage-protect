@@ -71,12 +71,22 @@ from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
 
 def main():
     argument_spec = dict(
-        schedule_name=dict(type="str", required=True),
-        schedule_type=dict(type="str", required=True, choices=["clientaction", "admin"]),
-        start_time=dict(type="str", required=True),
-        period=dict(type="int", required=True),
-        period_unit=dict(type="str", required=True, choices=["hours", "days"]),
-        client_nodes=dict(type="list", elements="str", required=True)
+        domain_name=dict(type='str', required=True),
+        schedule_name=dict(type='str', required=True),
+        action=dict(type='str', choices=['Incremental', 'Selective', 'Archive'], required=True),
+        subaction=dict(type='str', choices=['', 'FASTBack', 'SYSTEMState', 'VApp', 'VM'], required=False),
+        priority=dict(type='int', default=5),
+        start_date=dict(type='str', default=str(datetime.date.today())),
+        start_time=dict(type='str', default=datetime.datetime.now().strftime("%H:%M:%S")),
+        duration=dict(type='int', default=1),
+        dur_units=dict(type='str', choices=['Hours', 'Minutes', 'Days'], default='Hours'),
+        max_runtime=dict(type='int', default=0),
+        sched_style=dict(type='str', choices=['Enhanced'], default='Enhanced'),
+        month=dict(type='str', choices=['ANY', 'JANuary', 'February', 'MARch', 'APril', 'May', 'JUNe', 'JULy', 'AUgust', 'September', 'October', 'November', 'December'], default='ANY'),
+        day_of_month=dict(type='str', default='ANY'),
+        week_of_month=dict(type='str', choices=['ANY', 'First', 'Second', 'Third', 'Fourth', 'Last'], default='ANY'),
+        day_of_week=dict(type='str', choices=['ANY', 'WEEKDay', 'WEEKEnd', 'SUnday', 'Monday', 'TUesday', 'Wednesday', 'THursday', 'Friday', 'SAturday'], default='ANY'),
+        expiration=dict(type='str', default='Never')
     )
 
 
@@ -92,7 +102,7 @@ def main():
 
     schedule_name = module.params.get('schedule_name')
     state = module.params.get('state')
-    exists, existing = module.find_one('sp_client_policy', schedule_name)
+    exists, existing = module.find_one('schedule', schedule_name)
 
     if state == 'absent' or state == 'deregistered' or state == 'removed':
         module.perform_action('remove', 'schedule', schedule_name, exists=exists)
