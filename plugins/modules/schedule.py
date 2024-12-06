@@ -73,6 +73,8 @@ def main():
     argument_spec = dict(
         domain_name=dict(type='str', required=True),
         schedule_name=dict(type='str', required=True),
+        Type=dict(type='str', default='Client'),
+        DESCription=dict(type='str', default='ANY'),
         action=dict(type='str', choices=['Incremental', 'Selective', 'Archive'], required=True),
         subaction=dict(type='str', choices=['', 'FASTBack', 'SYSTEMState', 'VApp', 'VM'], required=False),
         priority=dict(type='int', default=5),
