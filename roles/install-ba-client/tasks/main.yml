@@ -1,0 +1,116 @@
+---
+- name: Checking architecture compatibility
+  set_fact:
+    architecture_compatible: "{{ 'x86_64' in system_info.Architecture }}"
+
+- name: Checking Java installation
+  set_fact:
+    java_installed: "{{ 'java' not in system_info['Java Version'] | lower }}"
+
+- name: Checking available disk space
+  set_fact:
+    avail_disk_space: "{{ disk_space.free_memory | int > 1400 }}"
+
+- name: Compatibility results
+  debug:
+    msg: |
+      Architecture check: {{ architecture_compatible }}
+      Java installed: {{ java_installed }}
+      Disk Space: {{ avail_disk_space }}
+
+- name: Compatibility check result
+  debug:
+    msg: "System is compatible"
+  when: architecture_compatible and java_installed and avail_disk_space
+
+- name: Compatibility check result
+  debug:
+    msg: "System is incompatible"
+  when: not (architecture_compatible and java_installed and avail_disk_space)
+
+- name: Transferring the packages on the remote host
+  ansible.builtin.synchronize:
+    src: "{{ tar_file_path }}"
+    dest: "{{ temp_dest }}"
+  when: architecture_compatible and java_installed and avail_disk_space
+  register: copy_result
+
+- name: Creating /opt/baClient directory
+  ansible.builtin.file:
+    path: "{{ extract_dest }}"
+    state: directory
+    mode: '0755'
+  when: architecture_compatible and java_installed and avail_disk_space
+
+- name: Extracting the .tar file
+  ansible.builtin.unarchive:
+    src: "{{ temp_dest }}{{ tar_file_path | basename }}"
+    dest: "{{ extract_dest }}"
+    remote_src: yes
+  when: architecture_compatible and java_installed and avail_disk_space
+  register: extraction_result
+
+- name: Finding extracted files
+  ansible.builtin.find:
+    paths: /opt/baClient
+    recurse: yes
+  register: extracted_files
+
+- name: List of extracted files
+  debug:
+    msg: "Extracted files: {{ extracted_files.files | map(attribute='path') | list }}"
+  when: extracted_files is defined and extracted_files.files | length > 0
+
+- name: Checking if TIVsm-API64 is installed
+  command: rpm -q TIVsm-API64
+  register: check_api64
+  ignore_errors: true
+
+- name: Checking if TIVsm-APIcit is installed
+  command: rpm -q TIVsm-APIcit
+  register: check_apicit
+  ignore_errors: true
+
+- name: Checking if BA package is installed or not
+  command: rpm -q TIVsm-BA
+  register: check_ba
+  ignore_errors: true
+
+- name: Checking if BAcit package is installed or not
+  command: rpm -q TIVsm-BAcit
+  register: check_bacit
+  ignore_errors: true
+
+# Install GSKit first
+- name: Installing GSKit crypt library (gskcrypt)
+  ansible.builtin.command: rpm -ivh {{ item }}
+  with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskcrypt') | list }}"
+  when: extracted_files is defined and extracted_files.files | length > 0
+  ignore_errors: true
+
+- name: Installing GSKit SSL library (gskssl)
+  ansible.builtin.command: rpm -ivh {{ item }}
+  with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskssl') | list }}"
+  when: extracted_files is defined and extracted_files.files | length > 0
+  ignore_errors: true
+
+- name: Installing API packages (TIVsm-API64, TIVsm-APIcit)
+  ansible.builtin.command: rpm -ivh {{ item }}
+  with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-API') | list }}"
+  when: check_apicit.rc != 0
+
+- name: Installing BA packages (TIVsm-BA, TIVsm-BAcit)
+  ansible.builtin.command: rpm -ivh {{ item }}
+  with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BA') | list }}"
+  when: check_ba.rc != 0
+
+- name: Checking BA
+  ansible.builtin.command: sudo dsmc
+  register: dsmc_output
+  ignore_errors: true
+
+- name: Check if BA is installed successfully
+  debug:
+    msg: "BA is installed successfully"
+  when: "'ANS0990W' in dsmc_output.stdout"
+

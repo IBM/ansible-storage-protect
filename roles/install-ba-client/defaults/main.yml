@@ -1,0 +1,3 @@
+tar_file_path: "./8.1.24.0-TIV-TSMBAC-LinuxX86.tar"
+extract_dest: "/opt/baClient"
+temp_dest: "/tmp/"
