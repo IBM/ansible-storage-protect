@@ -1,136 +1,133 @@
 #!/usr/bin/python
 # coding: utf-8 -*-
 
-# (c) 2024,Tom page <tpage@redhat.com>
+# (c) 2024,Subhajit Patra <subhpa01@in.ibm.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import absolute_import, division, print_function
-
 __metaclass__ = type
 
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.common.text.converters import to_native
+from datetime import datetime
 
-ANSIBLE_METADATA = {'metadata_version': '1.1', 'status': ['preview'], 'supported_by': 'community'}
-
-
-DOCUMENTATION = '''
----
-module: sp_client_policy
-author: "Subhajit Patra (@subhpa01)"
-short_description: Configure backup schedule policies for IBM Storage Protect clients
-description:
-    - This module defines backup schedules and assigns client nodes in IBM Storage Protect.
-options:
-    schedule_name:
-        description: Name of the backup schedule.
-        required: true
-        type: str
-    schedule_type:
-        description: Type of the schedule (clientaction/admin).
-        required: true
-        type: str
-        choices: ["clientaction", "admin"]
-    start_time:
-        description: Schedule start time (HH:MM:SS format).
-        required: true
-        type: str
-    period:
-        description: Period between backups.
-        required: true
-        type: int
-    period_unit:
-        description: Unit of the period (hours/days).
-        required: true
-        type: str
-        choices: ["hours", "days"]
-    client_nodes:
-        description: List of client nodes to associate with the schedule.
-        required: true
-        type: list
-        elements: str
-extends_documentation_fragment: ibm.storage_protect.auth
-...
-'''
+# Import the custom DsmadmcAdapter class from the previous code
+from ansible.module_utils.dsmadmc_adapter import DsmadmcAdapter
 
 
-EXAMPLES = '''
-- name: Configure backup schedule for client nodes
-  ibm.storage_protect.sp_client_policy:
-    schedule_name: "{{ DailyBackup }}"
-    schedule_type: "{{ clientaction }}"
-    start_time: "22:00:00"
-    period: 1
-    period_unit: "days"
-    client_nodes:
-      - "node1"
-      - "node2"
-...
-'''
-
-from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
-
-
-def main():
+def run_module():
     argument_spec = dict(
         domain_name=dict(type='str', required=True),
         schedule_name=dict(type='str', required=True),
-        Type=dict(type='str', default='Client'),
-        DESCription=dict(type='str', default='ANY'),
-        action=dict(type='str', choices=['Incremental', 'Selective', 'Archive'], required=True),
-        subaction=dict(type='str', choices=['', 'FASTBack', 'SYSTEMState', 'VApp', 'VM'], required=False),
-        priority=dict(type='int', default=5),
-        start_date=dict(type='str', default=str(datetime.date.today())),
-        start_time=dict(type='str', default=datetime.datetime.now().strftime("%H:%M:%S")),
-        duration=dict(type='int', default=1),
-        dur_units=dict(type='str', choices=['Hours', 'Minutes', 'Days'], default='Hours'),
-        max_runtime=dict(type='int', default=0),
-        sched_style=dict(type='str', choices=['Enhanced'], default='Enhanced'),
-        month=dict(type='str', choices=['ANY', 'JANuary', 'February', 'MARch', 'APril', 'May', 'JUNe', 'JULy', 'AUgust', 'September', 'October', 'November', 'December'], default='ANY'),
-        day_of_month=dict(type='str', default='ANY'),
-        week_of_month=dict(type='str', choices=['ANY', 'First', 'Second', 'Third', 'Fourth', 'Last'], default='ANY'),
-        day_of_week=dict(type='str', choices=['ANY', 'WEEKDay', 'WEEKEnd', 'SUnday', 'Monday', 'TUesday', 'Wednesday', 'THursday', 'Friday', 'SAturday'], default='ANY'),
-        expiration=dict(type='str', default='Never')
+        description=dict(type='str', required=False, default=""),
+        action=dict(
+            type='str',
+            required=True,
+            choices=[
+                'Incremental', 'Selective', 'Archive',
+                'Backup', 'Restore', 'Retrieve',
+                'IMAGEBACkup', 'IMAGEREStore', 'Command', 'Macro'
+            ]
+        ),
+        subaction=dict(
+            type='str',
+            required=False,
+            choices=['', 'FASTBack', 'SYSTEMSTate', 'VApp', 'VM']
+        ),
+        options=dict(type='str', required=False, default=""),
+        objects=dict(type='str', required=False, default=""),
+        priority=dict(type='int', required=False, default=5),
+        start_date=dict(type='str', required=False, default=str(datetime.today().date())),
+        start_time=dict(type='str', required=False, default=str(datetime.now().time().replace(second=0, microsecond=0))),
+        duration=dict(type='int', required=False, default=1),
+        dur_units=dict(
+            type='str',
+            required=False,
+            default='Hours',
+            choices=['Hours', 'Minutes', 'Days']
+        ),
+        max_runtime=dict(type='int', required=False, default=0),
+        sched_style=dict(
+            type='str',
+            required=False,
+            default='Enhanced',
+            choices=['Enhanced']
+        ),
+        month=dict(
+            type='str',
+            required=False,
+            default='ANY',
+            choices=[
+                'ANY', 'JAnuary', 'February', 'MARch', 'APril', 'May',
+                'JUNe', 'JULy', 'AUgust', 'September', 'October', 'November', 'December'
+            ]
+        ),
+        day_of_month=dict(type='str', required=False, default='ANY'),
+        week_of_month=dict(
+            type='str',
+            required=False,
+            default='ANY',
+            choices=['ANY', 'FIrst', 'Second', 'Third', 'FOurth', 'Last']
+        ),
+        day_of_week=dict(
+            type='str',
+            required=False,
+            default='ANY',
+            choices=[
+                'ANY', 'WEEKDay', 'WEEKEnd', 'SUnday', 'Monday',
+                'TUesday', 'Wednesday', 'THursday', 'Friday', 'SAturday'
+            ]
+        ),
+        expiration=dict(
+            type='str',
+            required=False,
+            default='Never',
+            choices=['Never', 'date']
+        )
     )
 
+    module = DsmadmcAdapter(argument_spec=argument_spec)
 
-    module = DsmadmcAdapter(argument_spec=argument_spec, supports_check_mode=True)
-    
+    domain_name = module.params['domain_name']
+    schedule_name = module.params['schedule_name']
+    description = module.params['description']
+    action = module.params['action']
+    subaction = module.params['subaction']
+    options = module.params['options']
+    objects = module.params['objects']
+    priority = module.params['priority']
+    start_date = module.params['start_date']
+    start_time = module.params['start_time']
+    duration = module.params['duration']
+    dur_units = module.params['dur_units']
+    max_runtime = module.params['max_runtime']
+    sched_style = module.params['sched_style']
+    month = module.params['month']
+    day_of_month = module.params['day_of_month']
+    week_of_month = module.params['week_of_month']
+    day_of_week = module.params['day_of_week']
+    expiration = module.params['expiration']
 
-    schedule_name = module.params["schedule_name"]
-    schedule_type = module.params["schedule_type"]
-    start_time = module.params["start_time"]
-    period = module.params["period"]
-    period_unit = module.params["period_unit"]
-    client_nodes = module.params["client_nodes"]
+    command = (
+        f"DEFine SCHedule {domain_name} {schedule_name} "
+        f"Type=Client DESCription=\"{description}\" ACTion={action} "
+        f"{f'SUBACTion={subaction}' if subaction else ''} "
+        f"{f'OPTions={options}' if options else ''} "
+        f"{f'OBJects={objects}' if objects else ''} "
+        f"PRIority={priority} STARTDate={start_date} STARTTime={start_time} "
+        f"DURation={duration} DURUnits={dur_units} MAXRUNtime={max_runtime} "
+        f"SCHEDStyle={sched_style} MONth={month} DAYOFMonth={day_of_month} "
+        f"WEEKofmonth={week_of_month} DAYofweek={day_of_week} "
+        f"EXPiration={expiration}"
+    )
 
-    schedule_name = module.params.get('schedule_name')
-    state = module.params.get('state')
-    exists, existing = module.find_one('schedule', schedule_name)
-
-    if state == 'absent' or state == 'deregistered' or state == 'removed':
-        module.perform_action('remove', 'schedule', schedule_name, exists=exists)
-    else:
-        options_params = {
-            'schedule_type': 'Type',
-            'start_time': 'STARTTime',
-            'period': 'PERiod',
-            'period_unit': 'PERUnits',
-        }
-
-        not_on_update = ['type']
-
-        options = ""
-
-        for opt in options_params.keys():
-            value = module.params.get(opt)
-            if value is not None and not (exists and opt in not_on_update):
-                value = str(value)
-            elif value is not None and exists and opt in not_on_update:
-                module.warn(f'{opt} can not be updated so will not change if different from existing value.')
+    # Execute the command
+    try:
+        rc, out, err = module.run_command(command, auto_exit=True)
+        module.exit_json(changed=True, output=out)
+    except Exception as e:
+        module.fail_json(msg=f"Failed to define schedule: {to_native(e)}")
 
 
-        module.perform_action('schedule', schedule_name, options=options, exists=exists, existing=existing, auto_exit=True)
-
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    run_module()
