@@ -53,7 +53,7 @@ options:
         type: int
         default: 5
     start_date:
-        description: Start date of the schedule.
+        description: Start date of the schedule in formal MM/DD/YYYY.
         required: false
         type: str
     start_time:
@@ -136,7 +136,7 @@ def main():
         start_date=dict(),
         start_time=dict(),
         duration=dict(type='int'),
-        dur_units=dict(
+        duration_units=dict(
             choices=['Hours', 'Minutes', 'Days']
         ),
         max_runtime=dict(type='int'),
@@ -164,8 +164,8 @@ def main():
 
     module = DsmadmcAdapter(argument_spec=argument_spec, mutually_exclusive=mutually_exclusive)
 
-    name = module.params['name']
-    policy_domain = module.params['domain']
+    name = module.params.get('name')
+    policy_domain = module.params.get('policy_domain')
     fq_name = f'{policy_domain} {name}'
     state = module.params.get('state')
     exists, existing = module.find_one('schedule', fq_name)
@@ -183,7 +183,7 @@ def main():
             'start_date': 'STARTDate',
             'start_time': 'STARTTime',
             'duration': 'DURation',
-            'dur_units': 'DURUnits',
+            'duration_units': 'DURUnits',
             'max_runtime': 'MAXRUNtime',
             'month': 'MONth',
             'day_of_month': 'DAYOFMonth',
@@ -198,7 +198,7 @@ def main():
             value = module.params.get(opt)
             if value is not None:
                 value = str(value)
-                options += f" {options_params[opt]}={value}"
+                options += f' {options_params[opt]}=\\"{value}\\"'
 
         module.perform_action('update' if exists else 'define', 'schedule', fq_name, options=options, exists=exists, existing=existing)
 
