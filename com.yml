@@ -1,0 +1,170 @@
+---
+- name: Collect System Information
+  hosts: all
+  gather_facts: yes
+
+  tasks:
+    - name: Get Memory Information using free -m
+      command: free -m
+      register: memory_info
+
+    - name: Show Memory Information
+      debug:
+        var: memory_info.stdout
+
+    - name: Collect Architecture Information
+      command: lscpu
+      register: lscpu_output
+      changed_when: false
+
+    - name: Extract Architecture Info
+      set_fact:
+        architecture: "{{ lscpu_output.stdout | regex_search('Architecture:\\s+(\\S+)', '\\1') }}"
+      when: lscpu_output.rc == 0
+
+    - name: Collect OS Information using ansible setup module
+      set_fact:
+        os_name: "{{ ansible_facts['os_family'] }}"
+        os_version: "{{ ansible_facts['distribution_version'] }}"
+
+    - name: Extract Disk Space Info (from free -m output)
+      set_fact:
+        disk_space:
+          total_memory: "{{ memory_info.stdout.splitlines()[1].split()[1] }}"  # Total memory
+          used_memory: "{{ memory_info.stdout.splitlines()[1].split()[2] }}"  # Used memory
+          free_memory: "{{ memory_info.stdout.splitlines()[1].split()[3] }}"  # Free memory
+          swap_total: "{{ memory_info.stdout.splitlines()[2].split()[1] }}"  # Swap total
+          swap_used: "{{ memory_info.stdout.splitlines()[2].split()[2] }}"  # Swap used
+          swap_free: "{{ memory_info.stdout.splitlines()[2].split()[3] }}"  # Swap free
+
+    - name: Collect Java Version Information
+      command: java -version 2>&1
+      register: java_version_output
+      changed_when: false
+
+    - name: Extract Java Version
+      set_fact:
+        java_version: "{{ java_version_output.stderr.splitlines()[0] }}"
+      when: java_version_output.rc == 0
+
+    - name: Handle Java Version Error
+      set_fact:
+        java_version: "Java is not installed on the system."
+      when: java_version_output.rc != 0
+
+    - name: Collect All System Information
+      set_fact:
+        system_info:
+          Architecture: "{{ architecture }}"
+          OS Name: "{{ os_name }}"
+          OS Version: "{{ os_version }}"
+          Filesystem Disk Space:
+            - Total Memory: "{{ disk_space.total_memory }} MB"
+            - Used Memory: "{{ disk_space.used_memory }} MB"
+            - Free Memory: "{{ disk_space.free_memory }} MB"
+            - Swap Total: "{{ disk_space.swap_total }} MB"
+            - Swap Used: "{{ disk_space.swap_used }} MB"
+            - Swap Free: "{{ disk_space.swap_free }} MB"
+          Java Version: "{{ java_version }}"
+          Memory Info: "{{ memory_info.stdout }}"
+
+    - name: Show Collected System Information
+      debug:
+        var: system_info
+
+    - name: Check architecture compatibility
+      set_fact:
+        architecture_compatible: "{{ 'x86_64' in system_info.Architecture }}"
+
+    - name: Check Java installation
+      set_fact:
+        java_installed: "{{ 'Java' not in system_info['Java Version'] | lower }}"
+
+    - name: Check available disk space
+      set_fact:
+        avail_disk_space: "{{ disk_space.free_memory | int > 1400 }}"
+
+    - name: Display compatibility results
+      debug:
+        msg: |
+          Architecture check: {{ architecture_compatible }}
+          Java installed: {{ java_installed }}
+          Disk Space: {{ avail_disk_space }}
+
+    - name: Show if system is compatible
+      debug:
+        msg: "System is compatible"
+      when: architecture_compatible and java_installed and avail_disk_space
+
+    - name: Show if system is not compatible
+      debug:
+        msg: "System is incompatible"
+      when: not (architecture_compatible and java_installed and avail_disk_space)
+
+    - name: Create /opt/baClient directory
+      ansible.builtin.file:
+        path: /opt/baClient
+        state: directory
+        mode: '0755'
+      when: architecture_compatible and java_installed and avail_disk_space
+
+    - name: Extract provided .tar file
+      ansible.builtin.unarchive:
+        src: /opt/8.1.24.0-TIV-TSMBAC-LinuxX86.tar
+        dest: /opt/baClient
+        remote_src: yes
+      when: architecture_compatible and java_installed and avail_disk_space
+      register: extraction_result
+
+    - name: Find extracted files
+      ansible.builtin.find:
+        paths: /opt/baClient
+        recurse: yes
+      register: extracted_files
+
+    - name: Display the list of extracted files
+      debug:
+        msg: "Extracted files: {{ extracted_files.files | map(attribute='path') | list }}"
+      when: extracted_files is defined and extracted_files.files | length > 0
+    - name: Check if TIVsm-API64 is installed
+      command: rpm -q TIVsm-API64
+      register: check_api64
+      ignore_errors: true
+
+    - name: Check if TIVsm-APIcit is installed
+      command: rpm -q TIVsm-APIcit
+      register: check_apicit
+      ignore_errors: true
+
+    - name: Check if BA package is installed or not
+      command: rpm -q TIVsm-BA
+      register: check_ba
+      ignore_errors: true
+
+    - name: Check if BAcit package is installed or not
+      command: rpm -q TIVsm-BAcit
+      register: check_bacit
+      ignore_errors: true
+
+    # Install GSKit first
+    - name: Install GSKit crypt library (gskcrypt)
+      ansible.builtin.command: rpm -ivh {{ item }}
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskcrypt') | list }}"
+      when: extracted_files is defined and extracted_files.files | length > 0
+      ignore_errors: true
+
+    - name: Install GSKit SSL library (gskssl)
+      ansible.builtin.command: rpm -ivh {{ item }}
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskssl') | list }}"
+      when: extracted_files is defined and extracted_files.files | length > 0 and install
+      ignore_errors: true
+
+    - name: Install API packages (TIVsm-API64, TIVsm-APIcit)
+      ansible.builtin.command: rpm -ivh {{ item }}
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-API') | list }}"
+      when: check_apicit.rc != 0
+
+    - name: Install BA packages (TIVsm-BA, TIVsm-BAcit)
+      ansible.builtin.command: rpm -ivh {{ item }}
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BA') | list }}"
+      when: check_ba.rc != 0

@@ -178,8 +178,6 @@ def extract_disk_info(output):
         return {"status": False, "message": "Failed to parse disk space information."}
 
 
-
-
 def extract_os_info(output):
     # Using regex to extract the OS name and version from the '/etc/os-release' output
     name_match = re.search(r'NAME="([^"]+)"', output)
