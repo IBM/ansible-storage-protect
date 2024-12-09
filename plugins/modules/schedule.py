@@ -16,7 +16,7 @@ from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
 
 DOCUMENTATION = '''
 ---
-module: ibm_storage_protect_schedule
+module: schedule
 
 short_description: Manage IBM Storage Protect Schedules
 
