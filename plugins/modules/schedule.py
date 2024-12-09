@@ -241,6 +241,8 @@ def run_module():
     day_of_week = module.params['day_of_week']
     expiration = module.params['expiration']
 
+    exists, existing = module.find_one('node', name)
+
     command = (
         f"DEFine SCHedule {domain_name} {schedule_name} "
         f"Type=Client DESCription=\"{description}\" ACTion={action} "
