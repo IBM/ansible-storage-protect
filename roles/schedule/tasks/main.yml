@@ -1,0 +1,33 @@
+---
+- name: "Copy IBM Storage Protect Schedule Module"
+  copy:
+    src: ibm_storage_protect_schedule.py
+    dest: "{{ ansible_home }}/library/"
+    mode: '0755'
+
+- name: "Define IBM Storage Protect Schedule"
+  ibm_storage_protect_schedule:
+    domain_name: "{{ domain_name }}"
+    schedule_name: "{{ schedule_name }}"
+    description: "{{ description }}"
+    action: "{{ action }}"
+    subaction: "{{ subaction }}"
+    options: "{{ options }}"
+    objects: "{{ objects }}"
+    priority: "{{ priority }}"
+    start_date: "{{ start_date }}"
+    start_time: "{{ start_time }}"
+    duration: "{{ duration }}"
+    dur_units: "{{ dur_units }}"
+    max_runtime: "{{ max_runtime }}"
+    sched_style: "{{ sched_style }}"
+    month: "{{ month }}"
+    day_of_month: "{{ day_of_month }}"
+    week_of_month: "{{ week_of_month }}"
+    day_of_week: "{{ day_of_week }}"
+    expiration: "{{ expiration }}"
+  register: schedule_result
+
+- name: "Show Result"
+  debug:
+    msg: "Schedule created successfully: {{ schedule_result }}"
