@@ -14,6 +14,139 @@ from datetime import datetime
 # Import the custom DsmadmcAdapter class from the previous code
 from ansible.module_utils.dsmadmc_adapter import DsmadmcAdapter
 
+DOCUMENTATION = '''
+---
+module: ibm_storage_protect_schedule
+
+short_description: Manage IBM Storage Protect Schedules
+
+description:
+    - This module defines schedules in IBM Storage Protect.
+    - It uses the dsmadmc CLI for backend operations.
+
+options:
+    domain_name:
+        description: Policy domain to associate with the schedule.
+        required: true
+        type: str
+    schedule_name:
+        description: Name of the schedule to define.
+        required: true
+        type: str
+    description:
+        description: Description of the schedule.
+        required: false
+        type: str
+    action:
+        description: Type of action to perform.
+        required: true
+        type: str
+        choices: ['Incremental', 'Selective', 'Archive', 'Restore', 'Retrieve', 'IMAGEBACkup', 'IMAGEREStore', 'Command', 'Macro']
+    subaction:
+        description: Sub-action to perform.
+        required: false
+        type: str
+        choices: ['FASTBack', 'SYSTEMSTate', 'VApp', 'VM', '']
+    options:
+        description: Custom options string.
+        required: false
+        type: str
+    objects:
+        description: Objects to process.
+        required: false
+        type: str
+    priority:
+        description: Priority of the schedule.
+        required: false
+        type: int
+        default: 5
+    start_date:
+        description: Start date of the schedule.
+        required: false
+        type: str
+        default: "current_date"
+    start_time:
+        description: Start time of the schedule.
+        required: false
+        type: str
+        default: "current_time"
+    duration:
+        description: Duration of the schedule execution.
+        required: false
+        type: int
+        default: 1
+    duration_units:
+        description: Units for the schedule duration.
+        required: false
+        type: str
+        choices: ['Hours', 'Minutes', 'Days']
+        default: 'Hours'
+    max_runtime:
+        description: Maximum runtime allowed for the schedule.
+        required: false
+        type: int
+        default: 0
+    schedule_style:
+        description: Schedule style.
+        required: false
+        type: str
+        choices: ['Enhanced']
+        default: 'Enhanced'
+    month:
+        description: Month for schedule execution.
+        required: false
+        type: str
+        default: 'ANY'
+    day_of_month:
+        description: Day of the month to run the schedule.
+        required: false
+        type: str
+        default: 'ANY'
+    week_of_month:
+        description: Week of the month to run the schedule.
+        required: false
+        type: str
+        default: 'ANY'
+    day_of_week:
+        description: Day of the week to run the schedule.
+        required: false
+        type: str
+        default: 'ANY'
+    expiration:
+        description: Expiration date of the schedule.
+        required: false
+        type: str
+        default: 'Never'
+
+author:
+    - Subhajit Patra
+'''
+
+EXAMPLES = '''
+- name: Define an IBM Storage Protect schedule
+  ibm_storage_protect_schedule:
+    domain_name: "PROD_DOMAIN"
+    schedule_name: "Daily_Backup"
+    description: "Daily incremental backup"
+    action: "Incremental"
+    start_date: "2024-12-06"
+    start_time: "23:00"
+    duration: 2
+    duration_units: "Hours"
+    max_runtime: 4
+'''
+
+RETURN = '''
+command:
+    description: The command executed on the Storage Protect server.
+    type: str
+output:
+    description: Output from the executed command.
+    type: str
+changed:
+    description: Whether the schedule was created or modified.
+    type: bool
+'''
 
 def run_module():
     argument_spec = dict(
