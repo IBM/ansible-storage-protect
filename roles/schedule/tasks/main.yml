@@ -1,9 +1,5 @@
 ---
 - name: "Copy IBM Storage Protect Schedule Module"
-  copy:
-    src: ibm_storage_protect_schedule.py
-    dest: "{{ ansible_home }}/library/"
-    mode: '0755'
 
 - name: "Define IBM Storage Protect Schedule"
   ibm_storage_protect_schedule:
