@@ -1,0 +1,22 @@
+---
+- name: Define IBM Storage Protect Schedule
+  hosts: localhost
+  tasks:
+    - name: Create a backup schedule
+      ibm_storage_protect_schedule:
+        domain_name: "MyDomain"
+        schedule_name: "DailyBackup"
+        description: "Daily backup schedule"
+        action: "Incremental"
+        priority: 2
+        start_date: "2024-12-10"
+        start_time: "02:00"
+        duration: 2
+        dur_units: "Hours"
+        month: "December"
+        day_of_week: "Monday"
+        expiration: "Never"
+
+  roles:
+    - ibm_storage_protect_schedule
+...
