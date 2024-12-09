@@ -12,7 +12,7 @@ from ansible.module_utils.common.text.converters import to_native
 from datetime import datetime
 
 # Import the custom DsmadmcAdapter class from the previous code
-from ansible.module_utils.dsmadmc_adapter import DsmadmcAdapter
+from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
 
 DOCUMENTATION = '''
 ---
