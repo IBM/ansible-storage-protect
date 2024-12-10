@@ -1,10 +1,8 @@
 #!/usr/bin/python
 # coding: utf-8 -*-
 
-from ansible.module_utils.dsmadmc_adapter import DsmadmcAdapter
-from ansible.module_utils.sp_server_facts import DSMParser,SpServerResponseMapper
-
-from plugins.modules.node import DOCUMENTATION
+from ..module_utils.sp_server_facts import DSMParser, SpServerResponseMapper
+from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
 
 DOCUMENTATION = '''
 ---
