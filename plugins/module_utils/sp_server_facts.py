@@ -59,7 +59,7 @@ class DSMParser:
         return parsed_data
 
     @staticmethod
-    def parse_database_info(raw_output):
+    def parse_q_db(raw_output):
         """
         Parses the database information output into a structured dictionary.
 
@@ -83,7 +83,26 @@ class DSMParser:
         return parsed_output
 
     @staticmethod
-    def parse_space_info(raw_output):
+    def parse_q_dbspace(raw_output):
+        """
+        Parses the space information output into a structured dictionary.
+
+        Args:
+            raw_output (str): The raw output string from the space info query.
+
+        Returns:
+            dict: A dictionary with parsed space information (total, used, and free space).
+        """
+        parsed_values = [item.strip().replace('"', '') for item in raw_output.strip().split(",")]
+        parsed_output = {
+            "Total Space (MB)": parsed_values[0],
+            "Used Space (MB)": parsed_values[1],
+            "Free Space (MB)": parsed_values[2]
+        }
+
+        return parsed_output
+
+    def parse_q_log(raw_output):
         """
         Parses the space information output into a structured dictionary.
 
@@ -103,7 +122,7 @@ class DSMParser:
         return parsed_output
 
     @staticmethod
-    def parse_policy_info(raw_output):
+    def parse_q_domain(raw_output):
         """
         Parses the policy information output into a structured dictionary.
 
@@ -125,7 +144,7 @@ class DSMParser:
         return parsed_output
 
     @staticmethod
-    def parse_policy_settings(raw_output):
+    def parse_q_copygroup(raw_output):
         """
         Parses the policy settings output into a list of dictionaries.
 
@@ -149,7 +168,7 @@ class DSMParser:
         return parsed_output
 
     @staticmethod
-    def parse_replication_rules(raw_output):
+    def parse_q_replrule(raw_output):
         """
         Parses the replication rules output into a dictionary.
 
@@ -175,7 +194,7 @@ class DSMParser:
         return {"rules": parsed_output, "footer_message": footer_message}
 
     @staticmethod
-    def parse_device_class(raw_output):
+    def parse_q_devclass(raw_output):
         """
         Parses the device class output into a dictionary.
 
@@ -215,7 +234,7 @@ class DSMParser:
         return parsed_output
 
     @staticmethod
-    def parse_policy_management_class(raw_output):
+    def parse_q_mgmtclass(raw_output):
         """
         Parses the policy management class output into a list of dictionaries.
 
@@ -238,7 +257,7 @@ class DSMParser:
         return parsed_output
 
     @staticmethod
-    def parse_storage_pool(raw_output):
+    def parse_q_stgpool(raw_output):
         """
         Parses the storage pool output into a list of dictionaries.
 
