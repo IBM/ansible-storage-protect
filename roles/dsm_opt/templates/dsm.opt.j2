@@ -1,0 +1,19 @@
+SERVERNAME {{ servername }}
+{% if nodename %}NODENAME {{ nodename }}{% endif %}
+{% if password_access %}PASSWORDACCESS {{ password_access }}{% endif %}
+{% if domain %}DOMAIN {% for path in domain %}{{ path }} {% endfor %}{% endif %}
+{% for pattern in include_patterns %}
+INCLUDE {{ pattern }}
+{% endfor %}
+{% for pattern in exclude_patterns %}
+EXCLUDE {{ pattern }}
+{% endfor %}
+{% if managedservices %}MANAGEDSERVICES {{ managedservices }}{% endif %}
+{% if schedlogname %}SCHEDLOGNAME {{ schedlogname }}{% endif %}
+{% if errorlogname %}ERRORLOGNAME {{ errorlogname }}{% endif %}
+{% if compression %}COMPRESSION {{ compression }}{% endif %}
+{% if resourceutilization %}RESOURCEUTILIZATION {{ resourceutilization }}{% endif %}
+{% if tcpbuffsize %}TCPBUFFSIZE {{ tcpbuffsize }}{% endif %}
+{% if tcpwindowsize %}TCPWINDOWSIZE {{ tcpwindowsize }}{% endif %}
+{% if httpport %}HTTPPORT {{ httpport }}{% endif %}
+{% if txnbytelimit %}TXNBYTELIMIT {{ txnbytelimit }}{% endif %}
