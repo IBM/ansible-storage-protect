@@ -15,15 +15,6 @@ description:
     - The output of each query is parsed and returned in a developer-friendly format.
 
 options:
-    server_name:
-        description: 
-            - The name or IP address of the IBM Storage Protect server to query.
-    username:
-        description: 
-            - The username to authenticate with the IBM Storage Protect server.
-    password:
-        description: 
-            - The password associated with the username for authentication.
     q_status:
         description:
             - Whether to gather status information from the server.
@@ -79,30 +70,32 @@ options:
             - Whether to gather storage pool information from the server.
         type: bool
         default: False
+extends_documentation_fragment: ibm.storage_protect.auth
 '''
 
 EXAMPLES = '''
 ---
 - name: Gather server facts from IBM Storage Protect server
   sp_server_facts:
-    server_name: "sp-server01"
-    username: "admin"
-    password: "password"
     q_status: true
     q_db: true
     q_stgpool: true
-  register: result
+    q_dbspace: false
+    q_log: false
+    q_domain: false
+    q_copygroup: false
+    q_replrule: false
+    q_devclass: false
+    q_mgmtclass: false
+    q_stgpool: false
+  register: sp_server_facts
 
 - name: Display results
   debug:
-    var: result.results
-
+    var: sp_server_facts.results
 '''
 def main():
     argument_spec = dict(
-        server_name=dict(type='str', required=False),
-        username=dict(type='str', required=False),
-        password=dict(type='str', required=False),
         q_status=dict(type='bool', default=False),
         q_monitorsettings=dict(type='bool', default=False),
         q_db=dict(type='bool', default=False),
@@ -119,65 +112,29 @@ def main():
     dsmadmc = DsmadmcAdapter(argument_spec=argument_spec)
     results = {}
 
-    if dsmadmc.params.get('q_status'):
-        rc, output, _ = dsmadmc.run_command('q status', auto_exit=False)
-        if rc == 0:
-            results['q_status'] = DSMParser.parse_q_status(output)
+    queries = [
+        'status',
+        'monitorsettings',
+        'db',
+        'dbspace',
+        'log',
+        'domain',
+        'copygroup',
+        'replrule',
+        'devclass',
+        'mgmtclass',
+        'stgpool'
+    ]
 
-    if dsmadmc.params.get('q_monitorsettings'):
-        rc, output, _ = dsmadmc.run_command('q monitorsettings', auto_exit=False)
-        if rc == 0:
-            results['q_monitorsettings'] = DSMParser.parse_q_monitorsettings(output)
-
-    if dsmadmc.params.get('q_db'):
-        rc, output, _ = dsmadmc.run_command('q db', auto_exit=False)
-        if rc == 0:
-            results['q_db'] = DSMParser.parse_database_info(output)
-
-    if dsmadmc.params.get('q_dbspace'):
-        rc, output, _ = dsmadmc.run_command('q dbspace', auto_exit=False)
-        if rc == 0:
-            results['q_dbspace'] = DSMParser.parse_space_info(output)
-
-    if dsmadmc.params.get('q_log'):
-        rc, output, _ = dsmadmc.run_command('q log', auto_exit=False)
-        if rc == 0:
-            results['q_log'] = DSMParser.parse_space_info(output)
-
-    if dsmadmc.params.get('q_domain'):
-        rc, output, _ = dsmadmc.run_command('q domain', auto_exit=False)
-        if rc == 0:
-            results['q_domain'] = DSMParser.parse_policy_info(output)
-
-    if dsmadmc.params.get('q_copygroup'):
-        rc, output, _ = dsmadmc.run_command('q copygroup', auto_exit=False)
-        if rc == 0:
-            results['q_copygroup'] = DSMParser.parse_policy_settings(output)
-
-    if dsmadmc.params.get('q_replrule'):
-        rc, output, _ = dsmadmc.run_command('q replrule', auto_exit=False)
-        if rc == 0:
-            results['q_replrule'] = DSMParser.parse_replication_rules(output)
-
-    if dsmadmc.params.get('q_devclass'):
-        rc, output, _ = dsmadmc.run_command('q devclass', auto_exit=False)
-        if rc == 0:
-            results['q_devclass'] = DSMParser.parse_device_class(output)
-
-    if dsmadmc.params.get('q_mgmtclass'):
-        rc, output, _ = dsmadmc.run_command('q mgmtclass', auto_exit=False)
-        if rc == 0:
-            results['q_mgmtclass'] = DSMParser.parse_policy_management_class(output)
-
-    if dsmadmc.params.get('q_stgpool'):
-        rc, output, _ = dsmadmc.run_command('q stgpool', auto_exit=False)
-        if rc == 0:
-            results['q_stgpool'] = DSMParser.parse_storage_pool(output)
+    for query in queries:
+        if dsmadmc.params.get(f'q_{query}'):
+            rc, output, _ = dsmadmc.run_command(f'q {query}', auto_exit=False)
+            if rc == 0:
+                results[f'q_{query}'] = getattr(DSMParser, f'parse_q_{query}')(output)
 
     mapped_result = SpServerResponseMapper.map_to_developer_friendly(results)
 
     dsmadmc.exit_json(changed=False, results=mapped_result)
-
 
 if __name__ == '__main__':
     main()
