@@ -1,4 +1,4 @@
-# Ansible Role: BA Client Installation
+# ibm.storage_protect.install_ba_client
 
 This Ansible role automates the installation and configuration of the Storage Protect BA Client. It includes steps to verify system compatibility, transfer necessary files, and install required packages.
 
@@ -54,7 +54,6 @@ To use this role, include it in your playbook as follows:
 ```yaml
 - name: Run system info collection and compatibility check
   hosts: all
-  gather_facts: yes  # This should be set in the playbook, not inside the role
   roles:
     - collect_system_info
     - install_ba_client
