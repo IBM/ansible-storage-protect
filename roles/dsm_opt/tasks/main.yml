@@ -1,0 +1,22 @@
+---
+- name: Validate required variable `servername`
+  fail:
+    msg: "Mandatory variable `servername` is not set. Please define it in your playbook or inventory."
+  when: servername is not defined or servername == ""
+
+- name: Validate `state` value
+  fail:
+    msg: "Invalid state '{{ state }}'. Allowed values are 'present' or 'absent'."
+  when: state not in ["present", "absent"]
+
+- name: Ensure dsm.opt file is configured
+  template:
+    src: dsm.opt.j2
+    dest: "{{ optfile_path }}"
+  when: state == "present"
+
+- name: Remove dsm.opt file if state is absent
+  file:
+    path: "{{ optfile_path }}"
+    state: absent
+  when: state == "absent"

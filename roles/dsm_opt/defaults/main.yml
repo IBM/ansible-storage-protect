@@ -1,0 +1,17 @@
+servername: ""  # Mandatory
+nodename: ""
+password_access: ""
+domain: []
+include_patterns: []
+exclude_patterns: []
+managedservices: ""
+schedlogname: ""
+errorlogname: ""
+compression: ""
+resourceutilization: ""
+tcpbuffsize: ""
+tcpwindowsize: ""
+httpport: ""
+txnbytelimit: ""
+optfile_path: "/opt/tivoli/tsm/client/ba/bin/dsm.opt"
+state: "present"
