@@ -1,4 +1,4 @@
-# dsm_optfile_role
+# dsm_opt
 
 This Ansible role generates a `dsm.opt` configuration file for IBM Storage Protect clients using a Jinja2 template. It ensures the mandatory variable `servername` is defined while handling optional variables gracefully.
 
