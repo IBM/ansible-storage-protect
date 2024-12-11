@@ -33,12 +33,12 @@ options:
     action:
         description: Type of action to perform.
         type: str
-        choices: ['Incremental', 'Selective', 'Archive', 'Restore', 'Retrieve', 'IMAGEBACkup', 'IMAGEREStore', 'Command', 'Macro']
+        choices: ['incremental', 'selective', 'archive', 'restore', 'retrieve', 'imagebackup', 'imagerestore', 'command', 'macro']
     subaction:
         description: Sub-action to perform.
         required: false
         type: str
-        choices: ['FASTBack', 'SYSTEMSTate', 'VApp', 'VM', '']
+        choices: ['fasrback', 'systemstate', 'vapp', 'vm', '']
     options:
         description: Custom options string.
         required: false
@@ -68,7 +68,7 @@ options:
         description: Units for the schedule duration.
         required: false
         type: str
-        choices: ['Hours', 'Minutes', 'Days']
+        choices: ['hours', 'minutes', 'days']
     max_runtime:
         description: Maximum runtime allowed for the schedule.
         required: false
@@ -122,13 +122,13 @@ def main():
         description=dict(type='str'),
         action=dict(
             choices=[
-                'Incremental', 'Selective', 'Archive',
-                'Backup', 'Restore', 'Retrieve',
-                'IMAGEBACkup', 'IMAGEREStore', 'Command', 'Macro'
+                'incremental', 'selective', 'archive',
+                'backup', 'restore', 'retrieve',
+                'imagebackup', 'imagerestore', 'command', 'macro'
             ]
         ),
         subaction=dict(
-            choices=['', 'FASTBack', 'SYSTEMSTate', 'VApp', 'VM']
+            choices=['', 'fastback', 'systemstate', 'vapp', 'vm']
         ),
         options=dict(),
         objects=dict(),
@@ -137,23 +137,23 @@ def main():
         start_time=dict(),
         duration=dict(type='int'),
         duration_units=dict(
-            choices=['Hours', 'Minutes', 'Days']
+            choices=['hours', 'minutes', 'days']
         ),
         max_runtime=dict(type='int'),
         month=dict(
             choices=[
-                'ANY', 'JAnuary', 'February', 'MARch', 'APril', 'May',
-                'JUNe', 'JULy', 'AUgust', 'September', 'October', 'November', 'December'
+                'any', 'january', 'february', 'march', 'april', 'may',
+                'june', 'july', 'august', 'september', 'october', 'november', 'december'
             ]
         ),
         day_of_month=dict(),
         week_of_month=dict(
-            choices=['ANY', 'FIrst', 'Second', 'Third', 'FOurth', 'Last']
+            choices=['any', 'first', 'second', 'third', 'fourth', last']
         ),
         day_of_week=dict(
             choices=[
-                'ANY', 'WEEKDay', 'WEEKEnd', 'SUnday', 'Monday',
-                'TUesday', 'Wednesday', 'THursday', 'Friday', 'SAturday'
+                'any', 'weekday', 'weekend', 'sunday', 'monday',
+                'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'
             ]
         ),
         expiration=dict(),
