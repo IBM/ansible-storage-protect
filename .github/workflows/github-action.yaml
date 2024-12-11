@@ -137,10 +137,12 @@ jobs:
       # Step 8: Check if /opt/tivoli directory exists; create it if not
       - name: Create /opt/tivoli directory if it doesn't exist
         run: |
-          mkdir -p /opt/tivoli
+          sudo mkdir -p /opt/tivoli
           echo "Directory /opt/tivoli created or already exists."
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
 
-      # Step 9: Check if dsm.sys file exists before setting it up
+      # Step 9: Validate if dsm.sys file exists
       - name: Validate if dsm.sys file exists
         run: |
           if [[ -f /opt/tivoli/tsm/client/ba/bin/dsm.sys ]]; then
