@@ -1,20 +1,37 @@
-SERVERNAME {{ servername }}
-{% if nodename %}NODENAME {{ nodename }}{% endif %}
-{% if password %}password {{ password }}{% endif %}
-{% if password_access %}PASSWORDACCESS {{ password_access }}{% endif %}
-{% if domain %}DOMAIN {% for path in domain %}{{ path }} {% endfor %}{% endif %}
-{% for pattern in include_patterns %}
-INCLUDE {{ pattern }}
-{% endfor %}
-{% for pattern in exclude_patterns %}
-EXCLUDE {{ pattern }}
-{% endfor %}
-{% if managedservices %}MANAGEDSERVICES {{ managedservices }}{% endif %}
-{% if schedlogname %}SCHEDLOGNAME {{ schedlogname }}{% endif %}
-{% if errorlogname %}ERRORLOGNAME {{ errorlogname }}{% endif %}
-{% if compression %}COMPRESSION {{ compression }}{% endif %}
-{% if resourceutilization %}RESOURCEUTILIZATION {{ resourceutilization }}{% endif %}
-{% if tcpbuffsize %}TCPBUFFSIZE {{ tcpbuffsize }}{% endif %}
-{% if tcpwindowsize %}TCPWINDOWSIZE {{ tcpwindowsize }}{% endif %}
-{% if httpport %}HTTPPORT {{ httpport }}{% endif %}
-{% if txnbytelimit %}TXNBYTELIMIT {{ txnbytelimit }}{% endif %}
+SERVERNAME {{ merged_dsm_opt_vars.SERVERNAME }}
+{% if merged_dsm_opt_vars.PASSWORD -%}
+PASSWORD {{ merged_dsm_opt_vars.PASSWORD }}
+{% endif %}
+{% if merged_dsm_opt_vars.PASSWORDACCESS -%}
+PASSWORDACCESS {{ merged_dsm_opt_vars.PASSWORDACCESS }}
+{% endif %}
+{% if merged_dsm_opt_vars.NODENAME -%}
+NODENAME {{ merged_dsm_opt_vars.NODENAME }}
+{% endif %}
+{% if merged_dsm_opt_vars.DOMAIN -%}
+DOMAIN {{ merged_dsm_opt_vars.DOMAIN }}
+{% endif %}
+{% if merged_dsm_opt_vars.COMPRESSION -%}
+COMPRESSION {{ merged_dsm_opt_vars.COMPRESSION }}
+{% endif %}
+{% if merged_dsm_opt_vars.RESOURCEUTILIZATION -%}
+RESOURCEUTILIZATION {{ merged_dsm_opt_vars.RESOURCEUTILIZATION }}
+{% endif %}
+{% if merged_dsm_opt_vars.SCHEDLOGNAME -%}
+SCHEDLOGNAME {{ merged_dsm_opt_vars.SCHEDLOGNAME }}
+{% endif %}
+{% if merged_dsm_opt_vars.ERRORLOGNAME -%}
+ERRORLOGNAME {{ merged_dsm_opt_vars.ERRORLOGNAME }}
+{% endif %}
+{% if merged_dsm_opt_vars.TCPBUFFSIZE -%}
+TCPBUFFSIZE {{ merged_dsm_opt_vars.TCPBUFFSIZE }}
+{% endif %}
+{% if merged_dsm_opt_vars.TCPWINDOWSIZE -%}
+TCPWINDOWSIZE {{ merged_dsm_opt_vars.TCPWINDOWSIZE }}
+{% endif %}
+{% if merged_dsm_opt_vars.HTTPPORT -%}
+HTTPPORT {{ merged_dsm_opt_vars.HTTPPORT }}
+{% endif %}
+{% if merged_dsm_opt_vars.TXNBYTELIMIT -%}
+TXNBYTELIMIT {{ merged_dsm_opt_vars.TXNBYTELIMIT }}
+{% endif %}

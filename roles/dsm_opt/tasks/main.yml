@@ -9,10 +9,68 @@
     msg: "Invalid state '{{ state }}'. Allowed values are 'present' or 'absent'."
   when: state not in ["present", "absent"]
 
-- name: Ensure dsm.opt file is configured
+- name: Check if dsm.opt file exists on the remote machine
+  stat:
+    path: "{{ optfile_path }}"
+  register: dsm_opt_status
+
+- name: Read the content of dsm.opt if it exists
+  slurp:
+    src: "{{ optfile_path }}"
+  register: dsm_opt_content
+  when: dsm_opt_status.stat.exists
+
+- name: Parse dsm.opt content into a dictionary
+  set_fact:
+    dsm_opt_vars: >-
+      {{
+        dict(
+          (dsm_opt_content.content | b64decode).split('\n')
+          | select('!=', '')
+          | map('regex_search', '^([A-Z_]+)\\s+(.*)$')
+          | select('!=', None)
+          | map('group', 1, 2)
+        )
+      }}
+  when: dsm_opt_status.stat.exists
+
+- name: Set empty dictionary if dsm.opt does not exist
+  set_fact:
+    dsm_opt_vars: {}
+  when: not dsm_opt_status.stat.exists
+
+- name: Merge new variables with existing ones
+  set_fact:
+    merged_dsm_opt_vars: >-
+      {{
+        dsm_opt_vars | combine({
+          'SERVERNAME': servername | default(dsm_opt_vars.SERVERNAME, true),
+          'PASSWORD': password | default(dsm_opt_vars.PASSWORD, true),
+          'PASSWORDACCESS': password_access | default(dsm_opt_vars.get('PASSWORDACCESS', ''), true),
+          'NODENAME': nodename | default(dsm_opt_vars.get('NODENAME', ''), true),
+          'DOMAIN': domain | default(dsm_opt_vars.get('DOMAIN', ''), true),
+          'SCHEDLOGNAME': schedlogname | default(dsm_opt_vars.get('SCHEDLOGNAME', ''), true),
+          'ERRORLOGNAME': errorlogname | default(dsm_opt_vars.get('ERRORLOGNAME', ''), true),
+          'COMPRESSION': compression | default(dsm_opt_vars.get('COMPRESSION', ''), true),
+          'RESOURCEUTILIZATION': resourceutilization | default(dsm_opt_vars.get('RESOURCEUTILIZATION', ''), true),
+          'TCPBUFFSIZE': tcpbuffsize | default(dsm_opt_vars.get('TCPBUFFSIZE', ''), true),
+          'TCPWINDOWSIZE': tcpwindowsize | default(dsm_opt_vars.get('TCPWINDOWSIZE', ''), true),
+          'HTTPPORT': httpport | default(dsm_opt_vars.get('HTTPPORT', ''), true),
+          'TXNBYTELIMIT': txnbytelimit | default(dsm_opt_vars.get('TXNBYTELIMIT', ''), true)
+        }, recursive=true)
+      }}
+
+- name: Debug merged_dsm_opt_vars
+  debug:
+    var: merged_dsm_opt_vars
+
+
+- name: Generate updated dsm.opt file from template
   template:
     src: dsm.opt.j2
     dest: "{{ optfile_path }}"
+  vars:
+    dsm_opt_vars: "{{ merged_dsm_opt_vars }}"
   when: state == "present"
 
 - name: Remove dsm.opt file if state is absent
