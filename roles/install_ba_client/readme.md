@@ -52,7 +52,7 @@ The role performs the following steps:
 To use this role, include it in your playbook as follows:
 
 ```yaml
-- name: Run system info collection and compatibility check
+- name: Collect System Information and install BA Client if system is compatible
   hosts: all
   roles:
     - collect_system_info
