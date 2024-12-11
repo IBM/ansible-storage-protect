@@ -1,0 +1,21 @@
+# Default values for defining IBM Storage Protect schedule
+
+domain_name: "MyDomain"
+schedule_name: "DailyBackup"
+description: "Daily backup schedule"
+action: "Incremental"             # Options: Incremental, Selective, Archive, Backup, Restore, Retrieve, IMAGEBACkup, IMAGEREStore, Command, Macro
+subaction: ""                     # Options: "", FASTBack, SYSTEMSTate, VApp, VM
+options: ""
+objects: ""
+priority: 5
+start_date: "{{ ansible_date_time.date }}"
+start_time: "02:00"
+duration: 2
+dur_units: "Hours"                # Options: Hours, Minutes, Days
+max_runtime: 0
+sched_style: "Enhanced"
+month: "ANY"                     # Options: ANY, JAnuary, February, ... December
+day_of_month: "ANY"
+week_of_month: "ANY"             # Options: ANY, FIrst, Second, Third, FOurth, Last
+day_of_week: "ANY"               # Options: ANY, WEEKDay, WEEKEnd, SUnday, ... SAturday
+expiration: "Never"              # Options: Never, date
