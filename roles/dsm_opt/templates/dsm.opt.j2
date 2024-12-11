@@ -1,5 +1,6 @@
 SERVERNAME {{ servername }}
 {% if nodename %}NODENAME {{ nodename }}{% endif %}
+{% if password %}password {{ password }}{% endif %}
 {% if password_access %}PASSWORDACCESS {{ password_access }}{% endif %}
 {% if domain %}DOMAIN {% for path in domain %}{{ path }} {% endfor %}{% endif %}
 {% for pattern in include_patterns %}

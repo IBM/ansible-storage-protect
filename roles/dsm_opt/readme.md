@@ -10,25 +10,26 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
 
 ## Variables
 
-| Variable             | Default Value     | Required | Description                                    |
-|----------------------|-------------------|----------|------------------------------------------------|
-| `servername`         | `""`             | Yes      | Server name defined in dsm.sys                |
-| `nodename`           | `""`             | No       | Node name of the client                       |
-| `password_access`    | `""`             | No       | Password management setting                   |
-| `domain`             | `[]`             | No       | Directories or file systems to back up        |
-| `include_patterns`   | `[]`             | No       | Patterns to explicitly include in backups     |
-| `exclude_patterns`   | `[]`             | No       | Patterns to explicitly exclude from backups   |
-| `managedservices`    | `""`             | No       | Managed services                              |
-| `schedlogname`       | `""`             | No       | Schedule log path                             |
-| `errorlogname`       | `""`             | No       | Error log path                                |
-| `compression`        | `""`             | No       | Enable or disable compression                 |
-| `resourceutilization`| `""`             | No       | Number of threads                             |
-| `tcpbuffsize`        | `""`             | No       | TCP buffer size                               |
-| `tcpwindowsize`      | `""`             | No       | TCP sliding window size                       |
-| `httpport`           | `""`             | No       | HTTP port for the client                      |
-| `txnbytelimit`       | `""`             | No       | Maximum bytes in a transaction                |
-| `optfile_path`       | `"/opt/tivoli/tsm/client/ba/bin/dsm.opt"` | No | Path for the dsm.opt file |
-| `state`              | `"present"`      | No       | Ensure file is present or absent              |
+| Variable              | Default Value     | Required | Description             |
+|-----------------------|-------------------|----------|-------------------------|
+| `servername`          | `""`             | Yes      | Server name defined in dsm.sys |
+| `nodename`            | `""`             | No       | Node name of the client |
+| `password`            | `""`             | No       | Specifies the password you use to log on to the IBM Storage Protect server.                       |
+| `password_access`     | `""`             | No       | The passwordaccess option specifies whether you want to generate your password automatically or set as a user prompt. |
+| `domain`              | `[]`             | No       | Directories or file systems to back up |
+| `include_patterns`    | `[]`             | No       | Patterns to explicitly include in backups |
+| `exclude_patterns`    | `[]`             | No       | Patterns to explicitly exclude from backups |
+| `managedservices`     | `""`             | No       | Managed services       |
+| `schedlogname`        | `""`             | No       | Schedule log path      |
+| `errorlogname`        | `""`             | No       | Error log path         |
+| `compression`         | `""`             | No       | Enable or disable compression |
+| `resourceutilization` | `""`             | No       | Number of threads      |
+| `tcpbuffsize`         | `""`             | No       | TCP buffer size        |
+| `tcpwindowsize`       | `""`             | No       | TCP sliding window size |
+| `httpport`            | `""`             | No       | HTTP port for the client |
+| `txnbytelimit`        | `""`             | No       | Maximum bytes in a transaction |
+| `optfile_path`        | `"/opt/tivoli/tsm/client/ba/bin/dsm.opt"` | No | Path for the dsm.opt file |
+| `state`               | `"present"`      | No       | Ensure file is present or absent |
 
 ## Usage
 

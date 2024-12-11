@@ -1,6 +1,7 @@
 servername: ""  # Mandatory
 nodename: ""
 password_access: ""
+password: ""
 domain: []
 include_patterns: []
 exclude_patterns: []
