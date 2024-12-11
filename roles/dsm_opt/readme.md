@@ -7,6 +7,7 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
 - Validates `servername` as a mandatory field.
 - Supports include/exclude patterns and optional parameters.
 - Handles `present` and `absent` states for file creation and deletion.
+- Automatic Value Mapping**: Reads an existing `dsm.opt` file and automatically maps the existing values. 
 
 ## Variables
 
