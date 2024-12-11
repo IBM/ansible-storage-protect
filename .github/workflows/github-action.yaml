@@ -134,18 +134,29 @@ jobs:
           ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.6 exit
           ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.8 exit
 
-      # Step 8: Set up static dsm.sys file
-      - name: Set up static dsm.sys file
+      # Step 8: Check if /opt/tivoli directory exists; create it if not
+      - name: Create /opt/tivoli directory if it doesn't exist
         run: |
-          mkdir -p /opt/tivoli/tsm/client/ba/bin
-          echo -e "SERVERNAME IBMSPSVR01\n\
-          COMMMETHOD tcpip\n\
-          TCPPORT 1500\n\
-          TCPSERVERADDRESS 10.240.64.6" > /opt/tivoli/tsm/client/ba/bin/dsm.sys
-          chmod 644 /opt/tivoli/tsm/client/ba/bin/dsm.sys
-          echo "Static dsm.sys file has been set up at /opt/tivoli/tsm/client/ba/bin."
+          mkdir -p /opt/tivoli
+          echo "Directory /opt/tivoli created or already exists."
 
-      # Step 9: Validate dsm.sys file
+      # Step 9: Check if dsm.sys file exists before setting it up
+      - name: Validate if dsm.sys file exists
+        run: |
+          if [[ -f /opt/tivoli/tsm/client/ba/bin/dsm.sys ]]; then
+            echo "dsm.sys file already exists at /opt/tivoli/tsm/client/ba/bin. Skipping setup."
+          else
+            echo "Setting up static dsm.sys file..."
+            mkdir -p /opt/tivoli/tsm/client/ba/bin
+            echo -e "SERVERNAME IBMSPSVR01\n\
+            COMMMETHOD tcpip\n\
+            TCPPORT 1500\n\
+            TCPSERVERADDRESS ***" > /opt/tivoli/tsm/client/ba/bin/dsm.sys
+            chmod 644 /opt/tivoli/tsm/client/ba/bin/dsm.sys
+            echo "Static dsm.sys file has been set up at /opt/tivoli/tsm/client/ba/bin."
+          fi
+
+      # Step 10: Validate dsm.sys file
       - name: Validate dsm.sys file
         run: |
           echo "Validating the dsm.sys file..."
@@ -158,7 +169,7 @@ jobs:
             exit 1
           fi
 
-      # Step 10: Test dsmadmc connectivity
+      # Step 11: Test dsmadmc connectivity
       - name: Test dsmadmc connectivity
         run: |
           echo "Testing connection to IBM Storage Protect server..."
@@ -167,7 +178,7 @@ jobs:
             exit 1
           }
 
-      # Step 11: Run Ansible Playbook for Client Registration
+      # Step 12: Run Ansible Playbook for Client Registration
       - name: Run Ansible Playbook for Client Registration
         env:
           CLIENT_NAME: ${{ secrets.CLIENT_NAME }}
@@ -192,7 +203,7 @@ jobs:
                             storage_protect_nodes_async_delay=10 \
                             storage_protect_nodes_loop_delay=30"
 
-      # Step 12: Collect logs (Optional)
+      # Step 13: Collect logs (Optional)
       - name: Collect logs as artifacts
         uses: actions/upload-artifact@v3
         with:
