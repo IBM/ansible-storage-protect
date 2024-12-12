@@ -155,9 +155,9 @@ jobs:
             sudo chmod 644 /opt/tivoli/tsm/client/ba/bin/dsm.sys
             echo "Static dsm.sys file has been set up at /opt/tivoli/tsm/client/ba/bin."
           fi
-        shell: /usr/bin/bash -e
+        shell: bash
         env:
-          ANSIBLE_HOST_KEY_CHECKING: False
+          ANSIBLE_HOST_KEY_CHECKING: false
 
       # Step 9: Run Ansible Playbook for Client Registration
       - name: Run Ansible Playbook for Client Registration
