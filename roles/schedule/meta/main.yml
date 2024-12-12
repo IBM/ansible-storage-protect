@@ -1,7 +1,7 @@
 ---
 galaxy_info:
-  role_name: ibm_storage_protect_schedule
-  author: YourName
+  role_name: schedule
+  author: Subhajit Patra
   description: "Ansible role to manage IBM Storage Protect schedules."
   license: MIT
   min_ansible_version: 2.9
