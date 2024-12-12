@@ -5,7 +5,7 @@
   become: false
 
   roles:
-    - ibm_storage_protect_schedule
+    - ibm.storage_protect.schedule
 
   vars:
     domain_name: "TestDomain"
