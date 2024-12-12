@@ -15,7 +15,7 @@
     storage_protect_password: adminPassword12345678
     storage_protect_schedules:
       - name: "DailyTestBackup"
-        domain_name: "TestDomain"
+        policy_domain: "TestDomain"
         description: "Test schedule for daily backups"
         action: "Incremental"
         subaction: ""
