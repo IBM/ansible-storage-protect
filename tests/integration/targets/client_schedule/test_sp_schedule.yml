@@ -14,26 +14,25 @@
     storage_protect_username: adminuser
     storage_protect_password: adminPassword12345678
     storage_protect_schedules:
-  vars:
-    domain_name: "TestDomain"
-    schedule_name: "DailyTestBackup"
-    description: "Test schedule for daily backups"
-    action: "Incremental"
-    subaction: ""
-    options: "-subdir=yes"
-    objects: "/data"
-    priority: 3
-    start_date: "{{ ansible_date_time.date }}"
-    start_time: "04:00"
-    duration: 2
-    dur_units: "Hours"
-    max_runtime: 0
-    sched_style: "Enhanced"
-    month: "ANY"
-    day_of_month: "ANY"
-    week_of_month: "ANY"
-    day_of_week: "WEEKDay"
-    expiration: "Never"
+      - name: "DailyTestBackup"
+        domain_name: "TestDomain"
+        description: "Test schedule for daily backups"
+        action: "Incremental"
+        subaction: ""
+        options: "-subdir=yes"
+        objects: "/data"
+        priority: 3
+        start_date: "{{ ansible_date_time.date }}"
+        start_time: "04:00"
+        duration: 2
+        dur_units: "Hours"
+        max_runtime: 0
+        sched_style: "Enhanced"
+        month: "ANY"
+        day_of_month: "ANY"
+        week_of_month: "ANY"
+        day_of_week: "WEEKDay"
+        expiration: "Never"
 
   tasks:
     - name: "Verify the Result of the Schedule Creation"
