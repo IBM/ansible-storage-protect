@@ -2,7 +2,7 @@
 - name: "Managing Storage Protect Schedules"
   ibm.storage_protect.schedule:
     domain_name: "{{ __storage_protect_schedule_item.domain_name | mandatory }}"
-    schedule_name: "{{ __storage_protect_schedule_item.schedule_name | mandatory }}”
+    schedule_name: "{{ __storage_protect_schedule_item.schedule_name | mandatory }}"
     description: "{{ __storage_protect_schedule_item.description | default(omit) }}"
     action: "{{ __storage_protect_schedule_item.action | default(omit) }}"
     subaction: "{{ __storage_protect_schedule_item.subaction | default(omit) }}"
