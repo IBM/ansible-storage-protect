@@ -1,4 +1,4 @@
-# ibm.storage_protect.schedule
+# ibm.storage_protect.schedules
 
 ## Description
 An Ansible Role to manage schedules in IBM Storage Protect, supporting creation, updates, and removal.
