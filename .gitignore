@@ -5,4 +5,5 @@ __pycache__
 playbook.yml
 inventory.ini
 ansible.cfg
-8.1.24.0-TIV-TSMBAC-LinuxX86.tar
+*.tar
+*.idea
