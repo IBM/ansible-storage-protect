@@ -174,7 +174,7 @@ def main():
     exists, existing = module.find_one('schedule', fq_name)
 
     if state == 'absent':
-        module.perform_action('remove', 'schedule', fq_name, exists=exists)
+        module.perform_action('delete', 'schedule', fq_name, exists=exists)
     else:
         options_params = {
             'description': 'DESCription',
