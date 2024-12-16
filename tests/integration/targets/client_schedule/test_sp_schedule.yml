@@ -1,12 +1,4 @@
 ---
-- name: "Test IBM Storage Protect Schedule Role"
-  hosts: localhost
-  gather_facts: false
-  become: false
-
-  roles:
-    - ibm.storage_protect.schedule
-
 - name: Test schedule definition in IBM Storage Protect
   hosts: storage_protect_server
   vars:
@@ -15,24 +7,24 @@
     storage_protect_password: adminPassword12345678
     storage_protect_schedules:
       - name: "DailyTestBackup"
-        policy_domain: "TestDomain"
+        policy_domain: "STANDARD"
         description: "Test schedule for daily backups"
-        action: "Incremental"
+        action: "incremental"
         subaction: ""
         options: "-subdir=yes"
         objects: "/data"
         priority: 3
-        start_date: "{{ ansible_date_time.date }}"
         start_time: "04:00"
         duration: 2
-        dur_units: "Hours"
+        dur_units: "hours"
         max_runtime: 0
-        sched_style: "Enhanced"
-        month: "ANY"
-        day_of_month: "ANY"
-        week_of_month: "ANY"
-        day_of_week: "WEEKDay"
-        expiration: "Never"
+        month: "any"
+        day_of_month: "any"
+        week_of_month: "any"
+        expiration: "never"
+
+  roles:
+    - ibm.storage_protect.schedules
 
   tasks:
     - name: "Verify the Result of the Schedule Creation"
