@@ -215,25 +215,6 @@ class DSMParser:
         return parsed_output
 
     @staticmethod
-    def parse_storage_space(raw_output):
-        """
-        Parses the storage space output into a dictionary.
-
-        Args:
-            raw_output (str): The raw output string from the storage space query.
-
-        Returns:
-            dict: A dictionary with parsed storage space details.
-        """
-        keys = [
-            "Location", "Total Space of File System (MB)", "Used Space on File System (MB)", "Free Space (MB)"
-        ]
-        values = [value.strip('\"') for value in raw_output.strip().split(",")]
-        parsed_output = dict(zip(keys, values))
-
-        return parsed_output
-
-    @staticmethod
     def parse_q_mgmtclass(raw_output):
         """
         Parses the policy management class output into a list of dictionaries.
