@@ -6,4 +6,4 @@ playbook.yml
 inventory.ini
 ansible.cfg
 *.tar
-*.idea
+.idea
