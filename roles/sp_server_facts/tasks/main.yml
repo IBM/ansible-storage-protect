@@ -1,0 +1,19 @@
+---
+- name: "Gather Storage Protect Server Facts"
+  sp_server_facts:
+    q_status: "{{ sp_server_facts_flags.q_status }}"
+    q_monitorsettings: "{{ sp_server_facts_flags.q_monitorsettings }}"
+    q_db: "{{ sp_server_facts_flags.q_db }}"
+    q_dbspace: "{{ sp_server_facts_flags.q_dbspace }}"
+    q_log: "{{ sp_server_facts_flags.q_log }}"
+    q_domain: "{{ sp_server_facts_flags.q_domain }}"
+    q_copygroup: "{{ sp_server_facts_flags.q_copygroup }}"
+    q_replrule: "{{ sp_server_facts_flags.q_replrule }}"
+    q_devclass: "{{ sp_server_facts_flags.q_devclass }}"
+    q_mgmtclass: "{{ sp_server_facts_flags.q_mgmtclass }}"
+    q_stgpool: "{{ sp_server_facts_flags.q_stgpool }}"
+  register: sp_server_facts
+
+- name: "Display Storage Protect Server Facts"
+  debug:
+    var: sp_server_facts
