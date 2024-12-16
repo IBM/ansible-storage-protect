@@ -6,7 +6,7 @@
 
   roles:
     - ibm.storage_protect.schedule
-    
+
 - name: Test schedule definition in IBM Storage Protect
   hosts: storage_protect_server
   vars:
@@ -36,5 +36,6 @@
 
   tasks:
     - name: "Verify the Result of the Schedule Creation"
-      debug:
+      ansible.builtin.debug:
         msg: "Schedule creation test completed successfully."
+...

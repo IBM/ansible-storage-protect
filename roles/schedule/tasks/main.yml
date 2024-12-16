@@ -12,14 +12,13 @@
     start_date: "{{ __storage_protect_schedule_item.start_date | default(omit) }}"
     start_time: "{{ __storage_protect_schedule_item.start_time | default(omit) }}"
     duration: "{{ __storage_protect_schedule_item.duration | default(omit) }}"
-    dur_units: "{{ __storage_protect_schedule_item.dur_units | default(omit) }}"
+    duration_units: "{{ __storage_protect_schedule_item.dur_units | default(omit) }}"
     max_runtime: "{{ __storage_protect_schedule_item.max_runtime | default(omit) }}"
-    sched_style: "{{ __storage_protect_schedule_item.sched_style | default(omit) }}"
     month: "{{ __storage_protect_schedule_item.month | default(omit) }}"
     day_of_month: "{{ __storage_protect_schedule_item.day_of_month | default(omit) }}"
     week_of_month: "{{ __storage_protect_schedule_item.week_of_month | default(omit) }}"
     day_of_week: "{{ __storage_protect_schedule_item.day_of_week | default(omit) }}"
-    expiration: "{{ __storage_protect_schedule_item.expiration | default(omit)  }}"
+    expiration: "{{ __storage_protect_schedule_item.expiration | default(omit) }}"
     state: "{{ __storage_protect_schedule_item.state | default(storage_protect_state | default('present')) }}"
 
     # Role Standard Options
