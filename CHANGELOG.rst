@@ -14,6 +14,8 @@ Major Changes
 - Added dsm_sysfile module to allow creation of dsm.sys file
 - Added node module to create node
 - Added nodes role to wrap around node module
+- Added schedule module to create schedules
+- Added schedules role to wrap around schedule module
 
 Minor Changes
 -------------
