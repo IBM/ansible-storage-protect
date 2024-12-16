@@ -3,7 +3,7 @@
 This Ansible role generates a `dsm.opt` configuration file for IBM Storage Protect clients using a Jinja2 template. It ensures the mandatory variable `servername` is defined while handling optional variables gracefully.
 
 ## Features
-- Dynamically generates the `dsm.opt` file.
+- Dynamically generates the `dsm.opt` file
 - Validates `servername` as a mandatory field.
 - Supports include/exclude patterns and optional parameters.
 - Handles `present` and `absent` states for file creation and deletion.
