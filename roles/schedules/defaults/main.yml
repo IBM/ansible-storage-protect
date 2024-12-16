@@ -1,0 +1,10 @@
+# Default values for defining IBM Storage Protect schedule
+
+storage_protect_schedules: []
+storage_protect_schedules_secure_logging: "{{ storage_protect_secure_logging | default('false') }}"
+storage_protect_schedules_async_retries: "{{ storage_protect_async_retries | default(30) }}"
+storage_protect_schedules_async_delay: "{{ storage_protect_async_delay | default(1) }}"
+storage_protect_schedules_loop_delay: "{{ storage_protect_loop_delay | default(0) }}"
+storage_protect_async_dir: null
+
+...
