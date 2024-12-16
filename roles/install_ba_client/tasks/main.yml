@@ -113,4 +113,3 @@
   debug:
     msg: "BA is installed successfully"
   when: "'ANS0990W' in dsmc_output.stdout"
-
