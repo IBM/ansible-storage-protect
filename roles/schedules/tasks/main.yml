@@ -35,7 +35,7 @@
   async: "{{ ansible_check_mode | ternary(0, 1000) }}"
   poll: 0
   register: __schedule_job_async
-  changed_when: “(__schedule_job_async.changed if ansible_check_mode else false)"
+  changed_when: "(__schedule_job_async.changed if ansible_check_mode else false)"
   vars:
     __operation: "{{ operation_translate[__storage_protect_schedule_item.state | default(storage_protect_state) | default('present')] }}"
     ansible_async_dir: '{{ storage_protect_async_dir }}'
