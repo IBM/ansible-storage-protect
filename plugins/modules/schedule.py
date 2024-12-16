@@ -10,13 +10,11 @@ __metaclass__ = type
 DOCUMENTATION = '''
 ---
 module: schedule
-
+author: Subhajit Patra
 short_description: Manage IBM Storage Protect Schedules
-
 description:
     - This module defines schedules in IBM Storage Protect.
     - It uses the dsmadmc CLI for backend operations.
-
 options:
     name:
         description: Name of the schedule to define.
@@ -93,9 +91,13 @@ options:
         description: Expiration date of the schedule.
         required: false
         type: str
-
-author:
-    - Subhajit Patra
+    state:
+        description: Desired state of the schedule.
+        default: 'present'
+        choices: ['present', 'absent']
+        type: str
+extends_documentation_fragment: ibm.storage_protect.auth
+...
 '''
 
 EXAMPLES = '''
@@ -110,6 +112,7 @@ EXAMPLES = '''
     duration: 2
     duration_units: "Hours"
     max_runtime: 4
+...
 '''
 
 from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
@@ -148,7 +151,7 @@ def main():
         ),
         day_of_month=dict(),
         week_of_month=dict(
-            choices=['any', 'first', 'second', 'third', 'fourth', last']
+            choices=['any', 'first', 'second', 'third', 'fourth', 'last']
         ),
         day_of_week=dict(
             choices=[
