@@ -1,24 +1,23 @@
 ---
-# Pre-check if BA Client is already installed
+# Check if BA Client is already installed
 - name: Check if BA Client is already installed
   ansible.builtin.command: rpm -q TIVsm-BA
   register: ba_client_check
   ignore_errors: true
   changed_when: false
 
-# Displaying the installatin status
+# Displaying the installation status
 - name: Display BA Client status
   debug:
-    msg: "BA Client is already installed. Skipping installation.Installed Version -> {{ ba_client_check.stdout }}"
-  when: ba_client_check.rc == 0
+    msg: "BA Client is already installed. Skipping installation. Installed Version -> {{ ba_client_check.stdout }}"
+  when: ba_client_check is defined and ba_client_check.rc == 0 and action == "install"
 
-# Skipping the installation if BA Client is already installed and user has set the flag to install
+# Skipping the installation if BA Client is already installed
 - name: Fail or Skip Installation
   meta: end_play
-  when: ba_client_check.rc == 0
+  when: ba_client_check is defined and ba_client_check.rc == 0 and action == "install"
 
 # System Compatibility checks for installing the ba client
-
 
 - name: Checking architecture compatibility
   set_fact:
