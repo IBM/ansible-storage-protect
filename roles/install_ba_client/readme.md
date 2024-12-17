@@ -1,6 +1,6 @@
 # ibm.storage_protect.install_ba_client
 
-This Ansible role automates the installation and configuration of the Storage Protect BA Client. It includes steps to verify system compatibility, transfer necessary files, and install required packages.
+This Ansible role automates the installation, upgrade and configuration of the Storage Protect BA Client. It includes steps to verify system compatibility, transfer necessary files, and install required packages.
 
 ---
 
@@ -8,11 +8,12 @@ This Ansible role automates the installation and configuration of the Storage Pr
 
 The following variables are defined in `defaults.yml`:
 
-| Variable         | Description                                                       | Default Value                        |
-|------------------|-------------------------------------------------------------------|--------------------------------------|
-| `tar_file_path`  | Path on the control node to the tar file, which is to be installed | `./8.1.24.0-TIV-TSMBAC-LinuxX86.tar` |
-| `extract_dest`   | Destination to extract files                     | `/opt/baClient`                      |
-| `temp_dest`      | Temporary storage for tar file                                    | `/tmp/`                              |
+| Variable        | Description                                                        | Default Value                        |
+|-----------------|--------------------------------------------------------------------|--------------------------------------|
+| `tar_file_path` | Path on the control node to the tar file, which is to be installed | `./8.1.24.0-TIV-TSMBAC-LinuxX86.tar` |
+| `extract_dest`  | Destination to extract files                                       | `/opt/baClient`                      |
+| `temp_dest`     | Temporary storage for tar file                                     | `/tmp/`                              |
+| `action`        | Specify the action, whether to install or upgrade                  | `install`                            |
 
 ---
 
@@ -21,9 +22,12 @@ The following variables are defined in `defaults.yml`:
 The role performs the following steps:
 
 1. **Compatibility Checks**:
-   - Verifies system architecture compatibility.
-   - Checks if Java is installed.
-   - Confirms that sufficient disk space is available.
+   - Checks if the ba client is already installed or not.
+   - If already installed and user has specified the action as install, role will skip the installation.
+   - If action is specified as install then performs the following pre-checks,
+       - Verifies system architecture compatibility.
+       - Checks if Java is installed.
+       - Confirms that sufficient disk space is available.
 
 2. **File Transfer and Extraction**:
    - Transfers the tar file to the remote host.
@@ -34,8 +38,8 @@ The role performs the following steps:
    - Installs the GSKit cryptographic and SSL libraries.
    - Installs API and BA packages, if not already installed.
 
-4. **Validation**:
-   - Checks for the successful installation of the BA Client using `dsmc`.
+4. **Post-Checks**:
+   - Checks for the successful installation of the BA Client using 'rpm -q TIVsm-BA'.
 
 ---
 
@@ -52,9 +56,24 @@ The role performs the following steps:
 To use this role, include it in your playbook as follows:
 
 ```yaml
-- name: Collect System Information and install BA Client if system is compatible
+- name: Install BA Client
   hosts: all
+  become: true
   roles:
-    - collect_system_info
-    - install_ba_client
+    - role: collect_system_info
+    - role: install_ba_client
+      vars:
+        action: "install"
+        tar_file_path: "./8.1.23.0-TIV-TSMBAC-LinuxX86.tar"
+
+- name: Upgrade BA Client
+  hosts: all
+  become: true
+  roles:
+    - role: collect_system_info
+    - role: install_ba_client
+      vars:
+        action: "upgrade"
+        tar_file_path: "./8.1.24.0-TIV-TSMBAC-LinuxX86.tar"
+
 ```
