@@ -1,0 +1,46 @@
+---
+# Stop BA client processes
+- name: Stop BA client processes using killall
+  ansible.builtin.command: "killall {{ item }}"
+  with_items:
+    - dsmc
+    - dsmcad
+  ignore_errors: true
+
+- name: Stop BA client processes using systemctl
+  ansible.builtin.systemd:
+    name: dsmcad
+    state: stopped
+  ignore_errors: true
+
+# Defining uninstallation order since the packages are dependent on each other
+- name: Define package uninstall order
+  set_fact:
+    uninstall_packages:
+      - "TIVsm-WEBGUI"
+      - "TIVsm-BAhdw"
+      - "TIVsm-BAcit"
+      - "TIVsm-APIcit"
+      - "TIVsm-BA"
+      - "TIVsm-API64"
+      - "gskssl64"
+      - "gskcrypt64"
+
+# Checking if the packages are installed
+- name: Check for installed packages
+  ansible.builtin.command: "rpm -q {{ item }}"
+  with_items: "{{ uninstall_packages }}"
+  register: installed_packages
+  ignore_errors: true
+  changed_when: false
+
+# Uninstalling packages in the correct order
+- name: Uninstall packages in sequence
+  ansible.builtin.command: "rpm -e {{ item.item }}"
+  with_items: "{{ installed_packages.results }}"
+  when: item.rc == 0
+  ignore_errors: false
+
+# Calling install tasks to reinstall the packages
+- name: Reinstall the BA client
+  include_tasks: install.yml
