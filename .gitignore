@@ -7,3 +7,4 @@ inventory.ini
 ansible.cfg
 *.tar
 .idea
+.python-version
