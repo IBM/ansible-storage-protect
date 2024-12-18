@@ -13,24 +13,24 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
 
 | Variable              | Default Value     | Required | Description             |
 |-----------------------|-------------------|----------|-------------------------|
-| `servername`          | `""`             | Yes      | Server name defined in dsm.sys |
-| `nodename`            | `""`             | No       | Node name of the client |
-| `password`            | `""`             | No       | Specifies the password you use to log on to the IBM Storage Protect server.                       |
-| `password_access`     | `""`             | No       | The passwordaccess option specifies whether you want to generate your password automatically or set as a user prompt. |
-| `domain`              | `[]`             | No       | Directories or file systems to back up |
-| `include_patterns`    | `[]`             | No       | Patterns to explicitly include in backups |
-| `exclude_patterns`    | `[]`             | No       | Patterns to explicitly exclude from backups |
-| `managedservices`     | `""`             | No       | Managed services       |
-| `schedlogname`        | `""`             | No       | Schedule log path      |
-| `errorlogname`        | `""`             | No       | Error log path         |
-| `compression`         | `""`             | No       | Enable or disable compression |
-| `resourceutilization` | `""`             | No       | Number of threads      |
-| `tcpbuffsize`         | `""`             | No       | TCP buffer size        |
-| `tcpwindowsize`       | `""`             | No       | TCP sliding window size |
-| `httpport`            | `""`             | No       | HTTP port for the client |
-| `txnbytelimit`        | `""`             | No       | Maximum bytes in a transaction |
-| `optfile_path`        | `"/opt/tivoli/tsm/client/ba/bin/dsm.opt"` | No | Path for the dsm.opt file |
-| `state`               | `"present"`      | No       | Ensure file is present or absent |
+| `dsm_opt_servername`          | `""`             | Yes      | Server name defined in dsm.sys |
+| `dsm_opt_nodename`            | `""`             | No       | Node name of the client |
+| `dsm_opt_password`            | `""`             | No       | Specifies the password you use to log on to the IBM Storage Protect server.                       |
+| `dsm_opt_password_access`     | `""`             | No       | The passwordaccess option specifies whether you want to generate your password automatically or set as a user prompt. |
+| `dsm_opt_domain`              | `[]`             | No       | Directories or file systems to back up |
+| `dsm_opt_include_patterns`    | `[]`             | No       | Patterns to explicitly include in backups |
+| `dsm_opt_exclude_patterns`    | `[]`             | No       | Patterns to explicitly exclude from backups |
+| `dsm_opt_managedservices`     | `""`             | No       | Managed services       |
+| `dsm_opt_schedlogname`        | `""`             | No       | Schedule log path      |
+| `dsm_opt_errorlogname`        | `""`             | No       | Error log path         |
+| `dsm_opt_compression`         | `""`             | No       | Enable or disable compression |
+| `dsm_opt_resourceutilization` | `""`             | No       | Number of threads      |
+| `dsm_opt_tcpbuffsize`         | `""`             | No       | TCP buffer size        |
+| `dsm_opt_tcpwindowsize`       | `""`             | No       | TCP sliding window size |
+| `dsm_opt_httpport`            | `""`             | No       | HTTP port for the client |
+| `dsm_opt_txnbytelimit`        | `""`             | No       | Maximum bytes in a transaction |
+| `dsm_opt_optfile_path`        | `"/opt/tivoli/tsm/client/ba/bin/dsm.opt"` | No | Path for the dsm.opt file |
+| `dsm_opt_state`               | `"present"`      | No       | Ensure file is present or absent |
 
 ## Usage
 
@@ -41,16 +41,16 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
   roles:
     - role: dsm_optfile_role
       vars:
-        servername: "IBM_SP02"
-        nodename: "CLIENT02"
-        domain:
+        dsm_opt_servername: "IBM_SP02"
+        dsm_opt_nodename: "CLIENT02"
+        dsm_opt_domain:
           - "/custom"
           - "/data"
-        include_patterns:
+        dsm_opt_include_patterns:
           - "/custom/app/.../*"
-        exclude_patterns:
+        dsm_opt_exclude_patterns:
           - "/custom/tmp/.../*"
-        compression: "yes"
+        dsm_opt_compression: "yes"
 
 ```
 
@@ -61,7 +61,7 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
   roles:
     - role: dsm_optfile_role
       vars:
-        servername: "IBM_SP01"
-        state: "absent"
+        dsm_opt_servername: "IBM_SP01"
+        dsm_opt_state: "absent"
 ```
 

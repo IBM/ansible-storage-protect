@@ -2,21 +2,21 @@
 - name: Validate required variable `servername`
   fail:
     msg: "Mandatory variable `servername` is not set. Please define it in your playbook or inventory."
-  when: servername is not defined or servername == ""
+  when: dsm_opt_servername is not defined or dsm_opt_servername == ""
 
 - name: Validate `state` value
   fail:
     msg: "Invalid state '{{ state }}'. Allowed values are 'present' or 'absent'."
-  when: state not in ["present", "absent"]
+  when: dsm_opt_state not in ["present", "absent"]
 
 - name: Check if dsm.opt file exists on the remote machine
   stat:
-    path: "{{ optfile_path }}"
+    path: "{{ dsm_opt_optfile_path }}"
   register: dsm_opt_status
 
 - name: Read the content of dsm.opt if it exists
   slurp:
-    src: "{{ optfile_path }}"
+    src: "{{ dsm_opt_optfile_path }}"
   register: dsm_opt_content
   when: dsm_opt_status.stat.exists
 
@@ -44,19 +44,19 @@
     merged_dsm_opt_vars: >-
       {{
         dsm_opt_vars | combine({
-          'SERVERNAME': servername | default(dsm_opt_vars.SERVERNAME, true),
-          'PASSWORD': password | default(dsm_opt_vars.PASSWORD, true),
-          'PASSWORDACCESS': password_access | default(dsm_opt_vars.get('PASSWORDACCESS', ''), true),
-          'NODENAME': nodename | default(dsm_opt_vars.get('NODENAME', ''), true),
-          'DOMAIN': domain | default(dsm_opt_vars.get('DOMAIN', ''), true),
-          'SCHEDLOGNAME': schedlogname | default(dsm_opt_vars.get('SCHEDLOGNAME', ''), true),
-          'ERRORLOGNAME': errorlogname | default(dsm_opt_vars.get('ERRORLOGNAME', ''), true),
-          'COMPRESSION': compression | default(dsm_opt_vars.get('COMPRESSION', ''), true),
-          'RESOURCEUTILIZATION': resourceutilization | default(dsm_opt_vars.get('RESOURCEUTILIZATION', ''), true),
-          'TCPBUFFSIZE': tcpbuffsize | default(dsm_opt_vars.get('TCPBUFFSIZE', ''), true),
-          'TCPWINDOWSIZE': tcpwindowsize | default(dsm_opt_vars.get('TCPWINDOWSIZE', ''), true),
-          'HTTPPORT': httpport | default(dsm_opt_vars.get('HTTPPORT', ''), true),
-          'TXNBYTELIMIT': txnbytelimit | default(dsm_opt_vars.get('TXNBYTELIMIT', ''), true)
+          'SERVERNAME': dsm_opt_servername | default(dsm_opt_vars.SERVERNAME, true),
+          'PASSWORD': dsm_opt_password | default(dsm_opt_vars.PASSWORD, true),
+          'PASSWORDACCESS': dsm_opt_password_access | default(dsm_opt_vars.get('PASSWORDACCESS', ''), true),
+          'NODENAME': dsm_opt_nodename | default(dsm_opt_vars.get('NODENAME', ''), true),
+          'DOMAIN': dsm_opt_domain | default(dsm_opt_vars.get('DOMAIN', ''), true),
+          'SCHEDLOGNAME': dsm_opt_schedlogname | default(dsm_opt_vars.get('SCHEDLOGNAME', ''), true),
+          'ERRORLOGNAME': dsm_opt_errorlogname | default(dsm_opt_vars.get('ERRORLOGNAME', ''), true),
+          'COMPRESSION': dsm_opt_compression | default(dsm_opt_vars.get('COMPRESSION', ''), true),
+          'RESOURCEUTILIZATION': dsm_opt_resourceutilization | default(dsm_opt_vars.get('RESOURCEUTILIZATION', ''), true),
+          'TCPBUFFSIZE': dsm_opt_tcpbuffsize | default(dsm_opt_vars.get('TCPBUFFSIZE', ''), true),
+          'TCPWINDOWSIZE': dsm_opt_tcpwindowsize | default(dsm_opt_vars.get('TCPWINDOWSIZE', ''), true),
+          'HTTPPORT': dsm_opt_httpport | default(dsm_opt_vars.get('HTTPPORT', ''), true),
+          'TXNBYTELIMIT': dsm_opt_txnbytelimit | default(dsm_opt_vars.get('TXNBYTELIMIT', ''), true)
         }, recursive=true)
       }}
 
@@ -68,13 +68,13 @@
 - name: Generate updated dsm.opt file from template
   template:
     src: dsm.opt.j2
-    dest: "{{ optfile_path }}"
+    dest: "{{ dsm_opt_optfile_path }}"
   vars:
     dsm_opt_vars: "{{ merged_dsm_opt_vars }}"
-  when: state == "present"
+  when: dsm_opt_state == "present"
 
 - name: Remove dsm.opt file if state is absent
   file:
-    path: "{{ optfile_path }}"
+    path: "{{ dsm_opt_optfile_path }}"
     state: absent
-  when: state == "absent"
+  when: dsm_opt_state == "absent"

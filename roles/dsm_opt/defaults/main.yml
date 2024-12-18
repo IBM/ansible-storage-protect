@@ -1,18 +1,18 @@
-servername: ""  # Mandatory
-nodename: ""
-password_access: ""
-password: ""
-domain: []
-include_patterns: []
-exclude_patterns: []
-managedservices: ""
-schedlogname: ""
-errorlogname: ""
-compression: ""
-resourceutilization: ""
-tcpbuffsize: ""
-tcpwindowsize: ""
-httpport: ""
-txnbytelimit: ""
-optfile_path: "/opt/tivoli/tsm/client/ba/bin/dsm.opt"
-state: "present"
+dsm_opt_servername: ""  # Mandatory
+dsm_opt_nodename: ""
+dsm_opt_password_access: ""
+dsm_opt_password: ""
+dsm_opt_domain: []
+dsm_opt_include_patterns: []
+dsm_opt_exclude_patterns: []
+dsm_opt_managedservices: ""
+dsm_opt_schedlogname: ""
+dsm_opt_errorlogname: ""
+dsm_opt_compression: ""
+dsm_opt_resourceutilization: ""
+dsm_opt_tcpbuffsize: ""
+dsm_opt_tcpwindowsize: ""
+dsm_opt_httpport: ""
+dsm_opt_txnbytelimit: ""
+dsm_opt_optfile_path: "/opt/tivoli/tsm/client/ba/bin/dsm.opt"
+dsm_opt_state: "present"
