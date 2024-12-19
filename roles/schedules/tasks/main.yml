@@ -1,0 +1,64 @@
+---
+- name: "Managing Storage Protect Schedules"
+  ibm.storage_protect.schedule:
+    policy_domain: "{{ __storage_protect_schedule_item.policy_domain | mandatory }}"
+    name: "{{ __storage_protect_schedule_item.name | mandatory }}"
+    description: "{{ __storage_protect_schedule_item.description | default(omit) }}"
+    action: "{{ __storage_protect_schedule_item.action | default(omit) }}"
+    subaction: "{{ __storage_protect_schedule_item.subaction | default(omit) }}"
+    options: "{{ __storage_protect_schedule_item.options | default(omit) }}"
+    objects: "{{ __storage_protect_schedule_item.objects | default(omit) }}"
+    priority: "{{ __storage_protect_schedule_item.priority | default(omit) }}"
+    start_date: "{{ __storage_protect_schedule_item.start_date | default(omit) }}"
+    start_time: "{{ __storage_protect_schedule_item.start_time | default(omit) }}"
+    duration: "{{ __storage_protect_schedule_item.duration | default(omit) }}"
+    duration_units: "{{ __storage_protect_schedule_item.dur_units | default(omit) }}"
+    max_runtime: "{{ __storage_protect_schedule_item.max_runtime | default(omit) }}"
+    month: "{{ __storage_protect_schedule_item.month | default(omit) }}"
+    day_of_month: "{{ __storage_protect_schedule_item.day_of_month | default(omit) }}"
+    week_of_month: "{{ __storage_protect_schedule_item.week_of_month | default(omit) }}"
+    day_of_week: "{{ __storage_protect_schedule_item.day_of_week | default(omit) }}"
+    expiration: "{{ __storage_protect_schedule_item.expiration | default(omit) }}"
+    state: "{{ __storage_protect_schedule_item.state | default(storage_protect_state | default('present')) }}"
+
+    # Role Standard Options
+    server_name: "{{ storage_protect_server_name | default(omit) }}"
+    username: "{{ storage_protect_username | default(omit) }}"
+    password: "{{ storage_protect_password | default(omit) }}"
+    request_timeout: "{{ storage_protect_request_timeout | default(omit) }}"
+  loop: "{{ storage_protect_schedules }}"
+  loop_control:
+    loop_var: __storage_protect_schedule_item
+    label: "{{ __operation.verb }} schedule {{ __storage_protect_schedule_item.name }}"
+    pause: "{{ storage_protect_schedules_loop_delay }}"
+  no_log: "{{ storage_protect_schedules_secure_logging }}"
+  async: "{{ ansible_check_mode | ternary(0, 1000) }}"
+  poll: 0
+  register: __schedule_job_async
+  changed_when: "(__schedule_job_async.changed if ansible_check_mode else false)"
+  vars:
+    __operation: "{{ operation_translate[__storage_protect_schedule_item.state | default(storage_protect_state) | default('present')] }}"
+    ansible_async_dir: '{{ storage_protect_async_dir }}'
+
+- name: "Flag for errors (check mode only)"
+  ansible.builtin.set_fact:
+    error_flag: true
+  when: ansible_check_mode and __schedule_job_async.failed is defined and __schedule_job_async.failed
+
+- name: "Managing Storage Protect Schedules | Wait for finish the schedules management"
+  ansible.builtin.async_status:
+    jid: "{{ __schedule_job_async_result_item.ansible_job_id }}"
+  register: __schedule_job_async_result
+  until: __schedule_job_async_result.finished
+  retries: "{{ storage_protect_schedules_async_retries }}"
+  delay: "{{ storage_protect_schedules_async_delay }}"
+  loop: "{{ __schedule_job_async.results }}"
+  loop_control:
+    loop_var: __schedule_job_async_result_item
+    label: "{{ __operation.verb }} Storage Protect schedule {{ __schedule_job_async_result_item.__storage_protect_schedule_item.name }} | Wait for finish the schedule {{ __operation.action }}"
+  when: not ansible_check_mode and __schedule_job_async_result_item.ansible_job_id is defined
+  no_log: "{{ storage_protect_schedules_secure_logging }}"
+  vars:
+    __operation: "{{ operation_translate[__schedule_job_async_result_item.__storage_protect_schedule_item.state | default(storage_protect_state) | default('present')] }}"
+    ansible_async_dir: '{{ storage_protect_async_dir }}'
+...
