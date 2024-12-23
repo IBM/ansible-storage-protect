@@ -1,0 +1,48 @@
+---
+- name: Query the installed version of TIVsm-BA
+  ansible.builtin.command: rpm -q TIVsm-BA
+  register: installed_version_check
+  ignore_errors: true
+
+- name: Extract installed version
+  set_fact:
+    installed_version: >-
+      {{
+        installed_version_check.stdout.split('-')[2]
+      }}
+  when: installed_version_check.rc == 0
+
+- name: debug the installed version
+  debug:
+    var: installed_version
+
+- name: Parsing user version and installed version into lists for comparison
+  set_fact:
+    user_version_list: "{{ ba_client_version.split('.') | map('int') | list }}"
+    installed_version_list: "{{ installed_version.split('.') | map('int') | list }}"
+  when: installed_version is defined
+
+- name: Determining action based on conditions
+  set_fact:
+    action: >-
+      {{
+        "upgrade" if
+        (installed_version is defined and user_version_list > installed_version_list and version_available)
+        else
+        "install" if
+        (installed_version is not defined and version_available)
+        else
+        None
+      }}
+
+- name: Fail if no action can be determined
+  fail:
+    msg: >-
+      Unable to determine action. Either:
+      - Specified version {{ ba_client_version }} is not available locally.
+      - Installed version {{ installed_version | default('None') }} is greater or equal to the specified version.
+  when: action is none or action == ''
+
+#- name: Debug action
+#  debug:
+#    msg: "Determined action: {{ action }}"

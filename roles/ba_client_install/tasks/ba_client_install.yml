@@ -1,0 +1,275 @@
+---
+# Check if BA Client is already installed
+- name: Check if BA Client is already installed
+  ansible.builtin.command: rpm -q TIVsm-BA
+  register: ba_client_check
+  ignore_errors: true
+
+# Displaying the installation status ( if ba client is installed and still users passes the action as install, playbook will terminate )
+- name: Display BA Client status
+  debug:
+    msg: "BA Client is already installed. Skipping installation. Installed Version -> {{ ba_client_check.stdout }}"
+  when: ba_client_check is defined and ba_client_check.rc == 0 and action == "install"
+
+# Skipping the installation if BA Client is already installed
+- name: Fail or Skip Installation
+  meta: end_play
+  when: ba_client_check is defined and ba_client_check.rc == 0 and action == "install"
+
+# ================= Pre-checks ==========================
+
+# System Compatibility checks for installing the ba client ( Pre-checks )
+- name: Checking architecture compatibility
+  set_fact:
+    architecture_compatible: "{{ 'x86_64' in system_info.Architecture }}"
+
+- name: Checking Java installation
+  set_fact:
+    java_installed: "{{ 'java' not in system_info['Java Version'] | lower }}"
+
+- name: Checking available disk space
+  set_fact:
+    avail_disk_space: "{{ disk_space.free_memory | int > 1400 }}"
+
+- name: Compatibility results
+  debug:
+    msg: |
+      Architecture check: {{ architecture_compatible }}
+      Java installed: {{ java_installed }}
+      Disk Space: {{ avail_disk_space }}
+
+- name: Compatibility check result
+  debug:
+    msg: "System is compatible"
+  when: architecture_compatible and java_installed and avail_disk_space
+
+- name: Compatibility check result
+  debug:
+    msg: "System is incompatible"
+  when: not (architecture_compatible and java_installed and avail_disk_space)
+
+# ====================== Transferring packages on remote vm's ======================
+
+# transfer files to the remote machines
+- name: Transferring the packages on the remote host
+  ansible.builtin.synchronize:
+    src: "{{ tar_file_path }}"
+    dest: "{{ ba_client_temp_dest }}"
+  when: architecture_compatible and java_installed and avail_disk_space
+  register: copy_result
+
+# Validate file transfer and show error details
+- name: Validating file transfer
+  fail:
+    msg: >
+      Package transfer to the remote host failed.
+      Error details: {{ copy_result.stderr | default('No error details available.') }}
+  when: copy_result is not defined or copy_result.rc != 0
+
+# ====================== Extracting and finding the packages on remote vm's ======================
+
+# creating a temporary directory to extract the .rpm files
+- name: Creating /opt/baClient directory
+  ansible.builtin.file:
+    path: "{{ ba_client_extract_dest }}"
+    state: directory
+    mode: '0755'
+  when: architecture_compatible and java_installed and avail_disk_space
+
+- name: Extracting the .tar file
+  ansible.builtin.unarchive:
+    src: "{{ ba_client_temp_dest }}{{ tar_file_path | basename }}"
+    dest: "{{ ba_client_extract_dest }}"
+    remote_src: yes
+  when: architecture_compatible and java_installed and avail_disk_space
+  register: extraction_result
+
+- name: Finding extracted files
+  ansible.builtin.find:
+    paths: /opt/baClient
+    recurse: yes
+  register: extracted_files
+
+- name: List of extracted files
+  debug:
+    msg: "Extracted files: {{ extracted_files.files | map(attribute='path') | list }}"
+  when: extracted_files is defined and extracted_files.files | length > 0
+
+# ====================== Checking whether the packages are already installed or not to maintain the idempotency ======================
+
+# Checking if GSKit cryptographic library (gskcrypt) is installed
+- name: Checking if GSKit cryptographic library (gskcrypt) is installed
+  command: rpm -q gskcrypt64
+  register: check_gskcrypt
+  ignore_errors: true
+
+# Checking if GSKit SSL library (gskssl) is installed
+- name: Checking if GSKit SSL library (gskssl) is installed
+  command: rpm -q gskssl64
+  register: check_gskssl
+  ignore_errors: true
+
+- name: Checking if TIVsm-API64 is installed
+  command: rpm -q TIVsm-API64
+  register: check_api64
+  ignore_errors: true
+
+- name: Checking if TIVsm-APIcit is installed
+  command: rpm -q TIVsm-APIcit
+  register: check_apicit
+  ignore_errors: true
+
+- name: Checking if BA package is installed or not
+  command: rpm -q TIVsm-BA
+  register: check_ba
+  ignore_errors: true
+
+- name: Checking if BAcit package is installed or not
+  command: rpm -q TIVsm-BAcit
+  register: check_bacit
+  ignore_errors: true
+
+# ============================ Installing packages in sequence ================
+
+- name: Installing packages
+  block:
+    # Installing GSKit crypt library (gskcrypt)
+    - name: Install GSKit crypt library (gskcrypt)
+      ansible.builtin.command: rpm -ivh {{ item }}
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskcrypt') | list }}"
+      when: extracted_files is defined and extracted_files.files | length > 0 and check_gskcrypt.rc != 0
+      register: gskcrypt_install_result
+      ignore_errors: true
+
+    # Installing GSKit SSL library (gskssl)
+    - name: Install GSKit SSL library (gskssl)
+      ansible.builtin.command: "rpm -ivh {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskssl') | list }}"
+      when: extracted_files is defined and extracted_files.files | length > 0 and check_gskssl.rc != 0
+      register: gskssl_install_result
+      ignore_errors: true
+
+    # Installing API packages (TIVsm-API64, TIVsm-APIcit)
+    - name: Install API packages (TIVsm-API64, TIVsm-APIcit)
+      ansible.builtin.command: "rpm -ivh {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-API') | list }}"
+      when: check_apicit.rc != 0 or check_api64.rc != 0
+      register: api_install_result
+      ignore_errors: false
+
+    # Installing BA packages (TIVsm-BA, TIVsm-BAcit)
+    - name: Install BA packages (TIVsm-BA, TIVsm-BAcit)
+      ansible.builtin.command: "rpm -ivh  {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BA') | list }}"
+      when: check_ba.rc != 0 or check_bacit.rc != 0
+      register: ba_install_result
+      ignore_errors: false
+
+    - name: Install WebGUI package
+      ansible.builtin.command: "rpm -ivh  {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-WEBGUI') | list }}"
+      when: check_ba.rc != 0 or check_bacit.rc != 0
+      register: webgui_install_result
+      ignore_errors: false
+#    ===================== if any error occurs while installing the packages ===========================
+#  ==========  like if package is corrupted , then role will uninstall all the packages which were installed in previous step , to maintain the state of the system ==========
+  rescue:
+    - name: Define package uninstall order
+      set_fact:
+        uninstall_packages:
+          - "TIVsm-WEBGUI"
+          - "TIVsm-BAhdw"
+          - "TIVsm-BAcit"
+          - "TIVsm-APIcit"
+          - "TIVsm-BA"
+          - "TIVsm-API64"
+          - "gskssl64"
+          - "gskcrypt64"
+    - name: Debug all registered variables
+      debug:
+        msg: |
+          gskcrypt_install_result: {{ gskcrypt_install_result }}
+          gskssl_install_result: {{ gskssl_install_result }}
+          api_install_result: {{ api_install_result }}
+          ba_install_result: {{ ba_install_result }}
+
+    - name: Identify reason for failure
+      set_fact:
+        failure_reason: >-
+          {{
+            (
+             
+              [
+                gskcrypt_install_result,
+                gskssl_install_result,
+                api_install_result,
+                ba_install_result
+              ]
+              | select('defined')
+              | map('extract', 'results')
+              | select('defined')
+              | map('selectattr', 'rc', 'ne', 0)
+              | map('map', attribute='stderr')
+              | sum([], [])
+              +
+
+              [
+                gskcrypt_install_result,
+                gskssl_install_result,
+                api_install_result,
+                ba_install_result
+              ]
+              | select('defined')
+              | selectattr('results', 'undefined')
+              | selectattr('failed', 'equalto', true)
+              | map(attribute='msg')
+            )
+            | select('truthy')
+            | join('\n')
+          }}
+
+    - name: Uninstall all packages to restore original state
+      ansible.builtin.command: "rpm -e {{ item }}"
+      with_items: "{{ uninstall_packages }}"
+      ignore_errors: true
+
+    - name: Installation status summary
+      set_fact:
+        is_installation_successful: false
+
+    - name: Fail the installation process
+      fail:
+        msg: >
+          Installation failed due to the following reasons:
+          {{ failure_reason }}.
+      when: action == "install"
+
+# ============ Post-checks to verify the installation of ba client ==========
+- name: Verify BA Client installation
+  ansible.builtin.command: rpm -q TIVsm-BA
+  register: installation_check
+  ignore_errors: true
+
+
+- name: Display BA Client installation status
+  debug:
+    msg: |
+      BA Client installation status: {{ "Installed" if installation_check.rc == 0 else "Not Installed" }}
+
+- name: Mark install.yml as failed if verification fails
+  fail:
+    msg: "BA Client installation verification failed. Please check logs."
+  when: installation_check.rc != 0 and action == "install"
+
+#============ 'is_installation_successful' fact is used in ba_client_upgrade.yml =======
+
+- name: Installation status summary
+  set_fact:
+    is_installation_successful: "{{ installation_check.rc == 0 }}"
+
+#- name: Installation check result
+#  debug:
+#    var: installation_check
+
+
+

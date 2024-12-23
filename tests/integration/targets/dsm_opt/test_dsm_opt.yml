@@ -1,0 +1,18 @@
+- name: Configure dsm.opt parameters while maintaining the existing the parameters
+  hosts: all
+  roles:
+    - role: dsm_opt
+      vars:
+        dsm_opt_parameters:
+          dsm_opt_servername: "NewServer"
+          dsm_opt_nodename: "NewClient"
+          dsm_opt_domain: "C: D: E:\\UserData"
+          dsm_opt_password: "mypassword"
+          dsm_opt_password_access: "generate"
+
+- name: Remove dsm.opt
+  hosts: all
+  roles:
+    - role: dsm_optfile
+      vars:
+        dsm_opt_state: "absent"

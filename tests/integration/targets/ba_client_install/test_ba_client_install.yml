@@ -1,0 +1,25 @@
+---
+- name: Install BA Client
+  hosts: all
+  roles:
+    - role: ba_client_install
+      vars:
+        ba_client_state: "present"
+        ba_client_version: "8.1.23"
+        ba_client_base_dir: "/path/to/local/repo"
+
+- name: Upgrade BA Client
+  hosts: all
+  roles:
+    - role: ba_client_install
+      vars:
+        ba_client_state: "present"
+        ba_client_version: "8.1.24"
+        ba_client_base_dir: "/path/to/local/repo"
+
+- name: Uninstall BA Client
+  hosts: all
+  roles:
+    - role: ba_client_install
+      vars:
+        ba_client_state: "absent"
