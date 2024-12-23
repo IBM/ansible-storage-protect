@@ -28,13 +28,13 @@
   when: action is defined and ba_client_state == "present"
 
 - name: Run install tasks
-  include_tasks: ba_client_install.yml
+  include_tasks: ba_client_install_linux.yml
   when: action is defined and action == "install" and ba_client_state == "present"
 
 - name: Run upgrade tasks
-  include_tasks: ba_client_upgrade.yml
+  include_tasks: ba_client_upgrade_linux.yml
   when: action is defined and action == "upgrade" and ba_client_state == "present"
 
 - name: Run uninstall tasks
-  include_tasks: ba_client_uninstall.yml
+  include_tasks: ba_client_uninstall_linux.yml
   when: ba_client_state == "absent"

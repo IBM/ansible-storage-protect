@@ -9,13 +9,14 @@ This Ansible role manages the life cycle of BA Client on remote hosts. It includ
 ## Role Variables
 The following variables can be configured in the `defaults.yml` file:
 
-| Variable                | Default Value             | Description                                                                   |
-|-------------------------|---------------------------|-------------------------------------------------------------------------------|
-| `ba_client_state`       | `present`                | Desired state of the BA Client (`present` or `absent`).                       |
-| `ba_client_version`     | `8.1.24`                 | Version of the BA Client to install or upgrade to.                            |
-| `ba_client_base_dir`    | `/Users/sarthak/Desktop/clientRepo` | Directory containing `.tar` files for BA Client installation on control node. |
-| `ba_client_extract_dest`| `/opt/baClient`          | Destination directory for extracted BA Client files.                          |
-| `ba_client_temp_dest`   | `/tmp/`                  | Temporary directory for transferring `.tar` files.                            |
+| Variable                | Default Value                      | Description                                                                                                                     |
+|-------------------------|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `ba_client_state`       | `present`                          | Desired state of the BA Client (`present` or `absent`).                                                                         |
+| `ba_client_version`     | `8.1.24`                           | Version of the BA Client to install or upgrade to.                                                                              |
+| `ba_client_tar_repo`    | `BA_CLIENT_TAR_REPO_PATH` | Set the environment variable which will point the directory containing `.tar` files for BA Client installation on control node. |
+| `ba_client_extract_dest`| `/opt/baClient`                    | Destination directory for extracted BA Client files.                                                                            |
+| `ba_client_temp_dest`   | `/tmp/`                            | Temporary directory for transferring `.tar` files.                                                                              |
+| `ba_client_start_daemon`   | `false`                             | Specify whether to start the daemon after the upgrade.                                                                          |
 
 ## Role Workflow
 ### General Workflow

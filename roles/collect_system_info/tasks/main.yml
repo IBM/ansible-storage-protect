@@ -2,15 +2,19 @@
 - name: Get Memory Information using free -m
   command: free -m
   register: memory_info
+  ignore_errors: true
 
 - name: Show Memory Information
   debug:
     var: memory_info.stdout
+  when: memory_info is defined
 
 - name: Collect Architecture Information
   command: lscpu
   register: lscpu_output
   changed_when: false
+  ignore_errors: true
+
 
 - name: Extract Architecture Info
   set_fact:
@@ -31,11 +35,14 @@
       swap_total: "{{ memory_info.stdout.splitlines()[2].split()[1] }}"  # Swap total
       swap_used: "{{ memory_info.stdout.splitlines()[2].split()[2] }}"  # Swap used
       swap_free: "{{ memory_info.stdout.splitlines()[2].split()[3] }}"  # Swap free
+  when: memory_info is defined
+  ignore_errors: true
 
 - name: Collect Java Version Information
   command: java -version 2>&1
   register: java_version_output
   changed_when: false
+  ignore_errors: true
 
 - name: Extract Java Version
   set_fact:

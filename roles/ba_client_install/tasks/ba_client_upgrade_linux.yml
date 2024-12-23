@@ -20,12 +20,12 @@
 # ============= Uninstalling the ba_client before performing upgrade ===========
 
 - name: Uinstall the BA client before upgrade
-  include_tasks: uninstall.yml
+  include_tasks: ba_client_uninstall_linux.yml
 
 # ============= Installing the new version of ba_client ===========
 
 - name: Upgrading the BA client
-  include_tasks: install.yml
+  include_tasks: ba_client_install_linux.yml
 
 - name: Debug the install result
   debug:
@@ -118,3 +118,31 @@
   debug:
     msg: "BA Client upgrade completed successfully."
   when: is_installation_successful == true
+
+# =============== start the daemon =============
+
+# Enable dsmcad.service
+- name: Enable dsmcad.service
+  ansible.builtin.systemd:
+    name: dsmcad.service
+    enabled: true
+  when: ba_client_start_daemon
+
+# Check if dsmcad.service is enabled
+- name: Check if dsmcad.service is enabled
+  ansible.builtin.command: "systemctl is-enabled dsmcad.service"
+  register: dsmcad_status
+  failed_when: false  # Prevent task from failing if the service is not enabled
+  when: ba_client_start_daemon
+
+# Verify if the service is enabled and provide output
+- name: Check if dsmcad.service is successfully enabled
+  debug:
+    msg: "dsmcad started successfully."
+  when: ba_client_start_daemon and "'enabled' in dsmcad_status.stdout"
+
+# Output message if the service is not enabled
+- name: Check if dsmcad.service failed to enable
+  debug:
+    msg: "Failed to enable dsmcad.service."
+  when: ba_client_start_daemon and "'disabled' in dsmcad_status.stdout"

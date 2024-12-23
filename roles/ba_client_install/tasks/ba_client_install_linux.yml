@@ -25,7 +25,7 @@
 
 - name: Checking Java installation
   set_fact:
-    java_installed: "{{ 'java' not in system_info['Java Version'] | lower }}"
+    java_installed: "{{ system_info['Java Version'] | lower is search('java|jdk|version') }}"
 
 - name: Checking available disk space
   set_fact:
@@ -46,6 +46,24 @@
 - name: Compatibility check result
   debug:
     msg: "System is incompatible"
+  when: not (architecture_compatible and java_installed and avail_disk_space)
+
+- name: Fail and skip incompatible hosts
+  block:
+    - name: Fail if system is incompatible
+      fail:
+        msg: >
+          System compatibility checks failed. Please ensure the following requirements are met:
+          - Compatible architecture: x86_64
+          - Java installed
+          - Sufficient disk space: > 1400 MB
+          Architecture check: {{ architecture_compatible }}
+          Java installed: {{ java_installed }}
+          Disk Space: {{ avail_disk_space }}
+      when: not (architecture_compatible and java_installed and avail_disk_space)
+
+    - name: Skip incompatible hosts
+      meta: clear_host_errors
   when: not (architecture_compatible and java_installed and avail_disk_space)
 
 # ====================== Transferring packages on remote vm's ======================
@@ -261,11 +279,39 @@
     msg: "BA Client installation verification failed. Please check logs."
   when: installation_check.rc != 0 and action == "install"
 
-#============ 'is_installation_successful' fact is used in ba_client_upgrade.yml =======
+#============ 'is_installation_successful' fact is used in ba_client_upgrade_linux.yml =======
 
 - name: Installation status summary
   set_fact:
     is_installation_successful: "{{ installation_check.rc == 0 }}"
+
+# =============== start the daemon =============
+
+# Enable dsmcad.service
+- name: Enable dsmcad.service
+  ansible.builtin.systemd:
+    name: dsmcad.service
+    enabled: true
+  when: ba_client_start_daemon
+
+# Check if dsmcad.service is enabled
+- name: Check if dsmcad.service is enabled
+  ansible.builtin.command: "systemctl is-enabled dsmcad.service"
+  register: dsmcad_status
+  failed_when: false  # Prevent task from failing if the service is not enabled
+  when: ba_client_start_daemon
+
+# Verify if the service is enabled and provide output
+- name: Check if dsmcad.service is successfully enabled
+  debug:
+    msg: "dsmcad started successfully."
+  when: ba_client_start_daemon and "'enabled' in dsmcad_status.stdout"
+
+# Output message if the service is not enabled
+- name: Check if dsmcad.service failed to enable
+  debug:
+    msg: "Failed to enable dsmcad.service."
+  when: ba_client_start_daemon and "'disabled' in dsmcad_status.stdout"
 
 #- name: Installation check result
 #  debug:

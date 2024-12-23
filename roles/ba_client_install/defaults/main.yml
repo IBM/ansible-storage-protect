@@ -1,9 +1,11 @@
 # Defaults for the role
 ba_client_state: "present"  # Can be 'present' or 'absent'
 ba_client_version: "8.1.24"  # User-specified version
-ba_client_base_dir: "{{ lookup('env', 'BA_CLIENT_BASE_DIR') | default('', true) }}"  # Directory containing .tar files
+ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') | default('', true) }}"  # Directory containing .tar files
 ba_client_extract_dest: "/opt/baClient"
 ba_client_temp_dest: "/tmp/"
+ba_client_start_daemon: false
+
 
 
 
