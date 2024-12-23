@@ -1,8 +1,0 @@
----
-- name: Run install tasks
-  include_tasks: install.yml
-  when: action == "install"
-
-- name: Run upgrade tasks
-  include_tasks: upgrade.yml
-  when: action == "upgrade"
