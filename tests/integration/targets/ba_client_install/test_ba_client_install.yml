@@ -1,29 +1,28 @@
 ---
 - name: Install BA Client
   hosts: group1
-#  any_errors_fatal: false
   roles:
     - role: ba_client_install
       vars:
         ba_client_start_daemon: true
         ba_client_state: "present"
         ba_client_version: "8.1.23"
-        ba_client_base_dir: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
+        ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
 
-#- name: Upgrade BA Client
-#  hosts: group1
-#  roles:
-#    - role: ba_client_install
-#      vars:
-#        ba_client_state: "present"
-#        ba_client_version: "8.1.24"
-#        ba_client_base_dir: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
+- name: Upgrade BA Client
+  hosts: group1
+  roles:
+    - role: ba_client_install
+      vars:
+        ba_client_state: "present"
+        ba_client_version: "8.1.24"
+        ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
 
-#
-#- name: Uninstall BA Client
-#  hosts: group1
-#  roles:
-#    - role: ba_client_install
-#      vars:
-#        ba_client_state: "absent"
-#
+
+- name: Uninstall BA Client
+  hosts: group1
+  roles:
+    - role: ba_client_install
+      vars:
+        ba_client_state: "absent"
+
