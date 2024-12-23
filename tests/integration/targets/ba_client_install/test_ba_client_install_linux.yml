@@ -1,8 +1,8 @@
 ---
 - name: Install BA Client
-  hosts: group1
+  hosts: all
   roles:
-    - role: ba_client_install
+    - role: ba_client_install_linux
       vars:
         ba_client_start_daemon: true
         ba_client_state: "present"
@@ -10,9 +10,9 @@
         ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
 
 - name: Upgrade BA Client
-  hosts: group1
+  hosts: all
   roles:
-    - role: ba_client_install
+    - role: ba_client_install_linux
       vars:
         ba_client_state: "present"
         ba_client_version: "8.1.24"
@@ -20,9 +20,9 @@
 
 
 - name: Uninstall BA Client
-  hosts: group1
+  hosts: all
   roles:
-    - role: ba_client_install
+    - role: ba_client_install_linux
       vars:
         ba_client_state: "absent"
 
