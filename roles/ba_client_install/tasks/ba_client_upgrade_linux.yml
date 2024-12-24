@@ -139,10 +139,10 @@
 - name: Check if dsmcad.service is successfully enabled
   debug:
     msg: "dsmcad started successfully."
-  when: ba_client_start_daemon and "'enabled' in dsmcad_status.stdout"
+  when: ba_client_start_daemon and dsmcad_status.stdout == "enabled"
 
 # Output message if the service is not enabled
 - name: Check if dsmcad.service failed to enable
   debug:
     msg: "Failed to enable dsmcad.service."
-  when: ba_client_start_daemon and "'disabled' in dsmcad_status.stdout"
+  when: ba_client_start_daemon and dsmcad_status.stdout != "enabled"

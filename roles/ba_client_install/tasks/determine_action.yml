@@ -32,7 +32,7 @@
         "install" if
         (installed_version is not defined and version_available)
         else
-        None
+        "none"
       }}
 
 - name: Fail if no action can be determined
@@ -41,7 +41,7 @@
       Unable to determine action. Either:
       - Specified version {{ ba_client_version }} is not available locally.
       - Installed version {{ installed_version | default('None') }} is greater or equal to the specified version.
-  when: action is None or action == ''
+  when: action == 'none'
 
 #- name: Debug action
 #  debug:
