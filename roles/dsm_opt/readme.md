@@ -5,7 +5,7 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
 ## Features
 - Dynamically generates the `dsm.opt` file
 - Handles `present` and `absent` states for file creation and deletion.
-- Automatic Value Mapping**: Reads an existing `dsm.opt` file and automatically maps the existing values. 
+- Automatic Value Mapping**: Reads an existing `dsm.opt` file and automatically maps the existing values.
 
 ## Variables
 
