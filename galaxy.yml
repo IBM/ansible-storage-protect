@@ -8,11 +8,8 @@ namespace: ibm
 name: storage_protect
 
 # The version of the collection. Must be compatible with semantic versioning
-<<<<<<< HEAD
+sp-schedule-feature
 version: 1.0.0
-=======
-version: 0.1.1
->>>>>>> 913e5b8 (Update galaxy.yml)
 
 # The path to the Markdown (.md) readme file. This path is relative to the root of the collection
 readme: README.md
