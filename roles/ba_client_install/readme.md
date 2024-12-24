@@ -74,7 +74,7 @@ The following variables can be configured in the `defaults.yml` file:
       vars:
         ba_client_state: "present"
         ba_client_version: "8.1.23"
-        ba_client_base_dir: "/path/to/local/repo"
+        ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
 ```
 
 ```yaml
@@ -85,7 +85,7 @@ The following variables can be configured in the `defaults.yml` file:
       vars:
         ba_client_state: "present"
         ba_client_version: "8.1.24"
-        ba_client_base_dir: "/path/to/local/repo"
+        ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
 ```
 ```yaml
 - name: Uninstall BA Client

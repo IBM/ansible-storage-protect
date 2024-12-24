@@ -1,7 +1,7 @@
 ---
 - name: Find all .tar files in the directory
   ansible.builtin.find:
-    paths: "{{ ba_client_base_dir }}"
+    paths: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
     patterns: "*.tar"
     file_type: file
   register: tar_files

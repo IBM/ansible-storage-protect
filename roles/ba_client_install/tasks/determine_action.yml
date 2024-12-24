@@ -41,7 +41,7 @@
       Unable to determine action. Either:
       - Specified version {{ ba_client_version }} is not available locally.
       - Installed version {{ installed_version | default('None') }} is greater or equal to the specified version.
-  when: action is none or action == ''
+  when: action is None or action == ''
 
 #- name: Debug action
 #  debug:
