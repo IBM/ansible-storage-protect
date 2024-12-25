@@ -3,6 +3,7 @@
 
 from ..module_utils.sp_server_facts import DSMParser, SpServerResponseMapper
 from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
+from  ..module_utils.sp_server_facts import DsmadmcAdapterExtended
 
 DOCUMENTATION = '''
 ---
@@ -109,7 +110,6 @@ def main():
         q_stgpool=dict(type='bool', default=False)
     )
 
-    dsmadmc = DsmadmcAdapter(argument_spec=argument_spec)
     results = {}
 
     queries = [
@@ -126,6 +126,7 @@ def main():
         'stgpool'
     ]
 
+    dsmadmc = DsmadmcAdapterExtended(argument_spec=argument_spec)
     for query in queries:
         if dsmadmc.params.get(f'q_{query}'):
             rc, output, _ = dsmadmc.run_command(f'q {query}', auto_exit=False)

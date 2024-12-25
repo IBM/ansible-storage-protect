@@ -1,4 +1,37 @@
 import  json
+import subprocess
+
+from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
+
+class DsmadmcAdapterExtended(DsmadmcAdapter):
+    """
+    Extended DsmadmcAdapter to add support for the -commadelimited parameter.
+    """
+
+    def run_command(self, command, auto_exit=True, dataonly=True, exit_on_fail=True):
+        command = (
+            f'dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} '
+            + ('-dataonly=yes ' if dataonly else '')
+            + '-commadelimited '
+            + command
+        )
+        self.json_output['command'] = command
+        try:
+            result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            raw_output = result.stdout.decode('utf-8')
+            self.json_output['output'] = raw_output
+
+            if auto_exit:
+                self.json_output['changed'] = result.returncode == 0
+                self.exit_json(**self.json_output)
+
+            return result.returncode, raw_output, None
+        except subprocess.CalledProcessError as e:
+            if exit_on_fail:
+                self.fail_json(msg=e.stderr.decode('utf-8'), rc=e.returncode, **self.json_output)
+            return e.returncode, None, e.stderr.decode('utf-8')
+
+
 class DSMParser:
     """
     A class to parse various output data from the DSM system into structured formats.
