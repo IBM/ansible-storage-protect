@@ -39,8 +39,8 @@
   fail:
     msg: >-
       Unable to determine action. Either:
-      - Specified version {{ ba_client_version }} is not available locally.
-      - Installed version {{ installed_version | default('None') }} is greater or equal to the specified version.
+      - Specified version {{ ba_client_version }} is not available locally, or 
+      - Installed version {{ installed_version | default('None') }} is greater or equal to the specified version.The specified version should be greater than the already installed version {{ installed_version | default('None') }}.
   when: action == 'none'
 
 #- name: Debug action

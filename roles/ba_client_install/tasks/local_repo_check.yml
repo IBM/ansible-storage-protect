@@ -1,8 +1,16 @@
 ---
-- name: Find all .tar files in the directory
+#- name: Find all .tar files in the directory
+#  ansible.builtin.find:
+#    paths: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
+#    patterns: "*.tar"
+#    file_type: file
+#  register: tar_files
+#  delegate_to: localhost
+
+- name: Find version-specific .tar files in the directory
   ansible.builtin.find:
     paths: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
-    patterns: "*.tar"
+    patterns: "{{ ba_client_version }}*.tar"
     file_type: file
   register: tar_files
   delegate_to: localhost
@@ -14,39 +22,35 @@
 
 - name: Fail if no .tar files are found in the directory
   fail:
-    msg: "No .tar files found in the specified directory: {{ ba_client_base_dir }}."
+    msg: "No .tar files found matching the version {{ ba_client_version }} in the specified directory: {{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}."
   when: tar_files.files | length == 0
   delegate_to: localhost
 
 - name: Check if the specified version is available locally
   set_fact:
-    version_available: >-
-      {{
-        (tar_files.files | selectattr('path', 'search', ba_client_version) | map(attribute='path') | list | length) > 0
-      }}
+    version_available: "{{ tar_files.files | length > 0 }}"
 
 - name: Debug version availability
   debug:
     var: version_available
 
-- name: Fail the play if version specified is not available in control node
-  fail:
-    msg: "Version {{ ba_client_version }} is not available in the specified directory {{ ba_client_base_dir }}."
-  when: version_available == false
+#- name: Fail the play if version specified is not available in control node
+#  fail:
+#    msg: "Version {{ ba_client_version }} is not available in the specified directory {{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}."
+#  when: version_available == false
 
 - name: Get the path of the specified version
   set_fact:
     tar_file_path: >-
       {{
         tar_files.files
-        | selectattr('path', 'search', ba_client_version)
         | map(attribute='path')
         | list
         | first
       }}
-  when: version_available == true
+  when: tar_files.files | length > 0
 
 - name: Debug the found tar file path
   debug:
     msg: "Path of the specified version {{ ba_client_version }}: {{ tar_file_path }}"
-  when: version_available == true
+  when: tar_files.files | length > 0
