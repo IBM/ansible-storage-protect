@@ -17,12 +17,11 @@
   when: ba_client_check.rc != 0
 
 # Stop BA client processes
-#- name: Stop BA client processes using killall
-#  ansible.builtin.command: "killall {{ item }}"
-#  with_items:
-#    - dsmc
-#    - dsmcad
-#  ignore_errors: true
+- name: Stop BA client processes using killall
+  ansible.builtin.command: "killall {{ item }}"
+  with_items:
+    - dsmc
+  ignore_errors: true
 
 # Backup dsm.opt and dsm.sys files
 - name: Check if dsm.opt and dsm.sys exist
@@ -61,7 +60,7 @@
   when: rpm_files.matched > 0
 
 #stop ba client processes
-- name: Stop BA client processes using systemctl
+- name: Stop BA client daemon using systemctl
   ansible.builtin.systemd:
     name: dsmcad
     state: stopped
