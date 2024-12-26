@@ -48,22 +48,14 @@
     msg: "System is incompatible"
   when: not (architecture_compatible and java_installed and avail_disk_space)
 
-- name: Fail and skip incompatible hosts
-  block:
-    - name: Fail if system is incompatible
-      fail:
-        msg: >
-          System compatibility checks failed. Please ensure the following requirements are met:
-          - Compatible architecture: x86_64
-          - Java installed
-          - Sufficient disk space: > 1400 MB
-          Architecture check: {{ architecture_compatible }}
-          Java installed: {{ java_installed }}
-          Disk Space: {{ avail_disk_space }}
-      when: not (architecture_compatible and java_installed and avail_disk_space)
-
-#    - name: Skip incompatible hosts
-#      meta: clear_host_errors
+- name: Fail if system is incompatible
+  fail:
+    msg: >
+      System compatibility checks failed. Please ensure the following
+      requirements are met: - Compatible architecture: x86_64 - Java installed -
+      Sufficient disk space: > 1400 MB Architecture check: {{
+      architecture_compatible }} Java installed: {{ java_installed }} Disk
+      Space: {{ avail_disk_space }}
   when: not (architecture_compatible and java_installed and avail_disk_space)
 
 # ====================== Transferring packages on remote vm's ======================
