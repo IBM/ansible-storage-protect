@@ -1,5 +1,8 @@
 .vscode
 *.tar.gz
 __pycache__
+
+# Ignore specific Ansible files
 *.tar
 .idea
+.python-version
