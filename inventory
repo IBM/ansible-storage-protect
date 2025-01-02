@@ -1,0 +1,21 @@
+---
+all:
+ vars:
+  storage_protect_server_name: IBMSPSVR01
+  storage_protect_server_ip: 10.240.64.6
+  storage_protect_username: admin1
+  storage_protect_password: adminPassw0rd@321
+storage_protect_server:
+ vars:
+  ansible_private_key_file: ~/ssh-ansible-ibm-sp_rsa.prv
+ hosts:
+  ansible-ibm-sp-host05:
+   ansible_host: 10.240.64.6
+   ansible_user: root
+storage_protect_clients:
+ vars:
+  ansible_private_key_file: ~/ssh-ansible-ibm-sp_rsa.prv
+ hosts:
+  ansible-ibm-sp-host06:
+   ansible_host: 10.240.64.8
+   ansible_user: root
