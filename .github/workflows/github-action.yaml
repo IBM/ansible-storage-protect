@@ -80,6 +80,111 @@
 #                             storage_protect_nodes_loop_delay=30"
 
 
+# name: Run Ansible Playbook to Register Client
+
+# on:
+#   push:
+#     branches:
+#       - dev-gitops
+
+# jobs:
+#   run_ansible_playbook:
+#     runs-on: self-hosted
+
+#     steps:
+#       # Step 1: Checkout repository.
+#       - name: Checkout repository
+#         uses: actions/checkout@v2
+
+#       # Step 2: Set up Python and Ansible
+#       - name: Set up Python and Ansible
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install ansible
+#       # Step 3: Set environment variable to disable SSH host key checking
+#       - name: Set environment variable to disable SSH host key checking
+#         run: echo "ANSIBLE_HOST_KEY_CHECKING=False" >> $GITHUB_ENV
+
+#       # Step 4: Install IBM Storage Protect Collection
+#       - name: Install IBM Storage Protect Collection
+#         run: ansible-galaxy collection install ibm.storage_protect
+
+#       # Step 5: Set up SSH agent and add private key
+#       - name: Set up SSH agent and add private key
+#         run: |
+#           mkdir -p ~/.ssh
+#           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+#           chmod 600 ~/.ssh/id_rsa
+#           # Start the SSH agent
+#           eval $(ssh-agent -s)
+#           ssh-add ~/.ssh/id_rsa
+#       # Step 6: Disable StrictHostKeyChecking and add SSH host keys for both server and client
+#       - name: Add SSH host key to known_hosts and disable StrictHostKeyChecking
+#         run: |
+#           mkdir -p ~/.ssh
+#           echo -e "Host *\n  StrictHostKeyChecking no\n  UserKnownHostsFile=/dev/null" > ~/.ssh/config
+#           # Add server and client host keys to known_hosts
+#           ssh-keyscan -H 10.240.64.6 >> ~/.ssh/known_hosts
+#           ssh-keyscan -H 10.240.64.8 >> ~/.ssh/known_hosts
+#           chmod 644 ~/.ssh/known_hosts
+#       # Step 7: Debug SSH connection: Add verbose SSH logging
+#       - name: Test SSH connection with verbose logging
+#         run: |
+#           ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.6 exit
+#           ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.8 exit
+#       # Step 8: Validate and set up dsm.sys file
+#       - name: Validate and set up static dsm.sys file
+#         run: |
+#           if [[ -f /opt/tivoli/tsm/client/ba/bin/dsm.sys ]]; then
+#             echo "dsm.sys file already exists at /opt/tivoli/tsm/client/ba/bin. Skipping setup."
+#           else
+#             echo "Setting up static dsm.sys file..."
+            
+#             # Check if /opt/tivoli directory exists
+#             if [[ ! -d /opt/tivoli ]]; then
+#               sudo mkdir -p /opt/tivoli
+#               echo "Created /opt/tivoli directory."
+#             fi
+            
+#             # Create /opt/tivoli/tsm directory if it does not exist
+#             sudo mkdir -p /opt/tivoli/tsm/client/ba/bin
+#             echo -e "SERVERNAME IBMSPSVR01\n\
+#             COMMMETHOD tcpip\n\
+#             TCPPORT 1500\n\
+#             TCPSERVERADDRESS ***" | sudo tee /opt/tivoli/tsm/client/ba/bin/dsm.sys > /dev/null
+#             sudo chmod 644 /opt/tivoli/tsm/client/ba/bin/dsm.sys
+#             echo "Static dsm.sys file has been set up at /opt/tivoli/tsm/client/ba/bin."
+#           fi
+#         shell: bash
+#         env:
+#           ANSIBLE_HOST_KEY_CHECKING: false
+
+#       # Step 9: Run Ansible Playbook for Client Registration
+#       - name: Run Ansible Playbook for Client Registration
+#         env:
+#           CLIENT_NAME: ${{ secrets.CLIENT_NAME }}
+#           CLIENT_PASSWORD: ${{ secrets.CLIENT_PASSWORD }}
+#           CLIENT_POLICY_DOMAIN: ${{ secrets.CLIENT_POLICY_DOMAIN }}
+#           SP_SERVER_IP: ${{ secrets.SP_SERVER_IP }}
+#           SP_SERVER_NAME: ${{ secrets.SP_SERVER_NAME }}
+#           SP_SERVER_PASSWORD: ${{ secrets.SP_SERVER_PASSWORD }}
+#           SP_SERVER_USERNAME: ${{ secrets.SP_SERVER_USERNAME }}
+#         run: |
+#           ansible-playbook tests/integration/targets/client_node/test_sp_client.yml \
+#               -i "${{ secrets.CLIENT_HOST }},${{ secrets.SP_SERVER_IP }}" \
+#               -e "storage_protect_server_name=${{ secrets.SP_SERVER_NAME }}" \
+#               -e "storage_protect_server_ip=${{ secrets.SP_SERVER_IP }}" \
+#               -e "storage_protect_username=${{ secrets.SP_SERVER_USERNAME }}" \
+#               -e "storage_protect_password=${{ secrets.SP_SERVER_PASSWORD }}" \
+#               -e "client_name=${{ secrets.CLIENT_NAME }}" \
+#               -e "client_password=${{ secrets.CLIENT_PASSWORD }}" \
+#               -e "client_policy_domain=${{ secrets.CLIENT_POLICY_DOMAIN }}" \
+#               --extra-vars "ansible_ssh_user=root ansible_ssh_private_key_file=~/.ssh/id_rsa ansible_ssh_host=${{ secrets.CLIENT_HOST }}
+#                             storage_protect_nodes_async_retries=30 \
+#                             storage_protect_nodes_async_delay=10 \
+#                             storage_protect_nodes_loop_delay=30"
+
+
 name: Run Ansible Playbook to Register Client
 
 on:
@@ -92,94 +197,29 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # Step 1: Checkout repository.
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      # Step 2: Set up Python and Ansible
-      - name: Set up Python and Ansible
+      - name: Install Ansible
         run: |
-          python -m pip install --upgrade pip
-          pip install ansible
-      # Step 3: Set environment variable to disable SSH host key checking
-      - name: Set environment variable to disable SSH host key checking
-        run: echo "ANSIBLE_HOST_KEY_CHECKING=False" >> $GITHUB_ENV
+          sudo apt-get update
+          sudo apt-get install ansible -y
 
-      # Step 4: Install IBM Storage Protect Collection
-      - name: Install IBM Storage Protect Collection
-        run: ansible-galaxy collection install ibm.storage_protect
+      - name: Install Dependencies
+        run: |
+          ansible-galaxy collection install ibm.storage_protect
 
-      # Step 5: Set up SSH agent and add private key
-      - name: Set up SSH agent and add private key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          # Start the SSH agent
-          eval $(ssh-agent -s)
-          ssh-add ~/.ssh/id_rsa
-      # Step 6: Disable StrictHostKeyChecking and add SSH host keys for both server and client
-      - name: Add SSH host key to known_hosts and disable StrictHostKeyChecking
-        run: |
-          mkdir -p ~/.ssh
-          echo -e "Host *\n  StrictHostKeyChecking no\n  UserKnownHostsFile=/dev/null" > ~/.ssh/config
-          # Add server and client host keys to known_hosts
-          ssh-keyscan -H 10.240.64.6 >> ~/.ssh/known_hosts
-          ssh-keyscan -H 10.240.64.8 >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-      # Step 7: Debug SSH connection: Add verbose SSH logging
-      - name: Test SSH connection with verbose logging
-        run: |
-          ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.6 exit
-          ssh -v -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa root@10.240.64.8 exit
-      # Step 8: Validate and set up dsm.sys file
-      - name: Validate and set up static dsm.sys file
-        run: |
-          if [[ -f /opt/tivoli/tsm/client/ba/bin/dsm.sys ]]; then
-            echo "dsm.sys file already exists at /opt/tivoli/tsm/client/ba/bin. Skipping setup."
-          else
-            echo "Setting up static dsm.sys file..."
-            
-            # Check if /opt/tivoli directory exists
-            if [[ ! -d /opt/tivoli ]]; then
-              sudo mkdir -p /opt/tivoli
-              echo "Created /opt/tivoli directory."
-            fi
-            
-            # Create /opt/tivoli/tsm directory if it does not exist
-            sudo mkdir -p /opt/tivoli/tsm/client/ba/bin
-            echo -e "SERVERNAME IBMSPSVR01\n\
-            COMMMETHOD tcpip\n\
-            TCPPORT 1500\n\
-            TCPSERVERADDRESS ***" | sudo tee /opt/tivoli/tsm/client/ba/bin/dsm.sys > /dev/null
-            sudo chmod 644 /opt/tivoli/tsm/client/ba/bin/dsm.sys
-            echo "Static dsm.sys file has been set up at /opt/tivoli/tsm/client/ba/bin."
-          fi
-        shell: bash
+      - name: Run Ansible Test Playbook
         env:
-          ANSIBLE_HOST_KEY_CHECKING: false
-
-      # Step 9: Run Ansible Playbook for Client Registration
-      - name: Run Ansible Playbook for Client Registration
-        env:
-          CLIENT_NAME: ${{ secrets.CLIENT_NAME }}
-          CLIENT_PASSWORD: ${{ secrets.CLIENT_PASSWORD }}
-          CLIENT_POLICY_DOMAIN: ${{ secrets.CLIENT_POLICY_DOMAIN }}
-          SP_SERVER_IP: ${{ secrets.SP_SERVER_IP }}
-          SP_SERVER_NAME: ${{ secrets.SP_SERVER_NAME }}
-          SP_SERVER_PASSWORD: ${{ secrets.SP_SERVER_PASSWORD }}
-          SP_SERVER_USERNAME: ${{ secrets.SP_SERVER_USERNAME }}
+          ANSIBLE_HOST_KEY_CHECKING: "False"
         run: |
-          ansible-playbook tests/integration/targets/client_node/test_sp_client.yml \
-              -i "${{ secrets.CLIENT_HOST }},${{ secrets.SP_SERVER_IP }}" \
-              -e "storage_protect_server_name=${{ secrets.SP_SERVER_NAME }}" \
-              -e "storage_protect_server_ip=${{ secrets.SP_SERVER_IP }}" \
-              -e "storage_protect_username=${{ secrets.SP_SERVER_USERNAME }}" \
-              -e "storage_protect_password=${{ secrets.SP_SERVER_PASSWORD }}" \
-              -e "client_name=${{ secrets.CLIENT_NAME }}" \
-              -e "client_password=${{ secrets.CLIENT_PASSWORD }}" \
-              -e "client_policy_domain=${{ secrets.CLIENT_POLICY_DOMAIN }}" \
-              --extra-vars "ansible_ssh_user=root ansible_ssh_private_key_file=~/.ssh/id_rsa ansible_ssh_host=${{ secrets.CLIENT_HOST }}
-                            storage_protect_nodes_async_retries=30 \
-                            storage_protect_nodes_async_delay=10 \
-                            storage_protect_nodes_loop_delay=30"
+          ansible-playbook -i inventory.ini \
+            tests/integration/targets/client_node/test_sp_client.yml \
+            --extra-vars '{
+              "storage_protect_server_name": "IBMSPSVR01",
+              "STORAGE_PROTECT_USERNAME": "admin2",
+              "STORAGE_PROTECT_PASSWORD": "adminPassw0rd@321",
+              "storage_protect_server_ip": "10.240.64.6",
+              "STORAGE_PROTECT_REQUEST_TIMEOUT": 10
+            }'
+
