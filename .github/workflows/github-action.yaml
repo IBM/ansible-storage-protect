@@ -208,7 +208,7 @@ jobs:
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
         run: |
-          ansible-playbook -i inventory \
+          ansible-playbook -i /home/github_runner/actions-runner/ansible/ansible-storage-protect/ansible-storage-protect \
             /home/github_runner/actions-runner/ansible/ansible-storage-protect/ansible-storage-protect/tests/integration/targets/client_node/test_sp_client.yml \
             --extra-vars '{
               "storage_protect_server_name": "IBMSPSVR01",
