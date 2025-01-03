@@ -210,7 +210,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          ansible-galaxy collection install ibm.storage_protect
+          ansible-galaxy collection install ibm.storage_protect --force
 
       - name: Run Ansible Test Playbook
         env:
