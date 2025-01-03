@@ -407,7 +407,46 @@ def main():
     exists, existing = module.find_one('node', name)
 
     if state == 'absent' or state == 'deregistered' or state == 'removed':
-        module.perform_action('remove', 'node', name, exists=exists)
+        # Step 1: Attempt to remove the node
+        command = f'remove node {name}'
+        rc, op, err = module.run_command(command, auto_exit=False, exit_on_fail=False)
+
+        if rc == 0:
+            # Node successfully removed
+            module.json_output['changed'] = True
+            module.json_output['message'] = f"Node {name} successfully removed."
+            module.json_output['output'] = op
+            module.exit_json(**module.json_output)
+        else:
+            # Step 2: Node removal failed, attempt to delete file spaces
+            module.warn(f"Failed to remove node {name}: {err}. Attempting to delete associated file spaces.")
+
+            del_rc, del_out, del_err = module.run_command(f'del filespace {name} "*"', auto_exit=False)
+            if del_rc == 0:
+                module.json_output['message'] = f"File spaces for node {name} successfully deleted."
+                module.json_output['output'] = del_out
+
+                # Step 3: Retry node removal
+                module.warn(f"Retrying node removal after deleting file spaces for {name}.")
+                retry_rc, retry_op, retry_err = module.run_command(f'remove node {name}', auto_exit=False)
+
+                if retry_rc == 0:
+                    module.json_output['changed'] = True
+                    module.json_output['message'] = f"Node {name} successfully removed after deleting file spaces."
+                    module.json_output['output'] = retry_op
+                    module.exit_json(**module.json_output)
+                else:
+                    module.fail_json(
+                        msg=f"Failed to remove node {name} after deleting file spaces. Error: {retry_err}",
+                        output=retry_op,
+                    )
+            else:
+                # File space deletion failed
+                module.fail_json(
+                    msg=f"Failed to delete file spaces for node {name}. Error: {del_err}",
+                    output=del_out,
+                )
+        # module.perform_action('remove', 'node', name, exists=exists)
     else:
         options_params = {
             'node_password_expiry': 'PASSExp',
