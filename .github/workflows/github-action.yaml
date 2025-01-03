@@ -200,6 +200,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Set up Python and Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible
+      # Step 3: Set environment variable to disable SSH host key checking
+      - name: Set environment variable to disable SSH host key checking
+        run: echo "ANSIBLE_HOST_KEY_CHECKING=False" >> $GITHUB_ENV
+
       - name: Install Dependencies
         run: |
           ansible-galaxy collection install ibm.storage_protect
@@ -208,7 +216,7 @@ jobs:
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
         run: |
-          ansible-playbook -i /home/github_runner/actions-runner/ansible/ansible-storage-protect/ansible-storage-protect \
+          ansible-playbook -i /home/github_runner/actions-runner/ansible/ansible-storage-protect/ansible-storage-protect/inventory \
             /home/github_runner/actions-runner/ansible/ansible-storage-protect/ansible-storage-protect/tests/integration/targets/client_node/test_sp_client.yml \
             --extra-vars '{
               "storage_protect_server_name": "IBMSPSVR01",
