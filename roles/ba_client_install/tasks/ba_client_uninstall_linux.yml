@@ -1,0 +1,196 @@
+---
+
+- name: Check if BA Client is installed before uninstall
+  ansible.builtin.command: rpm -q TIVsm-BA
+  register: ba_client_check
+  ignore_errors: true
+
+# Display a message if BA Client is not installed
+- name: Display message if BA Client is not installed
+  debug:
+    msg: "BA Client is not installed on the system. Skipping uninstall process."
+  when: ba_client_check.rc != 0
+
+# Fail or Skip the Upgrade Play
+- name: Skip uninstall if BA Client is not installed
+  meta: end_play
+  when: ba_client_check.rc != 0
+
+# Stop BA client processes
+- name: Stop BA client processes using killall
+  ansible.builtin.command: "killall {{ item }}"
+  with_items:
+    - dsmc
+  ignore_errors: true
+
+# Backup dsm.opt and dsm.sys files
+- name: Check if dsm.opt and dsm.sys exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  with_items:
+    - "/opt/tivoli/tsm/client/ba/bin/dsm.opt"
+    - "/opt/tivoli/tsm/client/ba/bin/dsm.sys"
+  register: file_status
+
+- name: Create backup directory if not exists
+  ansible.builtin.file:
+    path: /opt/baClientPackagesBk
+    state: directory
+    mode: '0755'
+
+- name: Backup dsm.opt and dsm.sys files
+  ansible.builtin.copy:
+    src: "{{ item.stat.path }}"
+    dest: "{{ item.stat.path }}.bk"
+    remote_src: yes
+  with_items: "{{ file_status.results | selectattr('stat.exists', 'equalto', true) | list }}"
+
+# Backup existing RPMs before uninstallation
+- name: Check for RPM files in /opt/baClient
+  ansible.builtin.find:
+    paths: /opt/baClient
+    patterns: "*.rpm"
+    file_type: file
+  register: rpm_files
+
+    # Copy RPM files if they exist
+- name: Backup RPM files to /opt/baClientPackagesBk
+  ansible.builtin.command: "cp {{ item.path }} /opt/baClientPackagesBk"
+  with_items: "{{ rpm_files.files }}"
+  when: rpm_files.matched > 0
+
+#stop ba client processes
+- name: Stop BA client daemon using systemctl
+  ansible.builtin.systemd:
+    name: dsmcad
+    state: stopped
+  ignore_errors: true
+
+
+# Defining uninstallation order since the packages are dependent on each other
+- name: Define package uninstall order
+  set_fact:
+    uninstall_packages:
+      - "TIVsm-WEBGUI"
+      - "TIVsm-BAhdw"
+      - "TIVsm-BAcit"
+      - "TIVsm-APIcit"
+      - "TIVsm-BA"
+      - "TIVsm-API64"
+      - "gskssl64"
+      - "gskcrypt64"
+
+# Checking if the packages are installed
+- name: Check for installed packages
+  ansible.builtin.command: "rpm -q {{ item }}"
+  with_items: "{{ uninstall_packages }}"
+  register: installed_packages
+  ignore_errors: true
+
+
+# Uninstall packages in dependency order
+- name: Uninstall BA Client packages in sequence
+  block:
+    - name: Uninstall each package sequentially
+      ansible.builtin.command: "rpm -e {{ item }}"
+      loop: "{{ installed_packages.results | map(attribute='item') | list }}"
+      register: uninstall_result
+      failed_when: uninstall_result.rc != 0  # Fail if uninstallation fails
+      ignore_errors: false
+
+#    - name: Delete backup directory on successful uninstallation
+#      ansible.builtin.file:
+#        path: /opt/baClientPackagesBk
+#        state: absent
+#      when: uninstall_result is defined
+
+    #    - name: debug
+#      debug:
+#        msg: uninstall_result
+#
+    - name: Uninstallation status
+      debug:
+        msg: BA Client uninstalled successfully
+
+#================== if uninstall fails =====================
+
+  rescue:
+    - name: Define package reinstall order
+      set_fact:
+        reinstall_order:
+          - gskcrypt64
+          - gskssl64
+          - TIVsm-API64
+          - TIVsm-APIcit
+          - TIVsm-BA
+          - TIVsm-BAcit
+          - TIVsm-BAhdw
+          - TIVsm-WEBGUI
+
+    # Extract names of successfully uninstalled packages (rc == 0)
+    - name: Identifying successfully uninstalled packages
+      set_fact:
+        successfully_uninstalled: >-
+          {{
+            uninstall_result.results
+            | selectattr('rc', 'eq', 0)
+            | map(attribute='item')
+            | list
+          }}
+
+    - name: Identify all failed items
+      set_fact:
+        failed_items: "{{ uninstall_result.results | selectattr('rc','ne',0) | list }}"
+
+    # From the failed_items, we get all the failed packages
+    - name: Identify failed packages
+      set_fact:
+        failed_packages: "{{ failed_items | map(attribute='item') | list }}"
+
+    # From the failed_items, get all error messages and combine them
+    - name: Identifying failure reasons
+      set_fact:
+        failure_reasons: "{{ failed_items | map(attribute='stderr') | list | join(' ') }}"
+
+    # Filter reinstall_order to only include packages that were successfully uninstalled
+    - name: Reinstalling packages that were uninstalled during the upgrade process
+      set_fact:
+        packages_to_reinstall: >
+          {{
+            reinstall_order | intersect(successfully_uninstalled)
+          }}
+
+# packages_to_reinstall just contains the 'name' of packages.
+# we are using the find module to search for the rpm files in the /opt/baClient directory
+
+    - name: Find RPM for each package
+      ansible.builtin.find:
+        paths: "{{ extract_dest }}"
+        patterns: "{{ item }}*.rpm"
+        file_type: file
+      with_items: "{{ packages_to_reinstall }}"
+      register: found_rpms
+
+    # Collect RPM paths in the final order (same as packages_to_reinstall)
+    - name: Collecting RPM paths in order
+      set_fact:
+        rpms_to_install: >
+          {{
+            found_rpms.results
+            | map(attribute='files')
+            | flatten
+            | map(attribute='path')
+            | list
+          }}
+
+    # Install only the previously uninstalled packages in known dependency order
+    - name: Installing RPMs in known order
+      ansible.builtin.command: "rpm -ivh {{ rpms_to_install | join(' ') }}"
+      ignore_errors: false
+
+    - name: Fail to uninstall the BAClient
+      fail:
+        msg: >
+          Uninstallation failed for the following package: {{ failed_packages }}.
+          Reason: {{ failure_reasons }}
+          The system has been rolled back by reinstalling the previously uninstalled packages.

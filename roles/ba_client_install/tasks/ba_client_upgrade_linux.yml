@@ -1,0 +1,148 @@
+---
+#======================== Pre-checks before upgrading the ba_client ==========
+
+- name: Check if BA Client is installed before upgrade
+  ansible.builtin.command: rpm -q TIVsm-BA
+  register: ba_client_check
+  ignore_errors: true
+
+# Display a message if BA Client is not installed
+- name: Display message if BA Client is not installed
+  debug:
+    msg: "BA Client is not installed on the system. Skipping upgrade process."
+  when: ba_client_check.rc != 0
+
+# Fail or Skip the Upgrade Play
+- name: Skip upgrade if BA Client is not installed
+  meta: end_play
+  when: ba_client_check.rc != 0
+
+# ============= Uninstalling the ba_client before performing upgrade ===========
+
+- name: Uinstall the BA client before upgrade
+  include_tasks: ba_client_uninstall_linux.yml
+
+# ============= Installing the new version of ba_client ===========
+
+- name: Upgrading the BA client
+  include_tasks: ba_client_install_linux.yml
+
+- name: Debug the install result
+  debug:
+    var: is_installation_successful
+
+# ======== During upgrade, if any error occurs while installing the new version, then to maintain the state of system we re-install the previous ba_client version and restore the old configuration files =========
+# ===================== if upgrade is unsuccessful ============================
+- name: Rollback on upgrade failure
+  block:
+    - name: Restore original configuration files
+      ansible.builtin.copy:
+        src: "{{ item }}.bk"
+        dest: "{{ item }}"
+        remote_src: yes
+      with_items:
+        - "/opt/tivoli/tsm/client/ba/bin/dsm.opt"
+        - "/opt/tivoli/tsm/client/ba/bin/dsm.sys"
+#      before starting the upgrade, previous packages are backed up in /opt/baClientPackagesBk
+#      this packages will be used to reinstall the previous version
+    - name: Finding extracted files
+      ansible.builtin.find:
+        paths: /opt/baClientPackagesBk
+        recurse: yes
+      register: extracted_files
+
+    - name: Install GSKit crypt library (gskcrypt)
+      ansible.builtin.command: rpm -ivh {{ item }}
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskcrypt') | list }}"
+      register: gskcrypt_install_result
+      ignore_errors: true
+
+    # Installing GSKit SSL library (gskssl)
+    - name: Install GSKit SSL library (gskssl)
+      ansible.builtin.command: "rpm -ivh {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskssl') | list }}"
+      register: gskssl_install_result
+      ignore_errors: true
+
+    # Installing API packages (TIVsm-API64, TIVsm-APIcit)
+    - name: Install API packages (TIVsm-API64, TIVsm-APIcit)
+      ansible.builtin.command: "rpm -ivh {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-API') | list }}"
+      register: api_install_result
+      ignore_errors: false
+
+    # Installing BA packages (TIVsm-BA, TIVsm-BAcit)
+    - name: Install BA packages (TIVsm-BA, TIVsm-BAcit)
+      ansible.builtin.command: "rpm -ivh  {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BA') | list }}"
+      register: ba_install_result
+      ignore_errors: false
+
+    - name: Install WebGUI package
+      ansible.builtin.command: "rpm -ivh  {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-WEBGUI') | list }}"
+      register: webgui_install_result
+      ignore_errors: false
+
+    - name: Fail the upgrade process
+      fail:
+        msg: >
+          Upgrade failed. Restored original configuration files and reinstalled uninstalled packages to maintain system stability.
+  when: is_installation_successful == false and file_status is defined and (file_status.results | selectattr('stat.exists', 'equalto', true) | length > 0)
+
+#===================== if upgrade is successful ============================
+
+# Restore backup files to their original names
+- name: Restoring .bk files to original files after successful upgrade
+  ansible.builtin.copy:
+    src: "{{ item }}.bk"
+    dest: "{{ item }}"
+    remote_src: yes
+  with_items:
+    - "/opt/tivoli/tsm/client/ba/bin/dsm.opt"
+    - "/opt/tivoli/tsm/client/ba/bin/dsm.sys"
+  when: is_installation_successful
+
+# Remove the .bk files after restoration
+- name: Remove .bk files after restoring to original
+  ansible.builtin.file:
+    path: "{{ item }}.bk"
+    state: absent
+  with_items:
+    - "/opt/tivoli/tsm/client/ba/bin/dsm.opt"
+    - "/opt/tivoli/tsm/client/ba/bin/dsm.sys"
+  when: is_installation_successful
+
+# Display upgrade success message
+- name: Display upgrade success message
+  debug:
+    msg: "BA Client upgrade completed successfully."
+  when: is_installation_successful == true
+
+# =============== start the daemon =============
+
+# Enable dsmcad.service
+- name: Enable dsmcad.service
+  ansible.builtin.systemd:
+    name: dsmcad.service
+    enabled: true
+  when: ba_client_start_daemon
+
+# Check if dsmcad.service is enabled
+- name: Check if dsmcad.service is enabled
+  ansible.builtin.command: "systemctl is-enabled dsmcad.service"
+  register: dsmcad_status
+  failed_when: false  # Prevent task from failing if the service is not enabled
+  when: ba_client_start_daemon
+
+# Verify if the service is enabled and provide output
+- name: Check if dsmcad.service is successfully enabled
+  debug:
+    msg: "dsmcad started successfully."
+  when: ba_client_start_daemon and dsmcad_status.stdout == "enabled"
+
+# Output message if the service is not enabled
+- name: Check if dsmcad.service failed to enable
+  debug:
+    msg: "Failed to enable dsmcad.service."
+  when: ba_client_start_daemon and dsmcad_status.stdout != "enabled"

@@ -1,0 +1,24 @@
+---
+- name: Get the SP Server facts
+  hosts: all
+  gather_facts: no
+  become: yes
+  environment:
+    STORAGE_PROTECT_SERVERNAME: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') }}"
+    STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') }}"
+    STORAGE_PROTECT_PASSWORD: "{{ lookup('env', 'STORAGE_PROTECT_PASSWORD') }}"
+  roles:
+    - role: sp_server_facts
+      vars:
+        sp_server_facts_flags:
+          q_status: true
+          q_monitorsettings: true
+          q_db: true
+          q_dbspace: true
+          q_log: true
+          q_domain: true
+          q_copygroup: true
+          q_replrule: true
+          q_devclass: true
+          q_mgmtclass: true
+          q_stgpool: true

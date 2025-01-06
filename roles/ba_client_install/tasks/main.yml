@@ -1,0 +1,40 @@
+# ========================================================================
+# Flow:
+# if state == 'present'
+  #  1) local_repo_check.yml :- validates whether the passed version is available in local repo on control node.
+  #  2) determine_action.yml :- if passed version is available in local_repo , role checks whether the passed version is upper or lower.
+  #      if version passed is greater than the already installed then action is set to 'upgrade'
+  #      if version passed is lower than already installed, role execution is stopped
+  #      if no version is available on remote vm's then action is set to 'install'
+  #  3) collect_system_info :- this role collects the system facts , which are used to perform pre-checks on remote vm's
+  #  4) if action == 'install' :- ba_client_install.yml is executed
+  #  5) if action == 'upgrade' :- ba_client_upgrade.yml is executed
+#
+# ========================================================================
+# if state == 'absent'
+#   1) ba_client_uninstall.yml is executed
+---
+- name: Set action dynamically based on state
+  include_tasks: local_repo_check.yml
+  when: ba_client_state == "present"
+
+- name: Set action dynamically based on state
+  include_tasks: determine_action.yml
+  when: ba_client_state == "present"
+
+- name: Gather system info for compatibility checks
+  include_role:
+    name: collect_system_info
+  when: action is defined and ba_client_state == "present"
+
+- name: Run install tasks
+  include_tasks: ba_client_install_linux.yml
+  when: action is defined and action == "install" and ba_client_state == "present"
+
+- name: Run upgrade tasks
+  include_tasks: ba_client_upgrade_linux.yml
+  when: action is defined and action == "upgrade" and ba_client_state == "present"
+
+- name: Run uninstall tasks
+  include_tasks: ba_client_uninstall_linux.yml
+  when: ba_client_state == "absent"
