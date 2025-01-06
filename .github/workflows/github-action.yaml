@@ -220,8 +220,8 @@ jobs:
             /home/github_runner/actions-runner/ansible/ansible-storage-protect/ansible-storage-protect/tests/integration/targets/client_node/test_sp_client.yml \
             --extra-vars '{
               "storage_protect_server_name": "IBMSPSVR01",
-              "STORAGE_PROTECT_USERNAME": "admin2",
-              "STORAGE_PROTECT_PASSWORD": "adminPassw0rd@321",
+              "storage_protect_username": "admin2",
+              "storage_protect_password": "adminPassw0rd@321",
               "storage_protect_server_ip": "10.240.64.6",
               "STORAGE_PROTECT_REQUEST_TIMEOUT": 10
             }'
