@@ -1,17 +1,7 @@
 ---
-# Playbook for IBM Storage Protect Clients and Server..
-
-# Step 1: Add dsm.sys file to clients
 - name: Add dsm.sys file to clients
-  hosts: 10.240.64.8 # Dynamic client hosts passed via extra vars
-  gather_facts: false
+  hosts: storage_protect_clients
   tasks:
-    - name: Validate required variables for clients
-      ansible.builtin.debug:
-        msg:
-          - "Server Name: {{ storage_protect_server_name }}"
-          - "Server IP: {{ storage_protect_server_ip }}"
-
     - name: Check TIVsm RPMs are installed
       ansible.builtin.command:
         cmd: rpm -qa | grep -i tivsm
@@ -28,18 +18,32 @@
 
     - name: Create dsm.sys
       ibm.storage_protect.dsm_sysfile:
-        server_name: "ansible-ibm-sp-host05"
-        tcp_server_address: "10.240.64.6"
+        server_name: "{{ storage_protect_server_name }}"
+        tcp_server_address: "{{ storage_protect_server_ip }}"
 
-# Step 2: Test register server in IBM Storage Protect
 - name: Test register server in IBM Storage Protect
-  hosts: "10.240.64.6"  # Dynamic server host passed via extra vars
-  gather_facts: false
+  hosts: storage_protect_server
   vars:
+    storage_protect_server_name: IBMSPSVR01
+    storage_protect_username: adminuser
+    storage_protect_password: adminPassword12345678
     storage_protect_nodes:
-      - name: "10.240.64.8"
-        policy_domain: "{{ client_policy_domain }}"
-        node_password: "{{ client_password }}"
+      - name: Test2
+        policy_domain: STANDARD
+        schedules:
+          - my_sched  # This needs to previously exist. Once a schedule module is created, replace with that
+        node_password: P@ssword123456789
+        session_security: strict
+        node_password_expiry: 90
+        can_archive_delete: true
+        min_extent_size: 250
+        replication_state: enabled
+        backup_repl_rule_default: NONE
+      - name: Test3
+        policy_domain: STANDARD
+        schedules:
+          - my_sched  # This needs to previously exist. Once a schedule module is created, replace with that
+        node_password: P@ssword123456789
         session_security: strict
         node_password_expiry: 90
         can_archive_delete: true
@@ -48,17 +52,10 @@
         backup_repl_rule_default: NONE
 
   pre_tasks:
-    - name: Validate required variables for server
-      ansible.builtin.debug:
-        msg:
-          - "Server Name: {{ storage_protect_server_name }}"
-          - "Server IP: {{ ansible_host }}"
-          - "Username: {{ storage_protect_username }}"
-
     - name: Create dsm.sys
       ibm.storage_protect.dsm_sysfile:
-        server_name: "10.240.64.6"
-        tcp_server_address: "ansible-ibm-sp-host05"
+        server_name: "{{ storage_protect_server_name }}"
+        tcp_server_address: "{{ ansible_host }}"
 
   roles:
     - ibm.storage_protect.nodes
