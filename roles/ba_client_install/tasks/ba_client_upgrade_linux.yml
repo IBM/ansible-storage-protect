@@ -36,7 +36,7 @@
 # ===  to maintain the state of system we re-install the previous ba_client version and restore the old configuration files ===
 # === if upgrade is unsuccessful ===
 - name: Rollback on upgrade failure
-  when: is_installation_successful and file_status is defined and (file_status.results | selectattr('stat.exists', 'equalto', true) | length > 0)
+  when: not is_installation_successful and file_status is defined and (file_status.results | selectattr('stat.exists', 'equalto', true) | length > 0)
   block:
     - name: Restore original configuration files
       ansible.builtin.copy:
@@ -110,6 +110,7 @@
   with_items:
     - "/opt/tivoli/tsm/client/ba/bin/dsm.opt"
     - "/opt/tivoli/tsm/client/ba/bin/dsm.sys"
+  failed_when: false
   when: is_installation_successful
 
 # Remove the .bk files after restoration
@@ -120,6 +121,7 @@
   with_items:
     - "/opt/tivoli/tsm/client/ba/bin/dsm.opt"
     - "/opt/tivoli/tsm/client/ba/bin/dsm.sys"
+  failed_when: false
   when: is_installation_successful
 
 # Display upgrade success message
