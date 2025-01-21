@@ -25,6 +25,7 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
 ```yaml
 - name: Configure dsm.opt parameters while maintaining the existing the parameters
   hosts: all
+  become: true
   roles:
     - role: dsm_opt
       vars:
@@ -40,9 +41,9 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
 ```yaml
 - name: Remove dsm.opt
   hosts: all
+  become: true
   roles:
     - role: dsm_optfile
       vars:
         dsm_opt_state: "absent"
 ```
-
