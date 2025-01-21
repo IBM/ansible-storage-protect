@@ -1,8 +1,8 @@
 ---
 - name: Get the SP Server facts
   hosts: all
-  gather_facts: no
-  become: yes
+  gather_facts: true
+  become: true
   environment:
     STORAGE_PROTECT_SERVERNAME: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') }}"
     STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') }}"
