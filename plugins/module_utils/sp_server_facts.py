@@ -1,4 +1,3 @@
-import  json
 import subprocess
 
 from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
@@ -9,12 +8,14 @@ class DsmadmcAdapterExtended(DsmadmcAdapter):
     """
 
     def run_command(self, command, auto_exit=True, dataonly=True, exit_on_fail=True):
+
         command = (
             f'dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} '
-            + ('-dataonly=yes ' if dataonly else '')
-            + '-commadelimited '
-            + command
+            + ('-dataonly=yes ' if dataonly else '') +
+            '-commadelimited ' +
+            command
         )
+
         self.json_output['command'] = command
         try:
             result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -24,7 +25,6 @@ class DsmadmcAdapterExtended(DsmadmcAdapter):
             if auto_exit:
                 self.json_output['changed'] = result.returncode == 0
                 self.exit_json(**self.json_output)
-
             return result.returncode, raw_output, None
         except subprocess.CalledProcessError as e:
             if exit_on_fail:
@@ -267,7 +267,6 @@ class DSMParser:
         for row in rows:
             values = [value.strip() for value in row.split(",")]
             parsed_output.append(dict(zip(keys, values)))
-
         return parsed_output
 
     @staticmethod
@@ -355,6 +354,7 @@ class SpServerResponseMapper:
 
     @staticmethod
     def map_to_developer_friendly(json_data):
+
         if isinstance(json_data, dict):
             # Recursively map each key-value pair in the dictionary
             return {SpServerResponseMapper.mapping.get(key, key): SpServerResponseMapper.map_to_developer_friendly(value)

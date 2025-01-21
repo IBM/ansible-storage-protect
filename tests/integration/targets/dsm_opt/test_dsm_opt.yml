@@ -13,6 +13,6 @@
 - name: Remove dsm.opt
   hosts: all
   roles:
-    - role: dsm_optfile
+    - role: dsm_opt
       vars:
         dsm_opt_state: "absent"

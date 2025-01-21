@@ -3,28 +3,29 @@
   ansible.builtin.command: rpm -q TIVsm-BA
   register: installed_version_check
   ignore_errors: true
+  changed_when: false
 
 - name: Extract installed version
-  set_fact:
+  ansible.builtin.set_fact:
     installed_version: >-
       {{
         installed_version_check.stdout.split('-')[2]
       }}
   when: installed_version_check.rc == 0
 
-- name: debug the installed version
-  debug:
+- name: Debug the installed version
+  ansible.builtin.debug:
     var: installed_version
 
 - name: Parsing user version and installed version into lists for comparison
-  set_fact:
+  ansible.builtin.set_fact:
     user_version_list: "{{ ba_client_version.split('.') | map('int') | list }}"
     installed_version_list: "{{ installed_version.split('.') | map('int') | list }}"
   when: installed_version is defined
 
 - name: Determining action based on conditions
-  set_fact:
-    action: >-
+  ansible.builtin.set_fact:
+    ba_client_action: >-
       {{
         "upgrade" if
         (installed_version is defined and user_version_list > installed_version_list and version_available)
@@ -35,14 +36,15 @@
         "none"
       }}
 
-- name: Fail if no action can be determined
-  fail:
+- name: Fail if no ba_client_action can be determined
+  ansible.builtin.fail:
     msg: >-
-      Unable to determine action. Either:
-      - Specified version {{ ba_client_version }} is not available locally, or 
-      - Installed version {{ installed_version | default('None') }} is greater or equal to the specified version.The specified version should be greater than the already installed version {{ installed_version | default('None') }}.
-  when: action == 'none'
+      Unable to determine ba_client_action. Either:
+      - Specified version {{ ba_client_version }} is not available locally, or
+      - Installed version {{ installed_version | default('None') }} is greater or equal to the specified version.
+      The specified version should be greater than the already installed version {{ installed_version | default('None') }}.
+  when: ba_client_action == 'none'
 
-#- name: Debug action
+# - name: Debug ba_client_action
 #  debug:
-#    msg: "Determined action: {{ action }}"
+#    msg: "Determined action: {{ ba_client_action }}"
