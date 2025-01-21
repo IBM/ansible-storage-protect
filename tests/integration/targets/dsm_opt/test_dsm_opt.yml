@@ -1,5 +1,6 @@
 - name: Configure dsm.opt parameters while maintaining the existing the parameters
   hosts: all
+  become: true
   roles:
     - role: dsm_opt
       vars:
@@ -12,6 +13,7 @@
 
 - name: Remove dsm.opt
   hosts: all
+  become: true
   roles:
     - role: dsm_opt
       vars:

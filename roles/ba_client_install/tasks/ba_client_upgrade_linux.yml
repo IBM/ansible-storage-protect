@@ -57,7 +57,11 @@
 
     - name: Install GSKit crypt library (gskcrypt)
       ansible.builtin.command: rpm -ivh {{ item }}
-      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskcrypt') | list }}"
+      with_items: >
+        {{ extracted_files.files | map(attribute='path')
+                      | select('search', 'gskcrypt.*\.rpm$')
+                      | reject('search', '_pd\.rpm$')
+                      | list }}
       register: gskcrypt_install_result
       ignore_errors: true
       changed_when: gskcrypt_install_result.rc == 0
@@ -65,7 +69,11 @@
     # Installing GSKit SSL library (gskssl)
     - name: Install GSKit SSL library (gskssl)
       ansible.builtin.command: "rpm -ivh {{ item }}"
-      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskssl') | list }}"
+      with_items: >
+        {{ extracted_files.files | map(attribute='path')
+                      | select('search', 'gskssl.*\.rpm$')
+                      | reject('search', '_pd\.rpm$')
+                      | list }}
       register: gskssl_install_result
       ignore_errors: true
       changed_when: gskssl_install_result.rc == 0

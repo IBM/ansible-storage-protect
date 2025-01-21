@@ -24,30 +24,29 @@
   ansible.builtin.set_fact:
     architecture_compatible: "{{ 'x86_64' in system_info.Architecture }}"
 
-- name: Checking Java installation
-  ansible.builtin.set_fact:
-    java_installed: "{{ system_info['Java Version'] | lower is search('java|jdk|version') }}"
+#- name: Checking Java installation
+#  ansible.builtin.set_fact:
+#    java_installed: "{{ system_info['Java Version'] | lower is search('jdk|version') }}"
 
 - name: Checking available disk space
   ansible.builtin.set_fact:
-    avail_disk_space: "{{ disk_space.available_mb | int > 1400 }}"
+    avail_disk_space: "{{ disk_space.available_mb | int > 1500 }}"
 
 - name: Compatibility results
   ansible.builtin.debug:
     msg: |
       Architecture check: {{ architecture_compatible }}
-      Java installed: {{ java_installed }}
       Disk Space: {{ avail_disk_space }}
 
 - name: Compatibility check result
   ansible.builtin.debug:
     msg: "System is compatible"
-  when: architecture_compatible and java_installed and avail_disk_space
+  when: architecture_compatible and avail_disk_space
 
 - name: Compatibility check result
   ansible.builtin.debug:
     msg: "System is incompatible"
-  when: not (architecture_compatible and java_installed and avail_disk_space)
+  when: not (architecture_compatible and avail_disk_space)
 
 - name: Fail if system is incompatible
   ansible.builtin.fail:
@@ -57,16 +56,26 @@
       Sufficient disk space: > 1400 MB Architecture check: {{
       architecture_compatible }} Java installed: {{ java_installed }} Disk
       Space: {{ avail_disk_space }}
-  when: not (architecture_compatible and java_installed and avail_disk_space)
+  when: not (architecture_compatible and avail_disk_space)
+
+- name: Install rsync on remote VMs
+  ansible.builtin.dnf:
+    name: rsync
+    state: present
+
+- name: Install lsof on remote VMs
+  ansible.builtin.dnf:
+    name: lsof
+    state: present
 
 # ====================== Transferring packages on remote vm's ======================
 
 # transfer files to the remote machines
 - name: Transferring the packages on the remote host
-  ansible.builtin.synchronize:
+  ansible.posix.synchronize:
     src: "{{ tar_file_path }}"
     dest: "{{ ba_client_temp_dest }}"
-  when: architecture_compatible and java_installed and avail_disk_space
+  when: architecture_compatible and avail_disk_space
   register: copy_result
 
 # Validate file transfer and show error details
@@ -85,14 +94,14 @@
     path: "{{ ba_client_extract_dest }}"
     state: directory
     mode: '0755'
-  when: architecture_compatible and java_installed and avail_disk_space
+  when: architecture_compatible and avail_disk_space
 
 - name: Extracting the .tar file
   ansible.builtin.unarchive:
     src: "{{ ba_client_temp_dest }}{{ tar_file_path | basename }}"
     dest: "{{ ba_client_extract_dest }}"
     remote_src: true
-  when: architecture_compatible and java_installed and avail_disk_space
+  when: architecture_compatible and avail_disk_space
   register: extraction_result
 
 - name: Finding extracted files
@@ -153,7 +162,11 @@
     # Installing GSKit crypt library (gskcrypt)
     - name: Install GSKit crypt library (gskcrypt)
       ansible.builtin.command: rpm -ivh {{ item }}
-      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskcrypt') | list }}"
+      with_items: >
+        {{ extracted_files.files | map(attribute='path')
+              | select('search', 'gskcrypt.*\.rpm$')
+              | reject('search', '_pd\.rpm$')
+              | list }}
       when: extracted_files is defined and extracted_files.files | length > 0 and check_gskcrypt.rc != 0
       register: gskcrypt_install_result
       ignore_errors: true
@@ -162,7 +175,11 @@
     # Installing GSKit SSL library (gskssl)
     - name: Install GSKit SSL library (gskssl)
       ansible.builtin.command: "rpm -ivh {{ item }}"
-      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'gskssl') | list }}"
+      with_items: >
+        {{ extracted_files.files | map(attribute='path')
+              | select('search', 'gskssl.*\.rpm$')
+              | reject('search', '_pd\.rpm$')
+              | list }}
       when: extracted_files is defined and extracted_files.files | length > 0 and check_gskssl.rc != 0
       register: gskssl_install_result
       ignore_errors: true
