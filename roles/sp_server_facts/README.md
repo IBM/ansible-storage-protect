@@ -60,7 +60,7 @@ sp_server_facts_flags:
 - name: Get the SP Server facts
   hosts: local
   gather_facts: no
-  become: yes
+  become: true
   environment:
     STORAGE_PROTECT_SERVERNAME: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') }}"
     STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') }}"
