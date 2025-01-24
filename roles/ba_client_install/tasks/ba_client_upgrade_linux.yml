@@ -153,6 +153,12 @@
   failed_when: false
   when: is_installation_successful
 
+- name: Delete backup directory on successful upgrade
+  ansible.builtin.file:
+    path: /opt/baClientPackagesBk
+    state: absent
+  when: uninstall_result is defined
+
 # Display upgrade success message
 - name: Display upgrade success message
   ansible.builtin.debug:

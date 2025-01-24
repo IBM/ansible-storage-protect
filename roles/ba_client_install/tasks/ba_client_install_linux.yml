@@ -89,6 +89,11 @@
 # ======= Extracting and finding the packages on remote vm's =======
 
 # creating a temporary directory to extract the .rpm files
+- name: Remove existing /opt/baClient directory
+  ansible.builtin.file:
+    path: "{{ ba_client_extract_dest }}"
+    state: absent
+
 - name: Creating /opt/baClient directory
   ansible.builtin.file:
     path: "{{ ba_client_extract_dest }}"
