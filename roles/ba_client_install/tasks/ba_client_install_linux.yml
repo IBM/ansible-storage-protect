@@ -186,18 +186,42 @@
       changed_when: gskssl_install_result.rc == 0
 
     # Installing API packages (TIVsm-API64, TIVsm-APIcit)
-    - name: Install API packages (TIVsm-API64, TIVsm-APIcit)
+    - name: Install API64 package
       ansible.builtin.command: "rpm -ivh {{ item }}"
-      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-API') | list }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-API64\\.') | list }}"
+      when: check_apicit.rc != 0 or check_api64.rc != 0
+      register: api_install_result
+      ignore_errors: false
+      changed_when: api_install_result.rc == 0
+
+    - name: Install APIcit package
+      ansible.builtin.command: "rpm -ivh {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-APIcit\\.') | list }}"
       when: check_apicit.rc != 0 or check_api64.rc != 0
       register: api_install_result
       ignore_errors: false
       changed_when: api_install_result.rc == 0
 
     # Installing BA packages (TIVsm-BA, TIVsm-BAcit)
-    - name: Install BA packages (TIVsm-BA, TIVsm-BAcit)
+    - name: Install BA package
       ansible.builtin.command: "rpm -ivh  {{ item }}"
-      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BA') | list }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BA\\.') | list }}"
+      when: check_ba.rc != 0 or check_bacit.rc != 0
+      register: ba_install_result
+      ignore_errors: false
+      changed_when: ba_install_result.rc == 0
+
+    - name: Install BAcit package
+      ansible.builtin.command: "rpm -ivh  {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BAcit\\.') | list }}"
+      when: check_ba.rc != 0 or check_bacit.rc != 0
+      register: ba_install_result
+      ignore_errors: false
+      changed_when: ba_install_result.rc == 0
+
+    - name: Install BAhdw package
+      ansible.builtin.command: "rpm -ivh  {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BAhdw\\.') | list }}"
       when: check_ba.rc != 0 or check_bacit.rc != 0
       register: ba_install_result
       ignore_errors: false

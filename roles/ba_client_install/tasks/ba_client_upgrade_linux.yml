@@ -79,17 +79,38 @@
       changed_when: gskssl_install_result.rc == 0
 
     # Installing API packages (TIVsm-API64, TIVsm-APIcit)
-    - name: Install API packages (TIVsm-API64, TIVsm-APIcit)
+    - name: Install API64 package
       ansible.builtin.command: "rpm -ivh {{ item }}"
-      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-API') | list }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-API64\\.') | list }}"
+      register: api_install_result
+      ignore_errors: false
+      changed_when: api_install_result.rc == 0
+
+    - name: Install APIcit package
+      ansible.builtin.command: "rpm -ivh {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-APIcit\\.') | list }}"
       register: api_install_result
       ignore_errors: false
       changed_when: api_install_result.rc == 0
 
     # Installing BA packages (TIVsm-BA, TIVsm-BAcit)
-    - name: Install BA packages (TIVsm-BA, TIVsm-BAcit)
+    - name: Install BA package
       ansible.builtin.command: "rpm -ivh  {{ item }}"
-      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BA') | list }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BA\\.') | list }}"
+      register: ba_install_result
+      ignore_errors: false
+      changed_when: ba_install_result.rc == 0
+
+    - name: Install BAcit package
+      ansible.builtin.command: "rpm -ivh  {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BAcit\\.') | list }}"
+      register: ba_install_result
+      ignore_errors: false
+      changed_when: ba_install_result.rc == 0
+
+    - name: Install BAhdw package
+      ansible.builtin.command: "rpm -ivh  {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BAhdw\\.') | list }}"
       register: ba_install_result
       ignore_errors: false
       changed_when: ba_install_result.rc == 0
