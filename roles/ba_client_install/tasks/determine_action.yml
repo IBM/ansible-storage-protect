@@ -9,7 +9,8 @@
   ansible.builtin.set_fact:
     installed_version: >-
       {{
-        installed_version_check.stdout.split('-')[2]
+        installed_version_check.stdout.split('-')[2] ~ '.' ~
+        installed_version_check.stdout.split('-')[3].split('.')[0]
       }}
   when: installed_version_check.rc == 0
 
@@ -28,6 +29,7 @@
     msg: >
       User version (normalized): {{ normalized_user_version }},
       Installed version (normalized): {{ normalized_installed_version }}
+  when: installed_version is defined
 
 - name: Parsing normalized versions into lists for comparison
   ansible.builtin.set_fact:
