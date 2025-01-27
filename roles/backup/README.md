@@ -5,7 +5,7 @@ An ansible role to take on demand backup on Storage protect client.
 
 ## Requirements 
 - Ansible 2.9+ 
-- IBM Storage Protect server configured and accessible.
+- IBM Storage Protect server configured and accessible  and atleast one BA client node registered with server.
 
 ## Environment Variables
 
@@ -19,9 +19,9 @@ export STORAGE_PROTECT_NODE_PASSWORD="<Node password of the node that is registe
 
 |Variable Name|Default Value|Required|Description|
 |:---:|:---:|:---:|:---:|
-|`backup_action`|  |yes|Backup type (selective/incremental)|
-|`filespec`|""|yes|File/Directory path to be backed up.|
-|`absolute`||no|Use the absolute option with the incremental command to force a backup of all files and directories that match the file specification or domain,even if the objects were not changed since the last incremental backup.|
+|`backup_action`|``|yes|Backup type (selective/incremental)|
+|`filespec`|``|yes|File/Directory path to be backed up.|
+|`absolute`|``|no|Use the absolute option with the incremental command to force a backup of all files and directories that match the file specification or domain,even if the objects were not changed since the last incremental backup.|
 |`autofsrename`|``|no|The autofsrename option is used with incremental command to rename an existing file space that is not Unicode-enabled on the IBM Storage Protectserver so that a Unicode-enabled file space with the original name can be created for the current operation.|
 |`changingretries`|``|no|The changingretries option specifies how many additional times you want the client to attempt to back up or archive a file that is in use.Use this option with the incremental, and selective commands.|
 |`compressalways`|``|no|The compressalways option specifies whether to continue compressing an object if it grows during compression.Use this option with the incremental,and selective commands.|

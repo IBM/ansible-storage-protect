@@ -292,7 +292,6 @@ def main():
                 options += f" -{opt}"
             else:
                 options += f" -{opt}={value}"
-    print(f"DEBUG: Received options: {options}")
 
     rc, output, error = module.perform_action(backup_action, filespec, options)
 

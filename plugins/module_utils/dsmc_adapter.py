@@ -15,7 +15,6 @@ class DsmcAdapter(AnsibleModule):
         request_timeout=dict(type='float', required=False, fallback=(env_fallback, ['STORAGE_PROTECT_REQUEST_TIMEOUT'])),
     )
     server_name = 'local'
-    #node_name = None
     password = None
     validate_certs = True
     request_timeout = 10
