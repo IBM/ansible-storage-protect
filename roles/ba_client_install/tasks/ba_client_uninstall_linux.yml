@@ -196,6 +196,12 @@
       ignore_errors: false
       changed_when: true
 
+    - name: Delete backup directory
+      ansible.builtin.file:
+        path: /opt/baClientPackagesBk
+        state: absent
+      when: uninstall_result is defined
+
     - name: Fail to uninstall the BAClient
       ansible.builtin.fail:
         msg: >
