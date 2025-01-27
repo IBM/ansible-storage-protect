@@ -172,7 +172,7 @@
 
     - name: Find RPM for each package
       ansible.builtin.find:
-        paths: "{{ extract_dest }}"
+        paths: "{{ ba_client_extract_dest }}"
         patterns: "{{ item }}*.rpm"
         file_type: file
       with_items: "{{ packages_to_reinstall }}"
