@@ -1,0 +1,47 @@
+---
+- name: "Storage Protect On demand backup"
+  ibm.storage_protect.backup:
+    backup_action: "{{backup_action | mandatory}}"
+    filespec: "{{filespec | mandatory}}"
+    absolute: "{{absolute | default(omit)}}"
+    autofsrename: "{{autofsrename | default(omit)}}"
+    changingretries: "{{changingretries | default(omit)}}"
+    compressalways: "{{compressalways | default(omit)}}"
+    compression: "{{compression | default(omit)}}"
+    detail: "{{detail | default(omit)}}"
+    diffsnapshot: "{{diffsnapshot | default(omit)}}"
+    dirsonly: "{{dirsonly | default(omit)}}"
+    domain: "{{domain | default(omit)}}"
+    encryptiontype: "{{encryptiontype | default(omit)}}"
+    encryptkey: "{{encryptkey | default(omit)}}"
+    filelist: "{{filelist | default(omit)}}"
+    filesonly: "{{filesonly | default(omit)}}"
+    incrbydate: "{{incrbydate | default(omit)}}"
+    memoryefficientbackup: "{{memoryefficientbackup | default(omit)}}"
+    nojournal: "{{nojournal | default(omit)}}"
+    postsnapshotcmd: "{{postsnapshotcmd | default(omit)}}"
+    preservelastaccessdate: "{{preservelastaccessdate | default(omit)}}"
+    presnapshotcmd: "{{presnapshotcmd | default(omit)}}"
+    removeoperandlimit: "{{removeoperandlimit | default(omit)}}"
+    resetarchiveattribute: "{{resetarchiveattribute | default(omit)}}"
+    skipntpermissions: "{{skipntpermissions | default(omit)}}"
+    skipntsecuritycrc: "{{skipntsecuritycrc | default(omit)}}"
+    snapdiff: "{{snapdiff | default(omit)}}"
+    snapshotcachesize: "{{snapshotcachesize | default(omit)}}"
+    snapshotproviderfs: "{{snapshotproviderfs | default(omit)}}"
+    snapshotproviderimage: "{{snapshotproviderimage | default(omit)}}"
+    snapshotroot: "{{snapshotroot | default(omit)}}"
+    subdir: "{{subdir | default(omit)}}"
+    tapeprompt: "{{tapeprompt | default(omit)}}"
+
+
+    # Role Standard Options
+    server_name: "{{ storage_protect_server_name | default(omit) }}"
+    node_name: "{{ storage_protect_node_name | default(omit) }}"
+    password: "{{ storage_protect_node_password | default(omit) }}"
+    request_timeout: "{{ storage_protect_request_timeout | default(omit) }}"
+
+  register: backup_status
+- name: Debug output
+  debug:
+    var: backup_status
