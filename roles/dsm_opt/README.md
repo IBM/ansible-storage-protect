@@ -27,7 +27,7 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
   hosts: all
   become: true
   roles:
-    - role: dsm_opt
+    - role: ibm.storage_protect.dsm_opt
       vars:
         dsm_opt_parameters:
           dsm_opt_servername: "NewServer"
@@ -43,7 +43,7 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
   hosts: all
   become: true
   roles:
-    - role: dsm_optfile
+    - role: ibm.storage_protect.dsm_opt
       vars:
         dsm_opt_state: "absent"
 ```

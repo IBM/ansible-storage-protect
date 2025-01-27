@@ -66,7 +66,7 @@ sp_server_facts_flags:
     STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') }}"
     STORAGE_PROTECT_PASSWORD: "{{ lookup('env', 'STORAGE_PROTECT_PASSWORD') }}"
   roles:
-    - role: sp_server_facts
+    - role: ibm.storage_protect.sp_server_facts
       vars:
         sp_server_facts_flags:
           q_status: true

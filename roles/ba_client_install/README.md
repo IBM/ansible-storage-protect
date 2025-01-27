@@ -70,7 +70,7 @@ The following variables can be configured in the `defaults.yml` file:
   hosts: all
   become: true
   roles:
-    - role: ba_client_install
+    - role: ibm.storage_protect.ba_client_install
       vars:
         ba_client_state: "present"
         ba_client_version: "8.1.23.0"
@@ -82,7 +82,7 @@ The following variables can be configured in the `defaults.yml` file:
   hosts: all
   become: true
   roles:
-    - role: ba_client_install
+    - role: ibm.storage_protect.ba_client_install
       vars:
         ba_client_state: "present"
         ba_client_version: "8.1.24.0"
@@ -93,7 +93,7 @@ The following variables can be configured in the `defaults.yml` file:
   hosts: all
   become: true
   roles:
-    - role: ba_client_install
+    - role: ibm.storage_protect.ba_client_install
       vars:
         ba_client_state: "absent"
 ```
