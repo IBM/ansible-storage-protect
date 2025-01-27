@@ -122,6 +122,12 @@
       ignore_errors: false
       changed_when: webgui_install_result.rc == 0
 
+    - name: Delete backup directory after restoring the previous state
+      ansible.builtin.file:
+        path: /opt/baClientPackagesBk
+        state: absent
+      when: uninstall_result is defined
+
     - name: Fail the upgrade process
       ansible.builtin.fail:
         msg: >

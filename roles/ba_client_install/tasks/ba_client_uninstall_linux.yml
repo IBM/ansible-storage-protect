@@ -105,11 +105,11 @@
       ignore_errors: false
       changed_when: true
 
-    - name: Delete backup directory on successful uninstallation
-      ansible.builtin.file:
-        path: /opt/baClientPackagesBk
-        state: absent
-      when: uninstall_result is defined
+#    - name: Delete backup directory on successful uninstallation
+#      ansible.builtin.file:
+#        path: /opt/baClientPackagesBk
+#        state: absent
+#      when: uninstall_result is defined
 
     #    - name: debug
 #      debug:
