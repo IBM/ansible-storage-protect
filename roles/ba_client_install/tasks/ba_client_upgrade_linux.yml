@@ -176,7 +176,7 @@
 # Display upgrade success message
 - name: Display upgrade success message
   ansible.builtin.debug:
-    msg: "BA Client upgrade completed successfully."
+    msg: "BA Client has been successfully upgraded to version {{ ba_client_version }}."
   when: is_installation_successful
 
 # =============== start the daemon =============
