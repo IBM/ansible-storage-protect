@@ -22,28 +22,27 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
 ## Usage
 
 ### Example Playbooks
-```yaml
-- name: Configure dsm.opt parameters while maintaining the existing the parameters
-  hosts: all
-  become: true
-  roles:
-    - role: ibm.storage_protect.dsm_opt
-      vars:
-        dsm_opt_parameters:
-          dsm_opt_servername: "NewServer"
-          dsm_opt_nodename: "NewClient"
-          dsm_opt_domain: "C: D: E:\\UserData"
-          dsm_opt_password: "mypassword"
-          dsm_opt_password_access: "generate"
+- The example playbooks are available in the playbooks directory of this collection.
+- To configure a dsm_opt file, execute the 'dsm_opt' playbook from the playbooks directory and define variables mentioned above in your inventory or pass them as extra vars.
+```bash
+ ansible-playbook -i inventory.ini playbooks/dsm_opt/dsm_opt.yml --extra-vars 'target_hosts=group1 dsm_opt_parameters={"dsm_opt_servername": "NewServer", "dsm_opt_nodename": "NewClient"}' 
 ```
+- If the number of variables is large, create a separate vars file and pass the vars file as --extra-vars to the command.
+```bash
+# vars.yml
+target_hosts: group1
+dsm_opt_parameters:
+  dsm_opt_servername: "NewServer"
+  dsm_opt_nodename: "NewClient"
+  dsm_opt_domain: "C: D: E:\\UserData"
+  dsm_opt_password: "mypassword"
+ 
+```
+```bash
+ansible-playbook -i inventory.ini playbooks/dsm_opt/dsm_opt.yml --extra-vars "@vars.yml"
+```
+- To remove a existing opt file execute playbook using the below command.
 
-### Deleting dsm.opt file
-```yaml
-- name: Remove dsm.opt
-  hosts: all
-  become: true
-  roles:
-    - role: ibm.storage_protect.dsm_opt
-      vars:
-        dsm_opt_state: "absent"
+```bash
+ ansible-playbook -i inventory.ini playbooks/dsm_opt/dsm_opt.yml --extra-vars 'target_hosts=group1 dsm_opt_state=absent' 
 ```

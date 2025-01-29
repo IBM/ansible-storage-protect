@@ -1,6 +1,6 @@
 ---
 galaxy_info:
-  role_name: collect_system_info
+  role_name: system_info
   author: Sarthak Kshirsagar
   description: "This Ansible role collects system information like memory, CPU, OS, and Java version"
   license: MIT

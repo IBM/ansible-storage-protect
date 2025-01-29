@@ -1,0 +1,11 @@
+- name: Get the SP Server facts
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: true
+  become: true
+  environment:
+    STORAGE_PROTECT_SERVERNAME: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') }}"
+    STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') }}"
+    STORAGE_PROTECT_PASSWORD: "{{ lookup('env', 'STORAGE_PROTECT_PASSWORD') }}"
+  roles:
+    - role: ibm.storage_protect.sp_server_facts
+...

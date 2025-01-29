@@ -33,5 +33,5 @@ This Ansible role is designed to collect detailed system information such as mem
 ```yaml
 - hosts: all
   roles:
-    - ibm.storage_protect.system_info_collection
+    - ibm.storage_protect.system_info
 ```

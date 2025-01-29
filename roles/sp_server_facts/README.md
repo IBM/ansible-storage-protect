@@ -37,48 +37,30 @@ You can control which facts to collect using the `sp_server_facts_flags` variabl
 | `q_mgmtclass`      | Collect management class information  | `false`  |
 | `q_stgpool`        | Collect storage pool information      | `false`  |
 
-### Example Variables for Fact Flags
-
-```yaml
+### Example Playbooks
+- The example playbooks are available in the playbooks directory of this collection.
+- To fetch the facts using 'sp_server_facts' module, execute the 'sp_server_facts' playbook from the playbooks directory and define variables mentioned above in your inventory or pass them as extra vars.
+```bash
+ ansible-playbook -i inventory.ini playbooks/sp_server_facts/sp_server_facts.yml --extra-vars 'target_hosts=group1 sp_server_facts_flags={"q_status": true}' 
+```
+- If the number of variables is large, create a separate vars file and pass the vars file as --extra-vars to the command.
+```bash
+# vars.yml
+target_hosts: group1
 sp_server_facts_flags:
   q_status: true
-  q_monitorsettings: false
+  q_monitorsettings: true
   q_db: true
   q_dbspace: true
-  q_log: false
-  q_domain: false
-  q_copygroup: false
-  q_replrule: false
+  q_log: true
+  q_domain: true
+  q_copygroup: true
+  q_replrule: true
   q_devclass: true
-  q_mgmtclass: false
+  q_mgmtclass: true
   q_stgpool: true
 ```
 
-### Example Playbook
-
-```yaml
-- name: Get the SP Server facts
-  hosts: local
-  gather_facts: no
-  become: true
-  environment:
-    STORAGE_PROTECT_SERVERNAME: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') }}"
-    STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') }}"
-    STORAGE_PROTECT_PASSWORD: "{{ lookup('env', 'STORAGE_PROTECT_PASSWORD') }}"
-  roles:
-    - role: ibm.storage_protect.sp_server_facts
-      vars:
-        sp_server_facts_flags:
-          q_status: true
-          q_monitorsettings: true
-          q_db: true
-          q_dbspace: true
-          q_log: true
-          q_domain: true
-          q_copygroup: true
-          q_replrule: true
-          q_devclass: true
-          q_mgmtclass: true
-          q_stgpool: true
-
+```bash
+ansible-playbook -i inventory.ini playbooks/sp_server_facts/sp_server_facts.yml --extra-vars "@vars.yml"
 ```
