@@ -337,7 +337,7 @@
 - name: Display BA Client installation status
   ansible.builtin.debug:
     msg: |
-      BA Client installation status: {{ "Installed" if installation_check.rc == 0 else "Not Installed" }}
+      BA Client {{ normalized_user_version }} installation status: {{ "Installed Successfully" if installation_check.rc == 0 else "Not Installed" }}
 
 - name: Mark install.yml as failed if verification fails
   ansible.builtin.fail:
