@@ -7,10 +7,11 @@
     storage_protect_node_password: "{{ lookup('env', 'STORAGE_PROTECT_NODE_PASSWORD') }}"
     backup_action: "selective"
     filespec: "/root/backup_test/"
-    subdir: "yes"
+    is_subdir: "yes"
+    files_only: "yes"
 
   roles:
-    - ibm.storage_protect.backup
+    - ibm.storage_protect.node_file_backup
 
   tasks:
     - name: "Verify the Result of the backup Taken"
