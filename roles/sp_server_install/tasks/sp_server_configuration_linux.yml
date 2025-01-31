@@ -6,13 +6,16 @@
         cmd: echo ',,L' | sfdisk {{ disk_device }}
       args:
         creates: "{{ disk_device }}1"
+
     - name: Format the partition
       ansible.builtin.command:
         cmd: mkfs.ext4 {{ disk_device }}1
+
     - name: Create the root directory
       ansible.builtin.file:
         path: "{{ root_dir }}"
         state: directory
+
     - name: Mount the root directory
       ansible.builtin.mount:
         path: "{{ root_dir }}"
@@ -20,6 +23,7 @@
         fstype: ext4
         opts: defaults
         state: mounted
+
     - name: Persist mount in fstab
       ansible.builtin.lineinfile:
         path: /etc/fstab
@@ -123,7 +127,7 @@
         dest: "{{ root_dir }}/tsminst1/setup.mac"
         content: |
           register admin tsmuser1 tsmuser1@@123456789
-          grant auth adminadmin classes=system
+          grant auth tsmuser1 classes=system
         owner: "{{ tsm_user }}"
         group: "{{ tsm_group }}"
         mode: "0644"
