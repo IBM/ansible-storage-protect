@@ -1,0 +1,42 @@
+# Default variables
+# ==== installation and uninstallation vars =====
+state: "present"
+profile_id: "IBM Storage Protect"
+install_location: "/opt/IBM/InstallationManager/eclipse"
+secure_port: "9443"
+ssl_password: "Pccoe@@123456789"
+ssl_password_confirm: "{{ ssl_password }}"
+license_value: "tsm"
+license_option: "A"
+binary_path: "/code/srv/sp_ansible04/8.1.25.000-IBM-SPSRV-LIC-DEBUG-Linuxx86_64-340.bin"
+repository_location: "{{ sp_server_temp_dest }}/repository"
+binary_dir: "{{ binary_path | dirname }}"
+sp_server_temp_dest: "/opt/sp_server_binary/"
+sp_server_binary_file_path: "/Users/sarthak/Downloads/8.1.24.000-IBM-SPSRV-Linuxx86_64.bin"
+# ==== tsm_user vars =====
+tsm_group: "tsmusers"
+tsm_group_gid: "101"
+tsm_user: "tsminst1"
+tsm_user_uid: "1001"
+tsm_user_password: "password123"
+offerings:
+  server: true
+  license: true
+  stagent: true
+  devices: true
+  oc: true
+  ossm: true
+
+# === configuration vars ======
+disk_device: /dev/sdb
+root_dir: /tsmroot
+directories:
+  - tsminst1
+  - tsmdb001
+  - tsmdb002
+  - tsmdb003
+  - tsmdb004
+  - tsmlog
+  - tsmarchlog
+  - tsmlogmirror
+  - tsmarchlogfailover

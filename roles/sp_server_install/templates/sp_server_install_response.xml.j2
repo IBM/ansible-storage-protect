@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<agent-input>
+  <server>
+    <repository location="{{ repository_location }}" />
+  </server>
+  <profile id="IBM Installation Manager" installLocation="/opt/IBM/InstallationManager/eclipse" kind="self">
+    <data key="cic.selector.arch" value="x86_64" />
+    <data key="cic.selector.nl" value="de,no,fi,ru,hr,pt_BR,fr,hu,zh_TW,zh_HK,sk,sl,sv,ko,el,en,it,iw,zh,es,cs,ar,th,ja,pl,da,nl,tr" />
+  </profile>
+  <install>
+    <offering profile="IBM Installation Manager" id="com.ibm.cic.agent" features="agent_core,agent_jre,agent_web" />
+  </install>
+  <profile id="{{ profile_id }}" installLocation="/opt/tivoli/tsm">
+    <data key="user.license,com.tivoli.dsm.server" value="{{ license_value }}" />
+    <data key="user.license_option,com.tivoli.dsm.server" value="{{ license_option }}" />
+    {% if offerings.oc %}
+    <data key="user.securePortNumber,com.tivoli.dsm.gui.offering" value="{{ secure_port }}" />
+    <data key="user.SSL_PASSWORD" value="{{ ssl_password }}" />
+    {% endif %}
+    {% if offerings.ossm %}
+    <data key="user.license,com.tivoli.dsm.ossm" value="san" />
+    <data key="user.license_option,com.tivoli.dsm.ossm" value="a" />
+    {% endif %}
+  </profile>
+  <install>
+    {% for key, metadata in offerings_metadata.items() %}
+    {% if offerings[key] %}
+    <offering profile="{{ metadata.profile }}" id="{{ metadata.id }}" features="{{ metadata.features }}" />
+    {% endif %}
+    {% endfor %}
+  </install>
+  {% for preference in preferences %}
+  <preference name="{{ preference.name }}" value="{{ preference.value }}" />
+  {% endfor %}
+</agent-input>
