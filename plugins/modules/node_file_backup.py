@@ -88,23 +88,11 @@ extends_documentation_fragment: ibm.storage_protect.auth
 
 EXAMPLES = '''
 - name: Test On Demand backup in IBM Storage Protect
-  hosts: storage_protect_client
-  vars:
-    storage_protect_server_name: cabin4
-    storage_protect_node_name: fenrir98
-    storage_protect_node_password: fenrir98
+  ibm.storage_protect.node_file_backup:
     backup_action: "selective"
     filespec: "/root/backup_test/"
-    files_only: "yes"
     is_subdir: "yes"
-
-  roles:
-    - ibm.storage_protect.backup
-
-  tasks:
-    - name: "Verify the Result of the backup Taken"
-      ansible.builtin.debug:
-        msg: "Backup test completed successfully."
+    files_only: "yes"
 ...
 '''
 

@@ -1,18 +1,18 @@
 ---
 - name: "Storage Protect On demand backup"
   ibm.storage_protect.node_file_backup:
-    backup_action: "{{backup_action | mandatory}}"
-    filespec: "{{filespec | mandatory}}"
-    absolute: "{{absolute | default(omit)}}"
-    compression: "{{compression | default(omit)}}"
-    is_compress_always: "{{is_compress_always | default(omit)}}"
-    diff_snapshot: "{{diff_snapshot | default(omit)}}"
-    dirs_only: "{{dirs_only | default(omit)}}"
-    file_list: "{{file_list | default(omit)}}"
-    files_only: "{{files_only | default(omit)}}"
-    remove_operand_limit: "{{remove_operand_limit | default(omit)}}"
-    snapshot_root: "{{snapshot_root | default(omit)}}"
-    is_subdir: "{{is_subdir | default(omit)}}"
+    backup_action: "{{storage_protect_node_file_backup.backup_action | mandatory}}"
+    filespec: "{{storage_protect_node_file_backup.filespec | mandatory}}"
+    absolute: "{{storage_protect_node_file_backup.absolute | default(omit)}}"
+    compression: "{{storage_protect_node_file_backup.compression | default(omit)}}"
+    is_compress_always: "{{storage_protect_node_file_backup.is_compress_always | default(omit)}}"
+    diff_snapshot: "{{storage_protect_node_file_backup.diff_snapshot | default(omit)}}"
+    dirs_only: "{{storage_protect_node_file_backup.dirs_only | default(omit)}}"
+    file_list: "{{storage_protect_node_file_backup.file_list | default(omit)}}"
+    files_only: "{{storage_protect_node_file_backup.files_only | default(omit)}}"
+    remove_operand_limit: "{{storage_protect_node_file_backup.remove_operand_limit | default(omit)}}"
+    snapshot_root: "{{storage_protect_node_file_backup.snapshot_root | default(omit)}}"
+    is_subdir: "{{storage_protect_node_file_backup.is_subdir | default(omit)}}"
 
 
     # Role Standard Options
