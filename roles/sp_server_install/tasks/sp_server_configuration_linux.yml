@@ -183,49 +183,49 @@
         group: "{{ tsm_group }}"
         mode: "0644"
 
-    - name: Ensure /opt/tivoli/tsm/server/bin/dbbkapi is writable
-      ansible.builtin.file:
-        path: /opt/tivoli/tsm/server/bin/dbbkapi
-        state: directory
-        owner: root
-        group: "{{ tsm_group }}"
-        mode: "0775"
+- name: Ensure /opt/tivoli/tsm/server/bin/dbbkapi is writable
+  ansible.builtin.file:
+    path: "/opt/tivoli/tsm/server/bin/dbbkapi"
+    state: directory
+    owner: "root"
+    group: "{{ tsm_group }}"
+    mode: "0775"
 
-    - name: Ensure dsm.sys exists
-      ansible.builtin.file:
-        path: /opt/tivoli/tsm/server/bin/dbbkapi/dsm.sys
-        state: touch
-        owner: root
-        group: "{{ tsm_group }}"
-        mode: "0644"
+- name: Ensure dsm.sys exists
+  ansible.builtin.file:
+    path: "/opt/tivoli/tsm/server/bin/dbbkapi/dsm.sys"
+    state: touch
+    owner: "root"
+    group: "{{ tsm_group }}"
+    mode: "0644"
 
-    - name: Update dsm.sys configuration
-      ansible.builtin.lineinfile:
-        path: /opt/tivoli/tsm/server/bin/dbbkapi/dsm.sys
-        create: yes
-        line: "{{ item }}"
-        state: present
-        owner: root
-        group: root
-        mode: "0644"
-      loop:
-        - servername TSMDBMGR_TSMINST1
-        - commmethod tcpip
-        - tcpserveraddr localhost
-        - tcpport 1500
-        - errorlogname {{ root_dir }}/{{ tsm_user }}/tsmdbmgr.log
-        - nodename $$_TSMDBMGR_$$
+- name: Update dsm.sys configuration
+  ansible.builtin.lineinfile:
+    path: "/opt/tivoli/tsm/server/bin/dbbkapi/dsm.sys"
+    create: yes
+    line: "{{ item }}"
+    state: present
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  loop:
+    - "servername TSMDBMGR_TSMINST1"
+    - "commmethod tcpip"
+    - "tcpserveraddr localhost"
+    - "tcpport 1500"
+    - "errorlogname {{ root_dir }}/{{ tsm_user }}/tsmdbmgr.log"
+    - "nodename $$_TSMDBMGR_$$"
 
-    - name: Configure server database maintenance options
-      ansible.builtin.lineinfile:
-        path: "{{ root_dir }}/{{ tsm_user }}/dsmserv.opt"
-        line: "{{ item }}"
-        state: present
-      loop:
-        - allowreorgindex yes
-        - reorgbegintime 20:30
-        - reorgduration 4
+- name: Configure server database maintenance options
+  ansible.builtin.lineinfile:
+    path: "{{ root_dir }}/{{ tsm_user }}/dsmserv.opt"
+    line: "{{ item }}"
+    state: present
+  loop:
+    - "allowreorgindex yes"
+    - "reorgbegintime 20:30"
+    - "reorgduration 4"
 
-    - name: Server Configuration Status
-      debug:
-        msg: Server Configuration complete
+- name: Server Configuration Status
+  debug:
+    msg: Server Configuration complete
