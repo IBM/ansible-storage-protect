@@ -3,10 +3,10 @@ offerings_metadata:
     profile: "IBM Storage Protect"
     id: "com.tivoli.dsm.server"
     features: "com.tivoli.dsm.server.main,com.tivoli.dsm.gskit,com.tivoli.dsm.clientapi,com.ibm.java.jre"
-  license:
-    profile: "IBM Storage Protect"
-    id: "com.tivoli.dsm.license"
-    features: "com.tivoli.dsm.license.main"
+#  license:
+#    profile: "IBM Storage Protect"
+#    id: "com.tivoli.dsm.license"
+#    features: "com.tivoli.dsm.license.main"
   stagent:
     profile: "IBM Storage Protect"
     id: "com.tivoli.dsm.stagent"

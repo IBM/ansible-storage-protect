@@ -21,7 +21,7 @@ tsm_user_uid: "1001"
 tsm_user_password: "password123"
 offerings:
   server: true
-  license: true
+#  license: true
   stagent: true
   devices: true
   oc: true
