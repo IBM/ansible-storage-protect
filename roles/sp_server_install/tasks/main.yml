@@ -56,6 +56,12 @@
     chdir: "{{ sp_server_temp_dest }}"
   when: state == "present"
 
+# Server directories clean up and dropping the instance of server
+
+- name: Cleanup server
+  become: true
+  ansible.builtin.include_tasks: sp_server_clean_config.yml
+
 # Generate the response file for uninstallation
 - name: Generate Response file for uninstalling Sp Server
   ansible.builtin.template:
@@ -68,6 +74,15 @@
   ansible.builtin.command: "./imcl -s -input {{ sp_server_temp_dest }}/uninstallResponse.xml -acceptLicense"
   args:
     chdir: "/opt/IBM/InstallationManager/eclipse/tools"
+  when: state == "absent"
+
+- name: Remove IBM Storage Protect Server files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/opt/tivoli/tsm/ui"
+    - "/tsm/server/*/*"
   when: state == "absent"
 
 # configure sp_server
