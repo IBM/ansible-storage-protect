@@ -59,7 +59,6 @@
 # Server directories clean up and dropping the instance of server
 
 - name: Cleanup server
-  become: true
   ansible.builtin.include_tasks: sp_server_clean_config.yml
 
 # Generate the response file for uninstallation
