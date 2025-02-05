@@ -21,7 +21,7 @@ tsm_group_gid: "101"
 tsm_user: "tsminst1"
 tsm_user_uid: "1001"
 tsm_user_password: "password123"
-
+sp_server_db_directory: "tsmdb001"
 offerings:
   server: true
 #  license: true

@@ -60,6 +60,7 @@
 
 - name: Cleanup server
   ansible.builtin.include_tasks: sp_server_clean_config.yml
+  when: state == "absent"
 
 # Generate the response file for uninstallation
 - name: Generate Response file for uninstalling Sp Server
