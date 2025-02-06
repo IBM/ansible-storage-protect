@@ -1,4 +1,4 @@
-- name: Configure dsm.opt parameters while maintaining the existing the parameters
+- name: Configure dsm.opt parameters while maintaining the existing parameters
   hosts: "{{ target_hosts | default('all') }}"
   become: true
   roles:
