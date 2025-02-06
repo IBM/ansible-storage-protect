@@ -160,6 +160,18 @@
   ignore_errors: true
   changed_when: false
 
+- name: Checking if BAhdw package is installed or not
+  ansible.builtin.command: rpm -q TIVsm-BAhdw
+  register: check_bahdw
+  ignore_errors: true
+  changed_when: false
+
+- name: Checking if WEBGUI package is installed or not
+  ansible.builtin.command: rpm -q TIVsm-WEBGUI
+  register: check_webgui
+  ignore_errors: true
+  changed_when: false
+
 # ===== Installing packages in sequence =====
 
 - name: Installing packages
@@ -194,7 +206,7 @@
     - name: Install API64 package
       ansible.builtin.command: "rpm -ivh {{ item }}"
       with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-API64\\.') | list }}"
-      when: check_apicit.rc != 0 or check_api64.rc != 0
+      when: check_api64.rc != 0
       register: api64_install_result
       ignore_errors: false
       changed_when: api64_install_result.rc == 0
@@ -202,7 +214,7 @@
     - name: Install APIcit package
       ansible.builtin.command: "rpm -ivh {{ item }}"
       with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-APIcit\\.') | list }}"
-      when: check_apicit.rc != 0 or check_api64.rc != 0
+      when: check_apicit.rc != 0
       register: apicit_install_result
       ignore_errors: false
       changed_when: apicit_install_result.rc == 0
@@ -211,7 +223,7 @@
     - name: Install BA package
       ansible.builtin.command: "rpm -ivh  {{ item }}"
       with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BA\\.') | list }}"
-      when: check_ba.rc != 0 or check_bacit.rc != 0
+      when: check_ba.rc != 0
       register: ba_install_result
       ignore_errors: false
       changed_when: ba_install_result.rc == 0
@@ -219,7 +231,7 @@
     - name: Install BAcit package
       ansible.builtin.command: "rpm -ivh  {{ item }}"
       with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BAcit\\.') | list }}"
-      when: check_ba.rc != 0 or check_bacit.rc != 0
+      when: check_bacit.rc != 0
       register: bacit_install_result
       ignore_errors: false
       changed_when: bacit_install_result.rc == 0
@@ -227,7 +239,7 @@
     - name: Install BAhdw package
       ansible.builtin.command: "rpm -ivh  {{ item }}"
       with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BAhdw\\.') | list }}"
-      when: check_ba.rc != 0 or check_bacit.rc != 0
+      when: check_bahdw.rc != 0
       register: bahdw_install_result
       ignore_errors: false
       changed_when: bahdw_install_result.rc == 0
@@ -235,7 +247,7 @@
     - name: Install WebGUI package
       ansible.builtin.command: "rpm -ivh  {{ item }}"
       with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-WEBGUI') | list }}"
-      when: check_ba.rc != 0 or check_bacit.rc != 0
+      when: check_webgui.rc != 0
       register: webgui_install_result
       ignore_errors: false
       changed_when: webgui_install_result.rc == 0
