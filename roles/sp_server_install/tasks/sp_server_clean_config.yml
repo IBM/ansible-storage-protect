@@ -1,6 +1,6 @@
 - name: Kill all dsmserv processes
   ansible.builtin.shell: "pkill -f dsmserv"
-  ignore_errors: true  # Ignore if no process is running
+  ignore_errors: true
 
 - name: Stop the DB2 instance
   ansible.builtin.shell: "su - {{ tsm_user }} -c 'db2stop'"
