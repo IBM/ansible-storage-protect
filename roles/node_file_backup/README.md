@@ -18,6 +18,7 @@ export STORAGE_PROTECT_NODE_PASSWORD="<Node password of the node that is registe
 ```
 
 ## Variables
+The following role variables are child of storage_protect_node_file_backup.
 
 |Variable Name|Default Value|Required|Description|
 |:---|:---:|:---:|:---|
