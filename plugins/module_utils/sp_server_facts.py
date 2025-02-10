@@ -2,6 +2,7 @@ import subprocess
 
 from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
 
+
 class DsmadmcAdapterExtended(DsmadmcAdapter):
     """
     Extended DsmadmcAdapter to add support for the -commadelimited parameter.
