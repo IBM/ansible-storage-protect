@@ -89,6 +89,11 @@
 # ======= Extracting and finding the packages on remote vm's =======
 
 # creating a temporary directory to extract the .rpm files
+- name: Remove existing /opt/baClient directory
+  ansible.builtin.file:
+    path: "{{ ba_client_extract_dest }}"
+    state: absent
+
 - name: Creating /opt/baClient directory
   ansible.builtin.file:
     path: "{{ ba_client_extract_dest }}"
@@ -155,6 +160,18 @@
   ignore_errors: true
   changed_when: false
 
+- name: Checking if BAhdw package is installed or not
+  ansible.builtin.command: rpm -q TIVsm-BAhdw
+  register: check_bahdw
+  ignore_errors: true
+  changed_when: false
+
+- name: Checking if WEBGUI package is installed or not
+  ansible.builtin.command: rpm -q TIVsm-WEBGUI
+  register: check_webgui
+  ignore_errors: true
+  changed_when: false
+
 # ===== Installing packages in sequence =====
 
 - name: Installing packages
@@ -186,27 +203,51 @@
       changed_when: gskssl_install_result.rc == 0
 
     # Installing API packages (TIVsm-API64, TIVsm-APIcit)
-    - name: Install API packages (TIVsm-API64, TIVsm-APIcit)
+    - name: Install API64 package
       ansible.builtin.command: "rpm -ivh {{ item }}"
-      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-API') | list }}"
-      when: check_apicit.rc != 0 or check_api64.rc != 0
-      register: api_install_result
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-API64\\.') | list }}"
+      when: check_api64.rc != 0
+      register: api64_install_result
       ignore_errors: false
-      changed_when: api_install_result.rc == 0
+      changed_when: api64_install_result.rc == 0
+
+    - name: Install APIcit package
+      ansible.builtin.command: "rpm -ivh {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-APIcit\\.') | list }}"
+      when: check_apicit.rc != 0
+      register: apicit_install_result
+      ignore_errors: false
+      changed_when: apicit_install_result.rc == 0
 
     # Installing BA packages (TIVsm-BA, TIVsm-BAcit)
-    - name: Install BA packages (TIVsm-BA, TIVsm-BAcit)
+    - name: Install BA package
       ansible.builtin.command: "rpm -ivh  {{ item }}"
-      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BA') | list }}"
-      when: check_ba.rc != 0 or check_bacit.rc != 0
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BA\\.') | list }}"
+      when: check_ba.rc != 0
       register: ba_install_result
       ignore_errors: false
       changed_when: ba_install_result.rc == 0
 
+    - name: Install BAcit package
+      ansible.builtin.command: "rpm -ivh  {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BAcit\\.') | list }}"
+      when: check_bacit.rc != 0
+      register: bacit_install_result
+      ignore_errors: false
+      changed_when: bacit_install_result.rc == 0
+
+    - name: Install BAhdw package
+      ansible.builtin.command: "rpm -ivh  {{ item }}"
+      with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-BAhdw\\.') | list }}"
+      when: check_bahdw.rc != 0
+      register: bahdw_install_result
+      ignore_errors: false
+      changed_when: bahdw_install_result.rc == 0
+
     - name: Install WebGUI package
       ansible.builtin.command: "rpm -ivh  {{ item }}"
       with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'TIVsm-WEBGUI') | list }}"
-      when: check_ba.rc != 0 or check_bacit.rc != 0
+      when: check_webgui.rc != 0
       register: webgui_install_result
       ignore_errors: false
       changed_when: webgui_install_result.rc == 0
@@ -226,52 +267,57 @@
           - "TIVsm-API64"
           - "gskssl64"
           - "gskcrypt64"
+
     - name: Debug all registered variables
       ansible.builtin.debug:
         msg: |
-          gskcrypt_install_result: {{ gskcrypt_install_result }}
-          gskssl_install_result: {{ gskssl_install_result }}
-          api_install_result: {{ api_install_result }}
-          ba_install_result: {{ ba_install_result }}
+          gskcrypt_install_result: {{ gskcrypt_install_result | default('undefined') }}
+          gskssl_install_result: {{ gskssl_install_result | default('undefined') }}
+          api64_install_result: {{ api64_install_result | default('undefined') }}
+          apicit_install_result: {{ apicit_install_result | default('undefined') }}
+          ba_install_result: {{ ba_install_result | default('undefined') }}
+          bacit_install_result: {{ bacit_install_result | default('undefined') }}
+          bahdw_install_result: {{ bahdw_install_result | default('undefined') }}
+          webgui_install_result: {{ webgui_install_result | default('undefined') }}
 
-    - name: Identify reason for failure
-      ansible.builtin.set_fact:
-        failure_reason: >-
-          {{
-            (
-              [
-                gskcrypt_install_result,
-                gskssl_install_result,
-                api_install_result,
-                ba_install_result
-              ]
-              | select('defined')
-              | map('extract', 'results')
-              | select('defined')
-              | map('selectattr', 'rc', 'ne', 0)
-              | map('map', attribute='stderr')
-              | sum([], [])
-              +
-              [
-                gskcrypt_install_result,
-                gskssl_install_result,
-                api_install_result,
-                ba_install_result
-              ]
-              | select('defined')
-              | selectattr('results', 'undefined')
-              | selectattr('failed', 'equalto', true)
-              | map(attribute='msg')
-            )
-            | select('truthy')
-            | join('\n')
-          }}
+#    - name: Identify reason for failure
+#      ansible.builtin.set_fact:
+#        failure_reason: >-
+#          {{
+#            (
+#              [
+#                gskcrypt_install_result,
+#                gskssl_install_result,
+#                api_install_result,
+#                ba_install_result
+#              ]
+#              | select('defined')
+#              | map('extract', 'results')
+#              | select('defined')
+#              | map('selectattr', 'rc', 'ne', 0)
+#              | map('map', attribute='stderr')
+#              | sum([], [])
+#              +
+#              [
+#                gskcrypt_install_result,
+#                gskssl_install_result,
+#                api_install_result,
+#                ba_install_result
+#              ]
+#              | select('defined')
+#              | selectattr('results', 'undefined')
+#              | selectattr('failed', 'equalto', true)
+#              | map(attribute='msg')
+#            )
+#            | select('truthy')
+#            | join('\n')
+#          }}
 
     - name: Uninstall all packages to restore original state
       ansible.builtin.command: "rpm -e {{ item }}"
       with_items: "{{ uninstall_packages }}"
-#      ignore_errors: true
-      failed_when: false
+      ignore_errors: true
+#      failed_when: false
       changed_when: true
 
     - name: Installation status summary
@@ -281,8 +327,16 @@
     - name: Fail the installation process
       ansible.builtin.fail:
         msg: >
-          Installation failed due to the following reasons:
-          {{ failure_reason }}.
+          Installation failed. All packages have been uninstalled to restore system state.
+          Debug information:
+          gskcrypt_install_result: {{ gskcrypt_install_result | default('undefined') }}
+          gskssl_install_result: {{ gskssl_install_result | default('undefined') }}
+          api64_install_result: {{ api64_install_result | default('undefined') }}
+          apicit_install_result: {{ apicit_install_result | default('undefined') }}
+          ba_install_result: {{ ba_install_result | default('undefined') }}
+          bacit_install_result: {{ bacit_install_result | default('undefined') }}
+          bahdw_install_result: {{ bahdw_install_result | default('undefined') }}
+
       when: ba_client_action == "install"
 
 # ============ Post-checks to verify the installation of ba client ==========
@@ -295,7 +349,7 @@
 - name: Display BA Client installation status
   ansible.builtin.debug:
     msg: |
-      BA Client installation status: {{ "Installed" if installation_check.rc == 0 else "Not Installed" }}
+      BA Client {{ ba_client_version }} installation status: {{ "Installed Successfully" if installation_check.rc == 0 else "Not Installed" }}
 
 - name: Mark install.yml as failed if verification fails
   ansible.builtin.fail:

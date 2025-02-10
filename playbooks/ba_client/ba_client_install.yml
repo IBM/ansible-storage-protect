@@ -1,0 +1,7 @@
+---
+- name: Install BA Client
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  roles:
+    - role: ibm.storage_protect.ba_client_install
+...

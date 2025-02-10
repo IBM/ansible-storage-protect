@@ -1,0 +1,8 @@
+- name: Configure dsm.opt parameters while maintaining the existing parameters
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  roles:
+    - role: ibm.storage_protect.dsm_opt
+      vars:
+        dsm_opt_parameters: "{{ dsm_opt_parameters | default({}) }}"
+...
