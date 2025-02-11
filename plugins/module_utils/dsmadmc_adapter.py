@@ -47,7 +47,6 @@ class DsmadmcAdapter(AnsibleModule):
         command = (
                 f'dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} '
                 + ('-dataonly=yes ' if dataonly else '')
-                + '-commadelimited '
                 + command
         )
         self.json_output['command'] = command
