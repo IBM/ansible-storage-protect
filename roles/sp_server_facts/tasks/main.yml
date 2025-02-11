@@ -15,5 +15,5 @@
   register: sp_server_facts
 
 - name: "Display Storage Protect Server Facts"
-  debug:
+  ansible.builtin.debug:
     var: sp_server_facts

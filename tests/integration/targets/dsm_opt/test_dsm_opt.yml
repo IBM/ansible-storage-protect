@@ -1,7 +1,8 @@
 - name: Configure dsm.opt parameters while maintaining the existing the parameters
   hosts: all
+  become: true
   roles:
-    - role: dsm_opt
+    - role: ibm.storage_protect.dsm_opt
       vars:
         dsm_opt_parameters:
           dsm_opt_servername: "NewServer"
@@ -12,7 +13,8 @@
 
 - name: Remove dsm.opt
   hosts: all
+  become: true
   roles:
-    - role: dsm_optfile
+    - role: ibm.storage_protect.dsm_opt
       vars:
         dsm_opt_state: "absent"

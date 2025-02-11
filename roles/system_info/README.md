@@ -22,13 +22,16 @@ This Ansible role is designed to collect detailed system information such as mem
 4. **Java Version**
    - Identifies the installed Java version or provides an error message if Java is absent.
 5. **System Info Aggregation**
-   - Combines all collected details into a unified `system_info` variable.
+   - Combines all collected details into a unified `system_info` variable for easy reference.
+   - Details can be accessed using `system_info.Architecture`, `system_info.['Java Version']`, `system_info['Filesystem Disk Space'][0]['Free Memory']`.
 
 ## Usage
 
 1. Include this role in your playbook:
+2. Since this role uses `set_fact` to define variables dynamically, variables are directly available for use in subsequent tasks.
 
 ```yaml
 - hosts: all
   roles:
-    - system_info_collection
+    - ibm.storage_protect.system_info
+```

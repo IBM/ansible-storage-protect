@@ -2,7 +2,6 @@
 # coding: utf-8 -*-
 
 from ..module_utils.sp_server_facts import DSMParser, SpServerResponseMapper
-from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
 from  ..module_utils.sp_server_facts import DsmadmcAdapterExtended
 
 DOCUMENTATION = '''
@@ -72,12 +71,13 @@ options:
         type: bool
         default: False
 extends_documentation_fragment: ibm.storage_protect.auth
+...
 '''
 
 EXAMPLES = '''
 ---
 - name: Gather server facts from IBM Storage Protect server
-  sp_server_facts:
+  ibm.storage_protect.sp_server_facts:
     q_status: true
     q_db: true
     q_stgpool: true
@@ -88,14 +88,16 @@ EXAMPLES = '''
     q_replrule: false
     q_devclass: false
     q_mgmtclass: false
-    q_stgpool: false
   register: sp_server_facts
 
 - name: Display results
   debug:
     var: sp_server_facts.results
+...
 '''
+
 def main():
+
     argument_spec = dict(
         q_status=dict(type='bool', default=False),
         q_monitorsettings=dict(type='bool', default=False),
@@ -127,6 +129,7 @@ def main():
     ]
 
     dsmadmc = DsmadmcAdapterExtended(argument_spec=argument_spec)
+
     for query in queries:
         if dsmadmc.params.get(f'q_{query}'):
             rc, output, _ = dsmadmc.run_command(f'q {query}', auto_exit=False)

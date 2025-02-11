@@ -1,29 +1,30 @@
 ---
 - name: Install BA Client
   hosts: all
+  become: true
   roles:
-    - role: ba_client_install
+    - role: ibm.storage_protect.ba_client_install
       vars:
         ba_client_start_daemon: true
         ba_client_state: "present"
-        ba_client_version: "8.1.23"
+        ba_client_version: "8.1.23.0"
         ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
-
 
 - name: Upgrade BA Client
   hosts: all
+  become: true
   roles:
-    - role: ba_client_install
+    - role: ibm.storage_protect.ba_client_install
       vars:
         ba_client_start_daemon: true
         ba_client_state: "present"
-        ba_client_version: "8.1.24"
+        ba_client_version: "8.1.24.0"
         ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
 
 - name: Uninstall BA Client
   hosts: all
+  become: true
   roles:
-    - role: ba_client_install
+    - role: ibm.storage_protect.ba_client_install
       vars:
         ba_client_state: "absent"
-

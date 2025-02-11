@@ -44,7 +44,12 @@ class DsmadmcAdapter(AnsibleModule):
             setattr(self, param, self.params.get(param))
 
     def run_command(self, command, auto_exit=True, dataonly=True, exit_on_fail=True):
-        command = f'dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} ' + ('-dataonly=yes ' if dataonly else '') + command
+        command = (
+                f'dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} '
+                + ('-dataonly=yes ' if dataonly else '')
+                + '-commadelimited '
+                + command
+        )
         self.json_output['command'] = command
         try:
             result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
