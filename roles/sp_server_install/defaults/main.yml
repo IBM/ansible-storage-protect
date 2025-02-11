@@ -1,6 +1,6 @@
 # Default variables
 # ==== installation and uninstallation vars =====
-state: "present"
+sp_server_state: "present"
 profile_id: "IBM Storage Protect"
 install_location: "/opt/IBM/InstallationManager/eclipse"
 secure_port: "9443"
@@ -11,10 +11,15 @@ license_option: "A"
 binary_path: "/code/srv/sp_ansible04/8.1.25.000-IBM-SPSRV-LIC-DEBUG-Linuxx86_64-340.bin"
 repository_location: "{{ sp_server_temp_dest }}/repository"
 binary_dir: "{{ binary_path | dirname }}"
-sp_server_temp_dest: "/opt/sp_server_binary/"
+sp_server_install_dest: "/opt/sp_server_binary/"
+sp_server_upgrade_dest: "/opt/sp_server_upgrade_binary"
 sp_server_binary_file_path: "/Users/sarthak/Downloads/8.1.24.000-IBM-SPSRV-Linuxx86_64.bin"
 db2_instance_path: "/opt/tivoli/tsm/db2/instance"
 imcl_path: "/opt/IBM/InstallationManager/eclipse/tools/imcl"
+sp_server_temp_dest: "{{ sp_server_install_dest if state == 'present' else sp_server_upgrade_dest }}"
+sp_server_version: "8.1.23"
+sp_server_bin_repo: ""
+# ==========
 # ==== tsm_user vars =====
 tsm_group: "tsmusers"
 tsm_group_gid: "101"

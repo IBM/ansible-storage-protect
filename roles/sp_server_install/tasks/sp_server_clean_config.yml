@@ -37,3 +37,5 @@
     - "/var/spool/mail/{{ tsm_user }}"
     - "/etc/tivoli/tsm/instanceList.obj"
   ignore_errors: true
+
+...

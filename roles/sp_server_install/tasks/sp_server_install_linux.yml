@@ -1,0 +1,53 @@
+- name: Creating /opt/sp_server_binary directory
+  ansible.builtin.file:
+    path: "{{ sp_server_temp_dest }}"
+    state: directory
+    mode: '0755'
+  when: state == "present"
+
+# Transfer binary to the remote machines
+- name: Transferring the binary to the remote host
+  ansible.builtin.synchronize:
+    src: "{{ sp_server_binary_file_path }}"
+    dest: "{{ sp_server_temp_dest }}"
+    mode: push
+  register: copy_result
+  when: state == "present"
+
+# Validate file transfer and show error details
+- name: Validating binary transfer
+  ansible.builtin.fail:
+    msg: >
+      Binary transfer to the remote host failed.
+      Error details: {{ copy_result.stderr | default('No error details available.') }}
+  when: not copy_result is defined and state == "present"
+
+# Ensure the binary is executable
+- name: Ensure binary is executable
+  ansible.builtin.file:
+    path: "{{ sp_server_temp_dest }}/{{ sp_server_binary_file_path | basename }}"
+    mode: "0755"
+  when: state == "present"
+
+# Generate response.xml for installation
+- name: Generate response.xml
+  ansible.builtin.template:
+    src: sp_server_install_response.xml.j2
+    dest: "{{ sp_server_temp_dest }}/response.xml"
+  when: state == "present"
+
+# Execute the binary to initialize the repository
+- name: Execute binary
+  ansible.builtin.command: "./{{ sp_server_binary_file_path | basename }}"
+  args:
+    chdir: "{{ sp_server_temp_dest }}"
+  when: state == "present"
+
+# Execute install.sh with the generated response.xml
+- name: Execute install.sh with response.xml
+  ansible.builtin.command: "./install.sh -s -input {{ sp_server_temp_dest }}/response.xml -acceptLicense"
+  args:
+    chdir: "{{ sp_server_temp_dest }}"
+  when: state == "present"
+
+...

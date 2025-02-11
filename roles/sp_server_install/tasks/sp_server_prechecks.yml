@@ -1,0 +1,111 @@
+- name: Finding the binary locally
+  find:
+    paths: "{{ sp_server_bin_repo }}"
+    patterns: "{{ sp_server_version }}*.bin"
+  register: file_status
+
+- name: Fail if the binary does not exist
+  fail:
+    msg: "The binary file for {{ sp_server_version }}*.bin does not exist in the directory {{ sp_server_bin_repo }}."
+  when: file_status.matched == 0
+
+- name: Gathering system info for compatibility checks
+  ansible.builtin.include_role:
+    name: system_info
+
+- name: Checking architecture compatibility
+  ansible.builtin.set_fact:
+    architecture_compatible: "{{ 'x86_64' in system_info.Architecture }}"
+
+- name: Checking available disk space
+  ansible.builtin.set_fact:
+    avail_disk_space: "{{ disk_space.available_mb | int > 1500 }}"
+
+- name: Compatibility results
+  ansible.builtin.debug:
+    msg: |
+      Architecture check: {{ architecture_compatible }}
+      Disk Space: {{ avail_disk_space }}
+
+- name: Compatibility check result
+  ansible.builtin.debug:
+    msg: "System is compatible"
+  when: architecture_compatible and avail_disk_space
+
+- name: Compatibility check result
+  ansible.builtin.debug:
+    msg: "System is incompatible"
+  when: not (architecture_compatible and avail_disk_space)
+
+- name: Fail if system is incompatible
+  ansible.builtin.fail:
+    msg: >
+      System compatibility checks failed. Please ensure the following
+      requirements are met: - Compatible architecture: x86_64 - Java installed -
+      Sufficient disk space: > 1400 MB Architecture check: {{
+      architecture_compatible }} Java installed: {{ java_installed }} Disk
+      Space: {{ avail_disk_space }}
+  when: not (architecture_compatible and avail_disk_space)
+
+
+- name: Loading environment variables and checking version with dsmserv
+  ansible.builtin.shell: |
+    source /home/{{ tsm_user }}/sqllib/db2profile
+    dsmserv -v
+  args:
+    chdir: /{{ root_dir }}/{{ tsm_user }}
+  register: dsmserv_output
+  changed_when: false
+  ignore_errors: yes  # Ignore errors in case dsmserv is not found
+
+- name: Set action to install if dsmserv fails or SP server is not installed
+  ansible.builtin.set_fact:
+    sp_server_action: "install"
+  when: dsmserv_output.rc != 0
+
+- name: Extract version components by searching for 'Version', 'Release', and 'Level'
+  ansible. builtin.set_fact:
+    major_version: "{{ dsmserv_output.stdout | regex_search('Version (\\d+)') }}"
+    release_version: "{{ dsmserv_output.stdout | regex_search('Release (\\d+)') }}"
+    level_version: "{{ dsmserv_output.stdout | regex_search('Level (\\d+)') }}"
+  when: dsmserv_output.rc == 0
+
+- name: Combine version components into a full version string
+  ansible. builtin.set_fact:
+    extracted_version: "{{ major_version | regex_replace('\\D', '') }}.{{ release_version | regex_replace('\\D', '') }}.{{ level_version | regex_replace('\\D', '') }}"
+  when: dsmserv_output.rc == 0
+
+- name: Convert extracted version into a list of integers
+  ansible. builtin.set_fact:
+    extracted_version_list: "{{ extracted_version.split('.') | map('int') | list }}"
+  when: dsmserv_output.rc == 0
+
+- name: Convert passed version into a list of integers
+  ansible. builtin.set_fact:
+    passed_version_list: "{{ passed_version.split('.') | map('int') | list }}"
+
+- name: Compare extracted version and passed version
+  ansible. builtin.fail:
+    msg: "The extracted version ({{ extracted_version_list }}) is greater than the passed version ({{ passed_version_list }})."
+  when: extracted_version_list >= passed_version_list
+
+- name: Set action to upgrade if passed version is greater than extracted version
+  ansible.builtin.set_fact:
+    sp_server_action: "upgrade"
+  when: extracted_version_list < passed_version_list
+
+- name: Set the directory for installation
+  ansible.builtin.set_fact:
+    sp_server_temp_dest: "{{ sp_server_install_dest }}"
+  when: sp_server_action == "install"
+
+- name: Set the directory for upgrade
+  ansible.builtin.set_fact:
+    sp_server_temp_dest: "{{ sp_server_upgrade_dest }}"
+  when: sp_server_action == "upgrade"
+
+- name: Display success message for upgrade or install
+  ansible. builtin.debug:
+    msg: "The action to take is: {{ sp_server_action }}"
+
+...
