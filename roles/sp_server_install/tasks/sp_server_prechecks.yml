@@ -9,6 +9,11 @@
     msg: "The binary file for {{ sp_server_version }}*.bin does not exist in the directory {{ sp_server_bin_repo }}."
   when: file_status.matched == 0
 
+- name: Storing the found binary file path
+  ansible.builtin.set_fact:
+    sp_server_binary_file_path: "{{ file_status.files[0].path }}"
+  when: file_status.matched > 0
+
 - name: Gathering system info for compatibility checks
   ansible.builtin.include_role:
     name: system_info
