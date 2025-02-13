@@ -5,7 +5,7 @@
 # 3) query the installed version of SP Server on remote vms and dynamically performs the installation or upgrade
 - name: Performing pre-checks before installing Sp Server
   ansible.builtin.include_tasks: sp_server_prechecks.yml
-  when: sp_server_state == "present" or sp_server_state == "absent"
+  when: sp_server_state == "present" or sp_server_state == "upgrade"
 
 - name: Install Sp Server
   ansible.builtin.include_tasks: sp_server_install_linux.yml
