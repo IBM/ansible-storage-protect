@@ -1,15 +1,19 @@
 ---
 - name: Create partition and format disk
   block:
-    - name: Create a partition on the disk
+    - name: Create a filesystem on the raw disk
       ansible.builtin.command:
-        cmd: echo ',,L' | sfdisk {{ disk_device }}
-      args:
-        creates: "{{ disk_device }}1"
-
-    - name: Format the partition
-      ansible.builtin.command:
-        cmd: mkfs.ext4 {{ disk_device }}1
+        cmd: mkfs.ext4 {{ disk_device }}
+      changed_when: true
+#    - name: Create a partition on the disk
+#      ansible.builtin.command:
+#        cmd: echo ',,L' | sfdisk {{ disk_device }}
+#      args:
+#        creates: "{{ disk_device }}1"
+#
+#    - name: Format the partition
+#      ansible.builtin.command:
+#        cmd: mkfs.ext4 {{ disk_device }}1
 
     - name: Create the root directory
       ansible.builtin.file:
@@ -19,7 +23,7 @@
     - name: Mount the root directory
       ansible.builtin.mount:
         path: "{{ root_dir }}"
-        src: "{{ disk_device }}1"
+        src: "{{ disk_device }}"
         fstype: ext4
         opts: defaults
         state: mounted
@@ -27,7 +31,7 @@
     - name: Persist mount in fstab
       ansible.builtin.lineinfile:
         path: /etc/fstab
-        line: "{{ disk_device }}1 {{ root_dir }} ext4 defaults 0 0"
+        line: "{{ disk_device }} {{ root_dir }} ext4 defaults 0 0"
         state: present
 
 - name: Create group and user for the server instance
