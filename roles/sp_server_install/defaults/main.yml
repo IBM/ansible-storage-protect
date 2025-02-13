@@ -22,7 +22,7 @@ sp_server_bin_repo: ""
 # ==========
 # ==== tsm_user vars =====
 tsm_group: "tsmusers"
-tsm_group_gid: "1001"
+tsm_group_gid: "10001"
 tsm_user: "tsminst1"
 tsm_user_uid: "10001"
 tsm_user_password: "password123"
