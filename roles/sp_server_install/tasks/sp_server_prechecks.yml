@@ -64,35 +64,36 @@
   when: dsmserv_output.rc != 0
 
 - name: Extract version components by searching for 'Version', 'Release', and 'Level'
-  ansible. builtin.set_fact:
+  ansible.builtin.set_fact:
     major_version: "{{ dsmserv_output.stdout | regex_search('Version (\\d+)') }}"
     release_version: "{{ dsmserv_output.stdout | regex_search('Release (\\d+)') }}"
     level_version: "{{ dsmserv_output.stdout | regex_search('Level (\\d+)') }}"
   when: dsmserv_output.rc == 0
 
 - name: Combine version components into a full version string
-  ansible. builtin.set_fact:
+  ansible.builtin.set_fact:
     extracted_version: "{{ major_version | regex_replace('\\D', '') }}.{{ release_version | regex_replace('\\D', '') }}.{{ level_version | regex_replace('\\D', '') }}"
   when: dsmserv_output.rc == 0
 
 - name: Convert extracted version into a list of integers
-  ansible. builtin.set_fact:
+  ansible.builtin.set_fact:
     extracted_version_list: "{{ extracted_version.split('.') | map('int') | list }}"
   when: dsmserv_output.rc == 0
 
 - name: Convert passed version into a list of integers
-  ansible. builtin.set_fact:
+  ansible.builtin.set_fact:
     passed_version_list: "{{ passed_version.split('.') | map('int') | list }}"
+  when: dsmserv_output.rc == 0
 
 - name: Compare extracted version and passed version
-  ansible. builtin.fail:
+  ansible.builtin.fail:
     msg: "The extracted version ({{ extracted_version_list }}) is greater than the passed version ({{ passed_version_list }})."
-  when: extracted_version_list >= passed_version_list
+  when: extracted_version_list >= passed_version_list and dsmserv_output.rc == 0
 
 - name: Set action to upgrade if passed version is greater than extracted version
   ansible.builtin.set_fact:
     sp_server_action: "upgrade"
-  when: extracted_version_list < passed_version_list
+  when: extracted_version_list < passed_version_list and dsmserv_output.rc == 0
 
 - name: Set the directory for installation
   ansible.builtin.set_fact:
@@ -105,7 +106,7 @@
   when: sp_server_action == "upgrade"
 
 - name: Display success message for upgrade or install
-  ansible. builtin.debug:
+  ansible.builtin.debug:
     msg: "The action to take is: {{ sp_server_action }}"
 
 ...
