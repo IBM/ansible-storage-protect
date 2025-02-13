@@ -34,13 +34,19 @@
         state: directory
         mode: "0755"
 
-    - name: Mount the root directory
-      ansible.builtin.mount:
-        path: "{{ root_dir }}"
-        src: "{{ disk_device }}"
-        fstype: ext4
-        opts: defaults
-        state: mounted
+    - name: Ensure disk is unmounted before formatting
+      ansible.builtin.command:
+        cmd: "sudo mount {{ disk_device }} {{ root_dir }}"
+        #      changed_when: true
+
+#    - name: Mount the root directory
+#      ansible.builtin.mount:
+#        path: "{{ root_dir }}"
+#        src: "{{ disk_device }}"
+#        fstype: ext4
+#        opts: defaults
+#        state: mounted
+
 
     - name: Persist mount in fstab
       ansible.builtin.lineinfile:
