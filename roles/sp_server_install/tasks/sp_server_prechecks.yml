@@ -87,7 +87,7 @@
 
 - name: Convert passed version into a list of integers
   ansible.builtin.set_fact:
-    passed_version_list: "{{ passed_version.split('.') | map('int') | list }}"
+    passed_version_list: "{{ sp_server_version.split('.') | map('int') | list }}"
   when: dsmserv_output.rc == 0
 
 - name: Compare extracted version and passed version
