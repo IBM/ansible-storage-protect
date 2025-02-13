@@ -10,13 +10,13 @@
     - name: Ensure disk is unmounted before formatting
       ansible.builtin.command:
         cmd: "umount {{ disk_device }}"
-      changed_when: true
+#      changed_when: true
       ignore_errors: yes
 
     - name: Create a filesystem on the raw disk
       ansible.builtin.command:
         cmd: mkfs.ext4 -F {{ disk_device }}
-      changed_when: true
+#      changed_when: true
 
 #    - name: Create a partition on the disk
 #      ansible.builtin.command:
@@ -32,6 +32,7 @@
       ansible.builtin.file:
         path: "{{ root_dir }}"
         state: directory
+        mode: "0755"
 
     - name: Mount the root directory
       ansible.builtin.mount:
@@ -46,6 +47,7 @@
         path: /etc/fstab
         line: "{{ disk_device }} {{ root_dir }} ext4 defaults 0 0"
         state: present
+        create: yes
 
 - name: Create group and user for the server instance
   block:
