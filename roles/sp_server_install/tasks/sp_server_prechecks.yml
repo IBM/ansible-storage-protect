@@ -87,13 +87,21 @@
 
 - name: Compare extracted version and passed version
   ansible.builtin.fail:
-    msg: "The extracted version ({{ extracted_version_list }}) is greater than the passed version ({{ passed_version_list }})."
-  when: extracted_version_list >= passed_version_list and dsmserv_output.rc == 0
+    msg: "The already installed version ({{ extracted_version_list }}) is greater than the specified version ({{ passed_version_list }})."
+  when:
+    - dsmserv_output.rc == 0
+    - extracted_version_list is defined
+    - passed_version_list is defined
+    - extracted_version_list >= passed_version_list
 
 - name: Set action to upgrade if passed version is greater than extracted version
   ansible.builtin.set_fact:
     sp_server_action: "upgrade"
-  when: extracted_version_list < passed_version_list and dsmserv_output.rc == 0
+  when:
+    - dsmserv_output.rc == 0
+    - extracted_version_list is defined
+    - passed_version_list is defined
+    - extracted_version_list < passed_version_list
 
 - name: Set the directory for installation
   ansible.builtin.set_fact:
