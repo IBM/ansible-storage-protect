@@ -1,13 +1,13 @@
 - name: Cleanup server
   ansible.builtin.include_tasks: sp_server_clean_config.yml
-  when: state == "absent"
+  when: sp_server_state == "absent"
 
 # Generate the response file for uninstallation
 - name: Generate Response file for uninstalling Sp Server
   ansible.builtin.template:
     src: sp_server_uninstall_response.xml.j2
     dest: "{{ sp_server_temp_dest }}/uninstallResponse.xml"
-  when: state == "absent"
+  when: sp_server_state == "absent"
 
 # Execute uninstallation
 - name: Execute uninstallation
@@ -15,7 +15,7 @@
   args:
     chdir: "/opt/IBM/InstallationManager/eclipse/tools"
   changed_when: true
-  when: state == "absent"
+  when: sp_server_state == "absent"
 
 - name: Remove IBM Storage Protect Server files
   ansible.builtin.file:
@@ -24,5 +24,5 @@
   loop:
     - "/opt/tivoli/tsm/ui"
     - "/tsm/server/*/*"
-  when: state == "absent"
+  when: sp_server_state == "absent"
 ...
