@@ -1,10 +1,23 @@
 ---
 - name: Create partition and format disk
   block:
+    - name: Remove existing partitions on the disk
+      ansible.builtin.command:
+        cmd: "wipefs --all {{ disk_device }}"
+      changed_when: true
+      ignore_errors: yes
+
+    - name: Ensure disk is unmounted before formatting
+      ansible.builtin.command:
+        cmd: "umount {{ disk_device }}"
+      changed_when: true
+      ignore_errors: yes
+
     - name: Create a filesystem on the raw disk
       ansible.builtin.command:
-        cmd: mkfs.ext4 {{ disk_device }}
+        cmd: mkfs.ext4 -F {{ disk_device }}
       changed_when: true
+
 #    - name: Create a partition on the disk
 #      ansible.builtin.command:
 #        cmd: echo ',,L' | sfdisk {{ disk_device }}
