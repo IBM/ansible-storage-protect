@@ -1,21 +1,21 @@
 ---
 - name: Create partition and format disk
   block:
-    - name: Remove existing partitions on the disk
-      ansible.builtin.command:
-        cmd: "wipefs --all {{ disk_device }}"
-      changed_when: true
-      ignore_errors: yes
-
-    - name: Ensure disk is unmounted before formatting
-      ansible.builtin.command:
-        cmd: "umount {{ disk_device }}"
+#    - name: Remove existing partitions on the disk
+#      ansible.builtin.command:
+#        cmd: "wipefs --all {{ disk_device }}"
 #      changed_when: true
-      ignore_errors: yes
-
-    - name: Create a filesystem on the raw disk
-      ansible.builtin.command:
-        cmd: mkfs.ext4 -F {{ disk_device }}
+#      ignore_errors: yes
+#
+#    - name: Ensure disk is unmounted before formatting
+#      ansible.builtin.command:
+#        cmd: "umount {{ disk_device }}"
+##      changed_when: true
+#      ignore_errors: yes
+#
+#    - name: Create a filesystem on the raw disk
+#      ansible.builtin.command:
+#        cmd: mkfs.ext4 -F {{ disk_device }}
 #      changed_when: true
 
 #    - name: Create a partition on the disk
@@ -34,10 +34,10 @@
         state: directory
         mode: "0755"
 
-    - name: Ensure disk is unmounted before formatting
-      ansible.builtin.command:
-        cmd: "sudo mount {{ disk_device }} {{ root_dir }}"
-        #      changed_when: true
+#    - name: Mount Directory
+#      ansible.builtin.command:
+#        cmd: "sudo mount {{ disk_device }} {{ root_dir }}"
+#        #      changed_when: true
 
 #    - name: Mount the root directory
 #      ansible.builtin.mount:
@@ -48,12 +48,12 @@
 #        state: mounted
 
 
-    - name: Persist mount in fstab
-      ansible.builtin.lineinfile:
-        path: /etc/fstab
-        line: "{{ disk_device }} {{ root_dir }} ext4 defaults 0 0"
-        state: present
-        create: yes
+#    - name: Persist mount in fstab
+#      ansible.builtin.lineinfile:
+#        path: /etc/fstab
+#        line: "{{ disk_device }} {{ root_dir }} ext4 defaults 0 0"
+#        state: present
+#        create: yes
 
 - name: Create group and user for the server instance
   block:
@@ -146,7 +146,7 @@
 
           export DB2INSTANCE="{{ tsm_user }}"
 
-          dsmserv format dbdir={{ root_dir }}/tsmdb001 activelogsize=12768 activelogdirectory={{ root_dir }}/tsmlog archlogdirectory={{ root_dir }}/tsmarchlog archfailoverlogdirectory={{ root_dir }}/tsmarchlogfailover mirrorlogdirectory={{ root_dir }}/tsmlogmirror
+          dsmserv format dbdir={{ root_dir }}/tsmdb001 activelogsize=16768 activelogdirectory={{ root_dir }}/tsmlog archlogdirectory={{ root_dir }}/tsmarchlog archfailoverlogdirectory={{ root_dir }}/tsmarchlogfailover mirrorlogdirectory={{ root_dir }}/tsmlogmirror
         chdir: "{{ root_dir }}/tsminst1"
       changed_when: true
 

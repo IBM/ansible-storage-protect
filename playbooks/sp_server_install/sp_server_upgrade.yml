@@ -1,0 +1,13 @@
+---
+- name: Upgrade SP Server
+  hosts: all
+  become: true
+  tasks:
+    - name: Upgrade Sp Server task
+      include_role:
+        name: ibm.storage_protect.sp_server_install
+      vars:
+        sp_server_state: "upgrade"
+        sp_server_bin_repo: "/home/onecloud-user/sp_server_bin/"
+        sp_server_version: "8.1.25"
+...

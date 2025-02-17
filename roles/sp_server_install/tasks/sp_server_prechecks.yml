@@ -1,11 +1,11 @@
 - name: Finding the binary locally
-  find:
+  ansible.builtin.find:
     paths: "{{ sp_server_bin_repo }}"
     patterns: "{{ sp_server_version }}*.bin"
   register: file_status
 
 - name: Fail if the binary does not exist
-  fail:
+  ansible.builtin.fail:
     msg: "The binary file for {{ sp_server_version }}*.bin does not exist in the directory {{ sp_server_bin_repo }}."
   when: file_status.matched == 0
 
@@ -24,7 +24,7 @@
 
 - name: Checking available disk space
   ansible.builtin.set_fact:
-    avail_disk_space: "{{ disk_space.available_mb | int > 1500 }}"
+    avail_disk_space: "{{ disk_space.available_mb | int > 7500 }}"
 
 - name: Compatibility results
   ansible.builtin.debug:
@@ -47,8 +47,8 @@
     msg: >
       System compatibility checks failed. Please ensure the following
       requirements are met: - Compatible architecture: x86_64 - Java installed -
-      Sufficient disk space: > 1400 MB Architecture check: {{
-      architecture_compatible }} Java installed: {{ java_installed }} Disk
+      Sufficient disk space: > 7500 MB Architecture check: {{
+      architecture_compatible }} Disk
       Space: {{ avail_disk_space }}
   when: not (architecture_compatible and avail_disk_space)
 
@@ -61,7 +61,7 @@
     chdir: /{{ root_dir }}/{{ tsm_user }}
   register: dsmserv_output
   changed_when: false
-  ignore_errors: yes  # Ignore errors in case dsmserv is not found
+  ignore_errors: yes  # Ignore errors if dsmserv is not found
 
 - name: Set action to install if dsmserv fails or SP server is not installed
   ansible.builtin.set_fact:
