@@ -65,17 +65,17 @@
     - name: SP Server Installation Success
       ansible.builtin.debug:
         msg: "Sp server installed successfully"
-      when: sp_server_installed_status == true and sp_server_action == "install"
+      when: sp_server_installation_status == true and sp_server_action == "install"
 
     - name: SP Server Upgrade Success
       ansible.builtin.debug:
         msg: "SP Server upgraded successfully"
-      when: sp_server_installed_status == true and sp_server_action == "upgrade"
+      when: sp_server_installation_status == true and sp_server_action == "upgrade"
 
   rescue:
 #    - No rollback mechanism is needed if upgrade fails, since previous version is not uninstalled.
     - name: Rollback if installation fails
-      when: not sp_server_installed_status and sp_server_action == "install"
+      when: not sp_server_installation_status and sp_server_action == "install"
       block:
         - name: Checking for installed packages
           ansible.builtin.include_tasks: sp_server_postchecks_linux.yml
