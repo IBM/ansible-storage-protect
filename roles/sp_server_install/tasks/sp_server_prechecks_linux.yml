@@ -30,7 +30,7 @@
 
 - name: Checking architecture compatibility
   ansible.builtin.set_fact:
-    architecture_compatible: "{{ system_info.Architecture in sp_server_compatible_architectures }}"
+    architecture_compatible: "{{ (system_info.Architecture | first) in sp_server_compatible_architectures }}"
 
 - name: Checking available disk space
   ansible.builtin.set_fact:
