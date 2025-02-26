@@ -16,4 +16,4 @@
     sp_server_installation_status: true
   when:
     - imcl_output is defined
-    - "'com.tivoli.dsm.server' in imcl_output.stdout_lines"
+    - imcl_output.stdout_lines | select('search', 'com.tivoli.dsm.server') | list | length > 0
