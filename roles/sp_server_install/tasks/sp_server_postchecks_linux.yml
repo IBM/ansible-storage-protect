@@ -13,7 +13,7 @@
 
 - name: Check if the sp server package is installed
   ansible.builtin.set_fact:
-    sp_server_installation_stats: true
+    sp_server_installation_status: true
   when:
     - imcl_output is defined
     - "'com.tivoli.dsm.server' in imcl_output.stdout_lines"
