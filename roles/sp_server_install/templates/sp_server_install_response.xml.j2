@@ -8,8 +8,10 @@
     <data key="cic.selector.nl" value="de,no,fi,ru,hr,pt_BR,fr,hu,zh_TW,zh_HK,sk,sl,sv,ko,el,en,it,iw,zh,es,cs,ar,th,ja,pl,da,nl,tr" />
   </profile>
   <profile id="{{ profile_id }}" installLocation="/opt/tivoli/tsm">
+    {% if offerings.server %}
     <data key="user.license,com.tivoli.dsm.server" value="{{ license_value }}" />
     <data key="user.license_option,com.tivoli.dsm.server" value="{{ license_option }}" />
+    {% endif %}
     {% if offerings.oc %}
     <data key="user.securePortNumber,com.tivoli.dsm.gui.offering" value="{{ secure_port }}" />
     <data key="user.SSL_PASSWORD" value="{{ ssl_password }}" />

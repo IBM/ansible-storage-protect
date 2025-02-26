@@ -16,7 +16,7 @@ db2_instance_path: "/opt/tivoli/tsm/db2/instance"
 imcl_path: "/opt/IBM/InstallationManager/eclipse/tools/imcl"
 sp_server_version: "8.1.23"
 sp_server_bin_repo: ""
-
+sp_server_installed_status: false
 # ==== tsm_user vars =====
 tsm_group: "tsmusers"
 tsm_group_gid: "10001"
@@ -45,3 +45,6 @@ directories:
   - tsmarchlog
   - tsmlogmirror
   - tsmarchlogfailover
+
+sp_server_compatible_architectures:
+  - x86_64

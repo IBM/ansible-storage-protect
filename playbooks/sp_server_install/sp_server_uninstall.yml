@@ -2,11 +2,8 @@
 - name: Uninstall Sp server
   hosts: all
   become: true
-  tasks:
-    - name: Uninstall Task
-      include_role:
-        name: ibm.storage_protect.sp_server_install
-      vars:
-        sp_server_state: "absent"
-
+  roles:
+    - ibm.storage_protect.sp_server_install
+  vars:
+    sp_server_state: "absent"
 ...

@@ -2,11 +2,8 @@
 - name: Configure sp server
   hosts: all
   become: yes
-  tasks:
-    - name: Configure sp server task
-      include_role:
-        name: sp_server_install
-      vars:
-        sp_server_state: "configure"
-        disk_device: "/dev/sdb"
+  roles:
+    - ibm.storage_protect.sp_server_install
+  vars:
+    sp_server_state: "configure"
 ...

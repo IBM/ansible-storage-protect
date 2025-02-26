@@ -1,18 +1,28 @@
-- name: Finding the binary locally
+---
+# Prechecks:
+#  - checks if the binary exists on the control node
+#  - checks if the architecture is compatible and disk space is sufficient
+
+- name: Finding SP Server binary locally
   ansible.builtin.find:
     paths: "{{ sp_server_bin_repo }}"
     patterns: "{{ sp_server_version }}*.bin"
   register: file_status
+  delegate_to: localhost
 
 - name: Fail if the binary does not exist
   ansible.builtin.fail:
-    msg: "The binary file for {{ sp_server_version }}*.bin does not exist in the directory {{ sp_server_bin_repo }}."
+    msg: > 
+        The binary file for {{ sp_server_version }}*.bin does not exist in the directory {{ sp_server_bin_repo }}.
+        Verify the availability of binary in the specified directory and ensure the correct path is specified.
   when: file_status.matched == 0
+  delegate_to: localhost
 
 - name: Storing the found binary file path
   ansible.builtin.set_fact:
     sp_server_binary_file_path: "{{ file_status.files[0].path }}"
   when: file_status.matched > 0
+  delegate_to: localhost
 
 - name: Gathering system info for compatibility checks
   ansible.builtin.include_role:
@@ -20,7 +30,7 @@
 
 - name: Checking architecture compatibility
   ansible.builtin.set_fact:
-    architecture_compatible: "{{ 'x86_64' in system_info.Architecture }}"
+    architecture_compatible: "{{ system_info.Architecture in sp_server_compatible_architectures }}"
 
 - name: Checking available disk space
   ansible.builtin.set_fact:
@@ -46,12 +56,17 @@
   ansible.builtin.fail:
     msg: >
       System compatibility checks failed. Please ensure the following
-      requirements are met: - Compatible architecture: x86_64 - Java installed -
-      Sufficient disk space: > 7500 MB Architecture check: {{
-      architecture_compatible }} Disk
-      Space: {{ avail_disk_space }}
+      requirements are met: 
+      - Compatible architectures: {{ sp_server_compatible_architectures }}
+      - Sufficient disk space: > 7500 MB 
+      Architecture Found: {{ architecture_compatible }} 
+      Current Available Disk Space: {{ avail_disk_space }}
   when: not (architecture_compatible and avail_disk_space)
 
+# If sp server is already installed, installed version and user passed version will be compared.
+# - if user_passed_version > already installed, action is set to upgrade.
+# - if both the versions are equal, playbook stops the execution.
+# - if no sp server is installed , action is set to install.
 
 - name: Loading environment variables and checking version with dsmserv
   ansible.builtin.shell: |

@@ -1,10 +1,7 @@
 ---
-# ==== if state == "present" ===
-# 1) check if the binary exists on the control node
-# 2) checks whether the system is compatible or not
-# 3) query the installed version of SP Server on remote vms and dynamically performs the installation or upgrade
+
 - name: Performing pre-checks before installing Sp Server
-  ansible.builtin.include_tasks: sp_server_prechecks.yml
+  ansible.builtin.include_tasks: sp_server_prechecks_linux.yml
   when: sp_server_state == "present" or sp_server_state == "upgrade"
 
 - name: Install Sp Server

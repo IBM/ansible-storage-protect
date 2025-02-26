@@ -19,8 +19,6 @@ The following variables can be configured in the `defaults/main.yml` file:
 | `ssl_password`               | `IBMSP@@123456789`            | Password for SSL encryption.                                                                                                          |
 | `sp_server_install_dest`     | `/opt/sp_server_binary/`      | Destination directory for SP Server installation files.                                                                               |
 | `sp_server_upgrade_dest`     | `/opt/sp_server_upgrade_binary` | Destination directory for upgrade binaries.                                                                                           |
-| `repository_location`        | `{{ sp_server_temp_dest }}/repository` | Repository path for installation.                                                                                                     |
-| `disk_device`                | `/dev/sdb`                    | Disk Device which will be mounted to the root directory of Storage Protect Server, which will contain all the log and db directories. |
 | `root_dir`                   | `/tsmroot`                    | Root directory for SP Server.                                                                                                         |
 | `sp_server_version`                | `8.1.23`                       | Version of SP Server to be installed.                                                                                                 |
 | `sp_server_bin_repo`                | `""`                | Directory on control node which contains the binaries.                                                                                |
@@ -35,11 +33,12 @@ The following variables can be configured in the `defaults/main.yml` file:
 ## Role Workflow
 ### When `sp_server_state` is `present`:
 1. Validates system compatibility (architecture, disk space, etc.).
-2. Checks if the specified version is available in the repository.
+2. Checks if the specified version is available in the repository on control node.
 3. Determines the appropriate action based on the installed version:
-   - If a higher version is available, it performs an upgrade.
+   - If specified sp_server_version > already installed version, role performs upgrade of SP Server.
    - If no version is installed, it proceeds with installation.
 4. Installs the SP Server if the system meets the requirements.
+5. If Installation fails completely or for some components, the system is rolled-back to previous state and removes the components which were installed.
 
 ### When `sp_server_state` is `upgrade`:
 1. Checks the installed version and determines if an upgrade is necessary.
@@ -49,31 +48,19 @@ The following variables can be configured in the `defaults/main.yml` file:
 1. Executes configuration tasks for SP Server.
 
 ### When `sp_server_state` is `absent`:
-1. Uninstalls the SP Server, and remove all associated packages and files.
-
-## Key Tasks
-### Installation
-- Validates system compatibility.
-- Transfer the required binaries on the target machines.
-- Perform silent installation after executing the binaries.
-
-### Upgrade
-- Checks for the already installed version. If the specified version is greater than already existing version, performs upgrade using IBM Installation Manager.
-
-### Uninstallation
-- Stops SP Server processes.
-- Deletes the instance of SP Server.
-- Removes the instance directories and performs silent un-installtion.
+1. Stops the dsmserv processes.
+2. Drops the db2 instance.
+3. Uninstalls the SP Server, and remove's all related packages and instance directories.
 
 ## Example Playbooks
 To install SP Server:
 ```bash
-ansible-playbook -i inventory.ini playbooks/sp_server_install.yml --extra-vars '{"target_hosts": "group1", "sp_server_db_directory":"/path/to/repo/on/controlNode", "sp_server_state": "present", "sp_server_version": "8.1.23"}'
+ansible-playbook -i inventory.ini playbooks/sp_server_install.yml --extra-vars '{"target_hosts": "group1", "sp_server_bin_repo":"/path/to/repo/on/controlNode", "sp_server_state": "present", "sp_server_version": "8.1.23"}'
 ```
 
 To upgrade SP Server:
 ```bash
-ansible-playbook -i inventory.ini playbooks/sp_server_install.yml --extra-vars '{"target_hosts": "group1", "sp_server_db_directory":"/path/to/repo/on/controlNode", "sp_server_state": "upgrade", "sp_server_version": "8.1.24"}'
+ansible-playbook -i inventory.ini playbooks/sp_server_install.yml --extra-vars '{"target_hosts": "group1", "sp_server_bin_repo":"/path/to/repo/on/controlNode", "sp_server_state": "upgrade", "sp_server_version": "8.1.24"}'
 ```
 
 To configure SP Server:
