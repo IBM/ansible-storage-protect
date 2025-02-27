@@ -108,6 +108,7 @@
           DSMI_CONFIG: "{{ root_dir }}/{{ tsm_user }}/tsmdbmgr.opt"
           DSMI_DIR: "/opt/tivoli/tsm/server/bin/dbbkapi"
           DSMI_LOG: "{{ root_dir }}/{{ tsm_user }}"
+          BASH_ENV: "/home/{{ tsm_user }}/sqllib/db2profile"
 
     - name: Ensure DB2 environment is set in .profile
       ansible.builtin.lineinfile:
@@ -121,6 +122,7 @@
         - name: Updating default database path
           ansible.builtin.command:
             cmd: db2 update dbm cfg using dftdbpath {{ root_dir }}/tsminst1
+            executable: /bin/bash
           become_user: "{{ tsm_user }}"
           environment: "{{ db2_env }}"
           changed_when: true
