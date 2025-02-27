@@ -4,7 +4,6 @@
       ansible.builtin.file:
         path: "{{ sp_server_temp_dest }}"
         state: absent
-      when: sp_server_action == "upgrade"
 
     - name: Creating required directories for server installation
       ansible.builtin.file:

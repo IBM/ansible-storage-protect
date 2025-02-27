@@ -31,7 +31,7 @@
     - name: Uninstallation Status
       ansible.builtin.debug:
         msg:
-          - "Successfully uninstalled the SP Server"
+          - "Successfully uninstalled SP Server"
 
   rescue:
     - name: Uninstallation Failed
@@ -39,5 +39,4 @@
         msg:
           - "Uninstallation failed at task {{ ansible_failed_task.name }}"
           - "Error message: {{ ansible_failed_result }}"
-
 ...
