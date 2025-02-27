@@ -121,6 +121,7 @@
         - name: Updating default database path
           ansible.builtin.command:
             cmd: db2 update dbm cfg using dftdbpath {{ root_dir }}/tsminst1
+          become_user: "{{ tsm_user }}"
           environment: "{{ db2_env }}"
           changed_when: true
 
