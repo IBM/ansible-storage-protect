@@ -49,6 +49,7 @@
       ansible.builtin.command: "./{{ sp_server_binary_file_path | basename }}"
       args:
         chdir: "{{ sp_server_temp_dest }}"
+      register: sp_server_binary_status
     #  when: sp_server_state == "present"
 
     # Execute install.sh with the generated response.xml
@@ -80,7 +81,6 @@
         - name: Checking for installed packages
           ansible.builtin.include_tasks: sp_server_postchecks_linux.yml
 
-
         - name: Delete the created directories and remove binaries
           ansible.builtin.file:
             path: "{{ sp_server_temp_dest }}"
@@ -95,7 +95,8 @@
         - name: Debug failure message
           ansible.builtin.debug:
             msg: >
-              Failed to installed the SP Server due to following reasons {{ sp_server_installation_result }}
-              Maintained the state of the system by uninstalling the installed packages.
-
+              Failed to install the SP Server.
+              Failed task:- {{ ansible_failed_task.name }}
+              Error Message:- {{ ansible_failed_result | default('No error messages were captured') }} 
+              Maintained the state of the system by uninstalling the installed packages and removing the created directories.
 ...
