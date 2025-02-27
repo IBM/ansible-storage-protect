@@ -27,6 +27,10 @@
     state: absent
   ignore_errors: true
 
+- name: Unmount /tsmroot
+  ansible.builtin.command: "sudo umount {{ root_dir }}"
+  ignore_errors: true
+
 - name: Remove user-related directories
   ansible.builtin.file:
     path: "{{ item }}"
