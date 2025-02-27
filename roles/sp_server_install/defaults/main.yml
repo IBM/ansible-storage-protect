@@ -34,7 +34,7 @@ offerings:
 
 # === configuration vars ======
 #disk_device: /dev/sdb
-#root_dir: /tsmroot
+root_dir: /tsmroot
 directories:
   - tsminst1
   - tsmdb001
