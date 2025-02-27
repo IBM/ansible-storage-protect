@@ -8,7 +8,7 @@
     - name: Generate Response file for uninstalling Sp Server
       ansible.builtin.template:
         src: sp_server_uninstall_response.xml.j2
-        dest: "opt/IBM/InstallationManager/eclipse/tools/uninstallResponse.xml"
+        dest: "/opt/IBM/InstallationManager/eclipse/tools/uninstallResponse.xml"
       when: sp_server_state == "absent"
 
     # Execute uninstallation
