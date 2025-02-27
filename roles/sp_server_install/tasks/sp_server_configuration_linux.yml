@@ -101,30 +101,15 @@
           tsm_user }}
         creates: /home/{{ tsm_user }}/sqllib
 
-    - name: Set environment variables globally
-      set_fact:
-        db2_env:
-          DB2INSTANCE: "{{ tsm_user }}"
-          DSMI_CONFIG: "{{ root_dir }}/{{ tsm_user }}/tsmdbmgr.opt"
-          DSMI_DIR: "/opt/tivoli/tsm/server/bin/dbbkapi"
-          DSMI_LOG: "{{ root_dir }}/{{ tsm_user }}"
-          BASH_ENV: "/home/{{ tsm_user }}/sqllib/db2profile"
-
-    - name: Ensure DB2 environment is set in .profile
-      ansible.builtin.lineinfile:
-        path: /home/{{ tsm_user }}/.profile
-        line: 'source /home/{{ tsm_user }}/sqllib/db2profile'
-        state: present
-
     - name: Perform tasks as the instance user
       become_user: "{{ tsm_user }}"
       block:
         - name: Updating default database path
-          ansible.builtin.command:
-            cmd: db2 update dbm cfg using dftdbpath {{ root_dir }}/tsminst1
-            executable: /bin/bash
-          become_user: "{{ tsm_user }}"
-          environment: "{{ db2_env }}"
+          ansible.builtin.shell:
+            cmd: |
+              source /home/{{ tsm_user }}/sqllib/db2profile
+              export DB2INSTANCE="{{ tsm_user }}"
+              db2 update dbm cfg using dftdbpath {{ root_dir }}/tsminst1
           changed_when: true
 
         - name: Modifying LD_LIBRARY_PATH for the instance user
@@ -156,16 +141,22 @@
             - shmport 1510
 
         - name: Setting DB2 registry variable
-          ansible.builtin.command:
-            cmd: db2set DB2NOEXITLIST=ON
-          environment: "{{ db2_env }}"
+          ansible.builtin.shell:
+            cmd: |
+              source /home/{{ tsm_user }}/sqllib/db2profile
+              export DB2INSTANCE="{{ tsm_user }}"
+              db2set DB2NOEXITLIST=ON
           changed_when: true
 
         - name: Formatting the database and logs
-          ansible.builtin.command:
-            cmd: dsmserv format dbdir={{ root_dir }}/tsmdb001 activelogsize=16768 activelogdirectory={{ root_dir }}/tsmlog archlogdirectory={{ root_dir }}/tsmarchlog archfailoverlogdirectory={{ root_dir }}/tsmarchlogfailover mirrorlogdirectory={{ root_dir }}/tsmlogmirror
+          ansible.builtin.shell:
+            cmd: >
+              source /home/{{ tsm_user }}/sqllib/db2profile
+
+              export DB2INSTANCE="{{ tsm_user }}"
+
+              dsmserv format dbdir={{ root_dir }}/tsmdb001 activelogsize=16768 activelogdirectory={{ root_dir }}/tsmlog archlogdirectory={{ root_dir }}/tsmarchlog archfailoverlogdirectory={{ root_dir }}/tsmarchlogfailover mirrorlogdirectory={{ root_dir }}/tsmlogmirror
             chdir: "{{ root_dir }}/tsminst1"
-          environment: "{{ db2_env }}"
           changed_when: true
 
         - name: Creating administrative user macro
@@ -179,11 +170,12 @@
             mode: "0644"
 
         - name: Executing administrative user macro
-          ansible.builtin.command:
-            cmd: dsmserv runfile setup.mac
+          ansible.builtin.shell:
+            cmd: |
+              source /home/{{ tsm_user }}/sqllib/db2profile
+              export DB2INSTANCE="{{ tsm_user }}"
+              dsmserv runfile setup.mac
             chdir: "{{ root_dir }}/tsminst1"
-          environment: "{{ db2_env }}"
-
 
         - name: Ensure DB2 environment initialization in .profile
           ansible.builtin.lineinfile:
@@ -284,6 +276,8 @@
         msg: >
          SP Server Configuration Failed and system has been rolled back to previous state.
           See the individuals tasks executed to indentify the reason for failure.
+
+...
 
 ...
 
