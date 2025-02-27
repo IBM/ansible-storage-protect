@@ -29,6 +29,15 @@ The following variables can be configured in the `defaults/main.yml` file:
 | `tsm_user_password`                | `""` | Password for `tsm_user`.                                                                                                              |
 | `sp_server_db_directory`                | `tsmdb001`    | Specifies the name of the database directory for SP Server.                                                                           |
 
+## Offerings Dict
+```
+offerings:
+  server: true
+  stagent: true
+  devices: true
+  oc: true
+  ossm: true
+```
 
 ## Role Workflow
 ### When `sp_server_state` is `present`:

@@ -36,6 +36,7 @@
     - "/export/home/{{ tsm_user }}"
     - "/var/spool/mail/{{ tsm_user }}"
     - "/etc/tivoli/tsm/instanceList.obj"
+    - "/tsmroot"
   ignore_errors: true
 
 ...
