@@ -1,28 +1,43 @@
-- name: Cleanup server
-  ansible.builtin.include_tasks: sp_server_clean_config.yml
-  when: sp_server_state == "absent"
+- name: Uninstall SP Server
+  block:
+    - name: Cleanup server
+      ansible.builtin.include_tasks: sp_server_clean_config.yml
+      when: sp_server_state == "absent"
 
-# Generate the response file for uninstallation
-- name: Generate Response file for uninstalling Sp Server
-  ansible.builtin.template:
-    src: sp_server_uninstall_response.xml.j2
-    dest: "{{ sp_server_temp_dest }}/uninstallResponse.xml"
-  when: sp_server_state == "absent"
+    # Generate the response file for uninstallation
+    - name: Generate Response file for uninstalling Sp Server
+      ansible.builtin.template:
+        src: sp_server_uninstall_response.xml.j2
+        dest: "{{ sp_server_temp_dest }}/uninstallResponse.xml"
+      when: sp_server_state == "absent"
 
-# Execute uninstallation
-- name: Execute uninstallation
-  ansible.builtin.command: "./imcl -s -input {{ sp_server_temp_dest }}/uninstallResponse.xml -acceptLicense"
-  args:
-    chdir: "/opt/IBM/InstallationManager/eclipse/tools"
-  changed_when: true
-  when: sp_server_state == "absent"
+    # Execute uninstallation
+    - name: Execute uninstallation
+      ansible.builtin.command: "./imcl -s -input {{ sp_server_temp_dest }}/uninstallResponse.xml -acceptLicense"
+      args:
+        chdir: "/opt/IBM/InstallationManager/eclipse/tools"
+      changed_when: true
+      when: sp_server_state == "absent"
 
-- name: Remove IBM Storage Protect Server files
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - "/opt/tivoli/tsm/ui"
-    - "/tsm/server/*/*"
-  when: sp_server_state == "absent"
+    - name: Remove IBM Storage Protect Server files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/opt/tivoli/tsm/ui"
+        - "/tsm/server/*/*"
+      when: sp_server_state == "absent"
+
+    - name: Uninstallation Status
+      ansible.builtin.debug:
+        msg:
+          - "Successfully uninstalled the SP Server"
+
+  rescue:
+    - name: Uninstallation Failed
+      ansible.builitin.debug:
+        msg:
+          - "Uninstallation failed at task {{ ansible_failed_task.name }}"
+          - "Error message: {{ ansible_failed_result }}"
+
 ...

@@ -1,5 +1,4 @@
 ---
-
 - name: Performing pre-checks before installing Sp Server
   ansible.builtin.include_tasks: sp_server_prechecks_linux.yml
   when: sp_server_state == "present" or sp_server_state == "upgrade"

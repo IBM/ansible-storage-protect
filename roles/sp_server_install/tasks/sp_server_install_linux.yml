@@ -64,7 +64,7 @@
 
     - name: SP Server Installation Success
       ansible.builtin.debug:
-        msg: "Sp server installed successfully"
+        msg: "SP Server installed successfully"
       when: sp_server_installation_status == true and sp_server_action == "install"
 
     - name: SP Server Upgrade Success
