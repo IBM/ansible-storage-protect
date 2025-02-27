@@ -35,7 +35,7 @@
 
   rescue:
     - name: Uninstallation Failed
-      ansible.builitin.debug:
+      ansible.builtin.debug:
         msg:
           - "Uninstallation failed at task {{ ansible_failed_task.name }}"
           - "Error message: {{ ansible_failed_result }}"
