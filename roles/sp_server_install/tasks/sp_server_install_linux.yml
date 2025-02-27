@@ -12,6 +12,16 @@
         mode: '0755'
     #  when: sp_server_state == "present"
 
+    - name: Install rsync on remote VMs
+      ansible.builtin.dnf:
+        name: rsync
+        state: present
+
+    - name: Install lsof on remote VMs
+      ansible.builtin.dnf:
+        name: lsof
+        state: present
+
     # Transfer binary to the remote machines
     - name: Transferring the binary to the remote host
       ansible.builtin.synchronize:

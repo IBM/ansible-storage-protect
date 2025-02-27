@@ -2,7 +2,6 @@
 # Prechecks:
 #  - checks if the binary exists on the control node
 #  - checks if the architecture is compatible and disk space is sufficient
-
 - name: Finding SP Server binary locally
   ansible.builtin.find:
     paths: "{{ sp_server_bin_repo }}"
@@ -135,6 +134,5 @@
 
 - name: Display success message for upgrade or install
   ansible.builtin.debug:
-    msg: "The action to take is: {{ sp_server_action }}"
-
+    msg: "Performing: {{ sp_server_action }}"
 ...
