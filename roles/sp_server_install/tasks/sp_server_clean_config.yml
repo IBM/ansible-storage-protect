@@ -7,7 +7,7 @@
   ignore_errors: true
 
 - name: Remove the TSM database
-  ansible.builtin.shell: "echo 'y' | su - {{ tsm_user }} -c 'dsmserv removedb {{ sp_server_db_directory }}'"
+  ansible.builtin.shell: "echo 'y' | su - {{ tsm_user }} -c 'dsmserv removedb tsmdb001'"
   ignore_errors: true
 
 - name: Drop the DB2 instance

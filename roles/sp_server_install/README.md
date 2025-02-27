@@ -10,24 +10,22 @@ This Ansible role automates the installation, upgrade, configuration, and uninst
 ## Role Variables
 The following variables can be configured in the `defaults/main.yml` file:
 
-| Variable                     | Default Value      | Description                                                                                                                           |
-|------------------------------|--------------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `sp_server_state`            | `present`          | Desired state of the SP Server (`present`, `upgrade`, `configure`, `absent`).                                                         |
-| `sp_server_version`          | `8.1.23`           | Version of the SP Server to install or upgrade to.                                                                                    |
-| `install_location`           | `/opt/IBM/InstallationManager/eclipse` | Location where the SP Server will be installed.                                                                                       |
-| `secure_port`                | `9443`             | Secure port for SP Server.                                                                                                            |
-| `ssl_password`               | `""`            | Password for SSL encryption.                                                                                                          |
-| `sp_server_install_dest`     | `/opt/sp_server_binary/` | Destination directory for SP Server installation files.                                                                               |
+| Variable                     | Default Value                  | Description                                                                                                                           |
+|------------------------------|--------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `sp_server_state`            | `present`                      | Desired state of the SP Server (`present`, `upgrade`, `configure`, `absent`).                                                         |
+| `secure_port`                | `9443`                         | Secure port for SP Server.                                                                                                            |
+| `ssl_password`               | `""`                           | Password for SSL encryption.                                                                                                          |
+| `sp_server_install_dest`     | `/opt/sp_server_binary/`       | Destination directory for SP Server installation files.                                                                               |
 | `sp_server_upgrade_dest`     | `/opt/sp_server_upgrade_binary` | Destination directory for upgrade binaries.                                                                                           |
-| `root_dir`                   | `/tsmroot`         | Root directory for SP Server.                                                                                                         |
-| `sp_server_version`                | `""`                | Version of SP Server to be installed.                                                                                                 |
-| `sp_server_bin_repo`                | `""`          | Directory on control node which contains the binaries.                                                                                |
-| `tsm_group`                | `tsmusers`    | Group of the user who owns SP Server instance.                                                                                        |
-| `tsm_group_gid`                | `10001`       | Group Id                                                                                                                              |
-| `tsm_user`                | `tsminst1`    | Specifies the name of the user who will own the SP Server Instance and also this value corresponds to the name of instance.           |
-| `tsm_user_uid`                | `10001`       | User Id for `tsm_user`.                                                                                                               |
-| `tsm_user_password`                | `""` | Password for `tsm_user`.                                                                                                              |
-| `sp_server_db_directory`                | `tsmdb001`    | Specifies the name of the database directory for SP Server.                                                                           |
+| `root_dir`                   | `/tsmroot`                     | Root directory for SP Server.                                                                                                         |
+| `sp_server_version`                | `""`                           | Version of SP Server to be installed.                                                                                                 |
+| `sp_server_bin_repo`                | `""`                           | Directory on control node which contains the binaries.                                                                                |
+| `tsm_group`                | `tsmusers`                     | Group of the user who owns SP Server instance.                                                                                        |
+| `tsm_group_gid`                | `10001`                        | Group Id                                                                                                                              |
+| `tsm_user`                | `tsminst1`                     | Specifies the name of the user who will own the SP Server Instance and also this value corresponds to the name of instance.           |
+| `tsm_user_uid`                | `10001`                        | User Id for `tsm_user`.                                                                                                               |
+| `tsm_user_password`                | `""`                           | Password for `tsm_user`.                                                                                                              |
+| `sp_server_db_directory`                | `tsmdb001`                     | Specifies the name of the database directory for SP Server.                                                                           |
 
 ## Offerings Dict
 ```
