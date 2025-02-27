@@ -90,7 +90,7 @@
           ansible.builtin.command:
             cmd: sudo /opt/IBM/InstallationManager/eclipse/tools/imcl uninstall {{ item }}
           loop: "{{ sp_server_installed_components }}"
-          when: sp_server_installed_components.length > 0
+          when: sp_server_installed_components | length > 0
 
         - name: Debug failure message
           ansible.builtin.debug:
