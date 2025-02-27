@@ -80,6 +80,7 @@
         - name: Checking for installed packages
           ansible.builtin.include_tasks: sp_server_postchecks_linux.yml
 
+
         - name: Delete the created directories and remove binaries
           ansible.builtin.file:
             path: "{{ sp_server_temp_dest }}"
