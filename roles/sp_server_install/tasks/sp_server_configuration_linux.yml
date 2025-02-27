@@ -109,6 +109,11 @@
           DSMI_DIR: "/opt/tivoli/tsm/server/bin/dbbkapi"
           DSMI_LOG: "{{ root_dir }}/{{ tsm_user }}"
 
+    - name: Ensure DB2 environment is set in .profile
+      ansible.builtin.lineinfile:
+        path: /home/{{ tsm_user }}/.profile
+        line: 'source /home/{{ tsm_user }}/sqllib/db2profile'
+        state: present
 
     - name: Perform tasks as the instance user
       become_user: "{{ tsm_user }}"
