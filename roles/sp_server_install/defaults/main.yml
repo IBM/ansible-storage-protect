@@ -22,7 +22,7 @@ tsm_group: "tsmusers"
 tsm_group_gid: "10001"
 tsm_user: "tsminst1"
 tsm_user_uid: "10001"
-tsm_user_password: "password123"
+tsm_user_password: ""
 sp_server_db_directory: "tsmdb001"
 offerings:
   server: true
