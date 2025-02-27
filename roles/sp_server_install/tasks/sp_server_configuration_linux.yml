@@ -107,7 +107,7 @@
 
               export DB2INSTANCE="{{ tsm_user }}"
 
-              dsmserv format dbdir={{ root_dir }}/tsmdb001 activelogsize=16768 activelogdirectory={{ root_dir }}/tsmlog archlogdirectory={{ root_dir }}/tsmarchlog archfailoverlogdirectory={{ root_dir }}/tsmarchlogfailover mirrorlogdirectory={{ root_dir }}/tsmlogmirror
+              dsmserv format dbdir={{ root_dir }}/tsmdb001 activelogsize={{ sp_server_active_log_size }} activelogdirectory={{ root_dir }}/tsmlog archlogdirectory={{ root_dir }}/tsmarchlog archfailoverlogdirectory={{ root_dir }}/tsmarchlogfailover mirrorlogdirectory={{ root_dir }}/tsmlogmirror
             chdir: "{{ root_dir }}/tsminst1"
           changed_when: true
 
