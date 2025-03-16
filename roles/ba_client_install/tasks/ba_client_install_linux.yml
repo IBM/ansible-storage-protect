@@ -58,13 +58,25 @@
       Space: {{ avail_disk_space }}
   when: not (architecture_compatible and avail_disk_space)
 
+#- name: Install rsync on remote VMs
+#  ansible.builtin.dnf:
+#    name: rsync
+#    state: present
+#  when: ansible_os_family == "RedHat"
+#
+#- name: Install lsof on remote VMs
+#  ansible.builtin.dnf:
+#    name: lsof
+#    state: present
+#  when: ansible_os_family == "RedHat"
+
 - name: Install rsync on remote VMs
-  ansible.builtin.dnf:
+  ansible.builtin.package:
     name: rsync
     state: present
 
 - name: Install lsof on remote VMs
-  ansible.builtin.dnf:
+  ansible.builtin.package:
     name: lsof
     state: present
 
