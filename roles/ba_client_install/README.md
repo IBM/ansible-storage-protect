@@ -83,7 +83,8 @@ The following variables can be configured in the `defaults.yml` file:
 - **Operating System**: Linux with `x86_64` architecture.
 - **Disk Space**: Minimum 1400 MB of free space on remote vm's.
 - Make sure the playbook is executed with 'become' directive as true.
-- For fast .tar file transfer role uses ansible.posix.synchronize module. So before executing playbook, install the ansible.posix from ansible galaxy.
+- Install the following collections from ansible galaxy on control node.
 ```bash
   ansible-galaxy collection install ansible.posix
+  ansible-galaxy collection install community.general
 ```
