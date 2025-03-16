@@ -54,7 +54,7 @@
       System compatibility checks failed. Please ensure the following
       requirements are met: - Compatible architecture: x86_64 - Java installed -
       Sufficient disk space: > 1400 MB Architecture check: {{
-      architecture_compatible }} Java installed: {{ java_installed }} Disk
+      architecture_compatible }} Disk
       Space: {{ avail_disk_space }}
   when: not (architecture_compatible and avail_disk_space)
 
