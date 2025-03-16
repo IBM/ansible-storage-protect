@@ -5,4 +5,7 @@ ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') | default('', t
 ba_client_extract_dest: "/opt/baClient"
 ba_client_temp_dest: "/tmp/"
 ba_client_start_daemon: false
+sp_server_compatible_architectures:
+  - x86_64
+  - s390x
 ...

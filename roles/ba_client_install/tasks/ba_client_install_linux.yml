@@ -22,7 +22,7 @@
 # System Compatibility checks for installing the ba client ( Pre-checks )
 - name: Checking architecture compatibility
   ansible.builtin.set_fact:
-    architecture_compatible: "{{ 'x86_64' in system_info.Architecture }}"
+    architecture_compatible: "{{ (system_info.Architecture | first) in sp_server_compatible_architectures }}"
 
 #- name: Checking Java installation
 #  ansible.builtin.set_fact:
