@@ -11,7 +11,7 @@
     - name: Set the action to configure if state is present and sp server is already installed
       ansible.builtin.set_fact:
         sp_server_action: "configure"
-      when: sp_server_action is defined and sp_server_state == "present" and sp_server_installation_status and sp_server_action != "upgrade"
+      when: sp_server_state == "present" and sp_server_installation_status
 
     - name: Configure Sp Server
       ansible.builtin.include_tasks: sp_server_configuration_linux.yml
