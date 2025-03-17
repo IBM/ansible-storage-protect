@@ -14,7 +14,7 @@
       when: sp_server_action is defined and sp_server_state == "present" and sp_server_installation_status and sp_server_action != "upgrade"
 
     - name: Configure Sp Server
-      ansible.builitin.include_tasks: sp_server_configuration_linux.yml
+      ansible.builtin.include_tasks: sp_server_configuration_linux.yml
 
 - name: Finding SP Server binary locally
   ansible.builtin.find:
