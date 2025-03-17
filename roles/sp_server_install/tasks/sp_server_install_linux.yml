@@ -25,7 +25,7 @@
         dest: "{{ sp_server_temp_dest }}"
         mode: push
       register: copy_result
-    #  when: sp_server_state == "present"
+
 
     # Validate file transfer and show error details
     - name: Validating binary transfer
@@ -40,14 +40,14 @@
       ansible.builtin.file:
         path: "{{ sp_server_temp_dest }}/{{ sp_server_binary_file_path | basename }}"
         mode: "0755"
-    #  when: sp_server_state == "present"
+
 
     # Generate response.xml for installation
     - name: Generate response.xml
       ansible.builtin.template:
         src: sp_server_install_response.xml.j2
         dest: "{{ sp_server_temp_dest }}/response.xml"
-    #  when: sp_server_state == "present"
+
 
     # Execute the binary to initialize the repository
     - name: Execute binary
@@ -55,7 +55,7 @@
       args:
         chdir: "{{ sp_server_temp_dest }}"
       register: sp_server_binary_status
-    #  when: sp_server_state == "present"
+
 
     # Execute install.sh with the generated response.xml
     - name: Execute install.sh with response.xml
@@ -63,7 +63,7 @@
       args:
         chdir: "{{ sp_server_temp_dest }}"
       register: sp_server_installation_result
-    #  when: sp_server_state == "present"
+
 
     - name: Verfiy Installation of sp server
       ansible.builtin.include_tasks: sp_server_postchecks_linux.yml
