@@ -80,10 +80,11 @@ The following variables can be configured in the `defaults.yml` file:
 ```
 - Note: The role also performs patching. The installation playbook is capable of applying patches—just pass the desired version, and the role will handle it. For example, if version 8.1.15.0 is already installed, passing 8.1.15.1 to the installation playbook will upgrade the BA Client to the patched version.
 ## Requirements
-- **Operating System**: Linux with `x86_64` architecture.
+- **Operating System**: Linux with `x86_64` and `s390x` architecture.
 - **Disk Space**: Minimum 1400 MB of free space on remote vm's.
 - Make sure the playbook is executed with 'become' directive as true.
-- For fast .tar file transfer role uses ansible.posix.synchronize module. So before executing playbook, install the ansible.posix from ansible galaxy.
+- Install the following collections from ansible galaxy on control node.
 ```bash
   ansible-galaxy collection install ansible.posix
+  ansible-galaxy collection install community.general
 ```

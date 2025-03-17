@@ -22,7 +22,7 @@
 # System Compatibility checks for installing the ba client ( Pre-checks )
 - name: Checking architecture compatibility
   ansible.builtin.set_fact:
-    architecture_compatible: "{{ 'x86_64' in system_info.Architecture }}"
+    architecture_compatible: "{{ (system_info.Architecture | first) in sp_server_compatible_architectures }}"
 
 #- name: Checking Java installation
 #  ansible.builtin.set_fact:
@@ -54,17 +54,29 @@
       System compatibility checks failed. Please ensure the following
       requirements are met: - Compatible architecture: x86_64 - Java installed -
       Sufficient disk space: > 1400 MB Architecture check: {{
-      architecture_compatible }} Java installed: {{ java_installed }} Disk
+      architecture_compatible }} Disk
       Space: {{ avail_disk_space }}
   when: not (architecture_compatible and avail_disk_space)
 
+#- name: Install rsync on remote VMs
+#  ansible.builtin.dnf:
+#    name: rsync
+#    state: present
+#  when: ansible_os_family == "RedHat"
+#
+#- name: Install lsof on remote VMs
+#  ansible.builtin.dnf:
+#    name: lsof
+#    state: present
+#  when: ansible_os_family == "RedHat"
+
 - name: Install rsync on remote VMs
-  ansible.builtin.dnf:
+  ansible.builtin.package:
     name: rsync
     state: present
 
 - name: Install lsof on remote VMs
-  ansible.builtin.dnf:
+  ansible.builtin.package:
     name: lsof
     state: present
 
