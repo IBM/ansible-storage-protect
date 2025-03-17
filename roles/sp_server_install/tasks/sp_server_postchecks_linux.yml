@@ -1,6 +1,6 @@
 - name: Execute command to list installed packages on the remote VM
   ansible.builtin.command:
-    cmd: 'sudo {{ imcl_path }} listInstalledPackages'
+    cmd: '{{ imcl_path }} listInstalledPackages'
   register: imcl_output
   changed_when: false
   become: true

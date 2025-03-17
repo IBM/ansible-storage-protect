@@ -12,14 +12,21 @@
         mode: '0755'
     #  when: sp_server_state == "present"
 
-    - name: Install rsync on remote VMs
-      ansible.builtin.dnf:
-        name: rsync
-        state: present
+#    - name: Install rsync on remote VMs
+#      ansible.builtin.dnf:
+#        name: rsync
+#        state: present
+#
+#    - name: Install lsof on remote VMs
+#      ansible.builtin.dnf:
+#        name: lsof
+#        state: present
 
-    - name: Install lsof on remote VMs
-      ansible.builtin.dnf:
-        name: lsof
+    - name: Install required packages on remote VMs
+      ansible.builtin.package:
+        name:
+          - rsync
+          - lsof
         state: present
 
     # Transfer binary to the remote machines
@@ -96,8 +103,9 @@
             state: absent
 
         - name: Execute command for each installed package
+          become: true
           ansible.builtin.command:
-            cmd: sudo /opt/IBM/InstallationManager/eclipse/tools/imcl uninstall {{ item }}
+            cmd: /opt/IBM/InstallationManager/eclipse/tools/imcl uninstall {{ item }}
           loop: "{{ sp_server_installed_components }}"
           when: sp_server_installed_components | length > 0
 

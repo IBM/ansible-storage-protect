@@ -122,6 +122,11 @@
     - passed_version_list is defined
     - extracted_version_list < passed_version_list
 
+- name: Configure SP Server if state is present and sp server is already installed
+  ansible.builtin.set_fact:
+    sp_server_action: "configure"
+  when: dsmserv_output.rc == 0 and sp_server_state == "present"
+
 - name: Set the directory for installation
   ansible.builtin.set_fact:
     sp_server_temp_dest: "{{ sp_server_install_dest }}"
