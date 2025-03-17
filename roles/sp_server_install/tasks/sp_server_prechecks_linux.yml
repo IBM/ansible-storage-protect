@@ -123,9 +123,14 @@
     - extracted_version_list < passed_version_list
 
 - name: Configure SP Server if state is present and sp server is already installed
-  ansible.builtin.set_fact:
-    sp_server_action: "configure"
-  when: dsmserv_output.rc == 0 and sp_server_state == "present"
+  block:
+    - name: Check if sp server is already install or not
+      ansible.builtin.include_tasks: sp_server_postchecks_linux.yml
+
+    - name: Set the action to configure if state is present and sp server is already installed
+      ansible.builtin.set_fact:
+        sp_server_action: "configure"
+      when: sp_server_action is defined and sp_server_state == present and sp_server_installation_status and sp_server_action != "upgrade"
 
 - name: Set the directory for installation
   ansible.builtin.set_fact:
