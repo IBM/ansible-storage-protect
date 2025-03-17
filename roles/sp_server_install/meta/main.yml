@@ -1,8 +1,8 @@
 ---
 galaxy_info:
-  role_name: ba_client_install
+  role_name: sp_server_install
   author: Sarthak Kshirsagar
-  description: "This Ansible role manages the life cycle of BA Client on remote hosts."
+  description: "This Ansible role installs,configure and uninstall IBM Storage Protect Server"
   license: MIT
   min_ansible_version: 2.15.0
   galaxy_tags: []
