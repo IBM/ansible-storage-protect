@@ -4,6 +4,4 @@
   become: yes
   roles:
     - ibm.storage_protect.sp_server_install
-  vars:
-    sp_server_state: "configure"
 ...

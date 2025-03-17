@@ -10,23 +10,23 @@ This Ansible role automates the installation, upgrade, configuration, and uninst
 ## Role Variables
 The following variables can be configured in the `defaults/main.yml` file:
 
-| Variable                     | Default Value                   | Description                                                                                                                 |
-|------------------------------|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| `sp_server_state`            | `present`                       | Desired state of the SP Server (`present`, `upgrade`, `configure`, `absent`).                                               |
-| `secure_port`                | `9443`                          | Secure port for SP Server.                                                                                                  |
-| `ssl_password`               | `""`                            | Password for SSL encryption.                                                                                                |
-| `sp_server_install_dest`     | `/opt/sp_server_binary/`        | Destination directory for SP Server installation files.                                                                     |
-| `sp_server_upgrade_dest`     | `/opt/sp_server_upgrade_binary` | Destination directory for upgrade binaries.                                                                                 |
-| `root_dir`                   | `/tsmroot`                      | Root directory for SP Server.                                                                                               |
-| `sp_server_version`                | `""`                            | Version of SP Server to be installed.                                                                                       |
-| `sp_server_bin_repo`                | `""`                            | Directory on control node which contains the binaries.                                                                      |
-| `tsm_group`                | `tsmusers`                      | Group of the user who owns SP Server instance.                                                                              |
-| `tsm_group_gid`                | `10001`                         | Group Id                                                                                                                    |
+| Variable                     | Default Value                   | Description                                                                                                             |
+|------------------------------|---------------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `sp_server_state`            | `present`                       | Desired state of the SP Server (`present`, `upgrade`, `absent`).                                               |
+| `secure_port`                | `9443`                          | Secure port for SP Server.                                                                                              |
+| `ssl_password`               | `""`                            | Password for SSL encryption.                                                                                            |
+| `sp_server_install_dest`     | `/opt/sp_server_binary/`        | Destination directory for SP Server installation files.                                                                 |
+| `sp_server_upgrade_dest`     | `/opt/sp_server_upgrade_binary` | Destination directory for upgrade binaries.                                                                             |
+| `root_dir`                   | `/tsmroot`                      | Root directory for SP Server.                                                                                           |
+| `sp_server_version`                | `""`                            | Version of SP Server to be installed.                                                                                   |
+| `sp_server_bin_repo`                | `""`                            | Directory on control node which contains the binaries.                                                                  |
+| `tsm_group`                | `tsmusers`                      | Group of the user who owns SP Server instance.                                                                          |
+| `tsm_group_gid`                | `10001`                         | Group Id                                                                                                                |
 | `tsm_user`                | `tsminst1`                      | Specifies the name of the user who will own the SP Server Instance and also this value corresponds to the name of instance. |
-| `tsm_user_uid`                | `10001`                         | User Id for `tsm_user`.                                                                                                     |
-| `tsm_user_password`                | `""`                            | Password for `tsm_user`.                                                                                                    |
-| `sp_server_db_directory`                | `tsmdb001`                      | Specifies the name of the database directory for SP Server.                                                                 |
-| `sp_server_active_log_size`                | `17000`                         | Specifies the active log size for SP Server                                                                                 |
+| `tsm_user_uid`                | `10001`                         | User Id for `tsm_user`.                                                                                                 |
+| `tsm_user_password`                | `""`                            | Password for `tsm_user`.                                                                                                |
+| `sp_server_db_directory`                | `tsmdb001`                      | Specifies the name of the database directory for SP Server.                                                             |
+| `sp_server_active_log_size`                | `17000`                         | Specifies the active log size for SP Server                                                                             |
 
 ### Offerings dictionary can be used to install only required components. 
 #### By default role install all the offerings.
@@ -74,7 +74,7 @@ ansible-playbook -i inventory.ini playbooks/sp_server_install.yml --extra-vars '
 
 To configure SP Server:
 ```bash
-ansible-playbook -i inventory.ini playbooks/sp_server_configure.yml --extra-vars '{"sp_server_state": "configure"}'
+ansible-playbook -i inventory.ini playbooks/sp_server_configure.yml
 ```
 
 To uninstall SP Server:
@@ -84,10 +84,11 @@ ansible-playbook -i inventory.ini playbooks/sp_server_uninstall.yml --extra-vars
 
 ## Requirements
 - **Operating System**: Linux (x86_64 architecture).
-- **Disk Space**: Minimum 7500 MB free on the remote machine.
+- **Disk Space**: Minimum 40000 MB free on the remote machine. Additional Memory will be required based on the value of `sp_server_active_log_size`.
 - The playbook should be executed with `become: true`.
 - Before performing upgrade, make sure the server is configured. Since role dynamically checks the version of SP Server and performs upgrade. If Server is not configured then role fails to fetch SP Server version.
 - 'ssl_password' should be 
-- Ensure `ansible.posix.synchronize` module is installed for efficient file transfers:
+- Install the following collections from ansible galaxy on control node.
 ```bash
-ansible-galaxy collection install ansible.posix
+  ansible-galaxy collection install ansible.posix
+  ansible-galaxy collection install community.general

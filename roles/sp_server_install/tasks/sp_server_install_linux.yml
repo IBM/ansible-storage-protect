@@ -10,17 +10,6 @@
         path: "{{ sp_server_temp_dest }}"
         state: directory
         mode: '0755'
-    #  when: sp_server_state == "present"
-
-#    - name: Install rsync on remote VMs
-#      ansible.builtin.dnf:
-#        name: rsync
-#        state: present
-#
-#    - name: Install lsof on remote VMs
-#      ansible.builtin.dnf:
-#        name: lsof
-#        state: present
 
     - name: Install required packages on remote VMs
       ansible.builtin.package:
