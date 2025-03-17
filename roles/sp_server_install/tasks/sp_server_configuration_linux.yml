@@ -219,6 +219,9 @@
       debug:
         msg: Server Configuration complete
 
+    - name: Stop execution of the role
+      meta: end_play
+
   rescue:
     - name: Cleanup the server configuration
       ansible.builtin.include_tasks: sp_server_clean_config.yml
