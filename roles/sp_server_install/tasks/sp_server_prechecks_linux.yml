@@ -15,6 +15,7 @@
 
     - name: Configure Sp Server
       ansible.builtin.include_tasks: sp_server_configuration_linux.yml
+      when: sp_server_action is defined and sp_server_action == "configure"
 
 - name: Finding SP Server binary locally
   ansible.builtin.find:
