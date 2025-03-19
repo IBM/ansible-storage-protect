@@ -9,14 +9,14 @@ This Ansible role manages the life cycle of BA Client on remote hosts. It includ
 ## Role Variables
 The following variables can be configured in the `defaults.yml` file:
 
-| Variable                | Default Value                      | Description                                                                                                                     |
-|-------------------------|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `ba_client_state`       | `present`                          | Desired state of the BA Client (`present` or `absent`).                                                                         |
-| `ba_client_version`     | `8.1.24`                           | Version of the BA Client to install or upgrade to.                                                                              |
+| Variable                | Default Value             | Description                                                                                                                     |
+|-------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `ba_client_state`       | `present`                 | Desired state of the BA Client (`present` or `absent`).                                                                         |
+| `ba_client_version`     | `8.1.24.0`                | Version of the BA Client to install or upgrade to.                                                                              |
 | `ba_client_tar_repo`    | `BA_CLIENT_TAR_REPO_PATH` | Set the environment variable which will point the directory containing `.tar` files for BA Client installation on control node. |
-| `ba_client_extract_dest`| `/opt/baClient`                    | Destination directory for extracted BA Client files.                                                                            |
-| `ba_client_temp_dest`   | `/tmp/`                            | Temporary directory for transferring `.tar` files.                                                                              |
-| `ba_client_start_daemon`   | `false`                             | Specify whether to start the daemon after the upgrade.                                                                          |
+| `ba_client_extract_dest`| `/opt/baClient`           | Destination directory for extracted BA Client files.                                                                            |
+| `ba_client_temp_dest`   | `/tmp/`                   | Temporary directory for transferring `.tar` files.                                                                              |
+| `ba_client_start_daemon`   | `false`                   | Specify whether to start the daemon after the upgrade.                                                                          |
 
 ## Role Workflow
 ### General Workflow
@@ -65,43 +65,26 @@ The following variables can be configured in the `defaults.yml` file:
 - Rolls back to the previous version if the uninstall fails
 
 ## Example Playbooks
-```yaml
-- name: Install BA Client
-  hosts: all
-  become: true
-  roles:
-    - role: ba_client_install
-      vars:
-        ba_client_state: "present"
-        ba_client_version: "8.1.23"
-        ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
+- The example playbooks are available in the playbooks directory of this collection.
+- For installation of BA Client execute the 'ba_client_install.yml' playbook and pass the above mentioned variables as extra vars or define them in your inventory.
+```bash
+ anisble-playbook -i inventory.ini playbooks/ba_client/ba_client_install.yml --extra-vars '{"target_hosts": "group1", "ba_client_state": "present", "ba_client_version": "8.1.24.0", "ba_client_tar_repo": "/path/to/repo"}'
 ```
-
-```yaml
-- name: Upgarde BA Client
-  hosts: all
-  become: true
-  roles:
-    - role: ba_client_install
-      vars:
-        ba_client_state: "present"
-        ba_client_version: "8.1.24"
-        ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
+- For uninstallation of BA Client execute the 'ba_client_uninstall.yml' playbook.
+```bash
+ anisble-playbook -i inventory.ini playbooks/ba_client/ba_client_uninstall.yml --extra-vars '{"target_hosts": "group1"}'
 ```
-```yaml
-- name: Uninstall BA Client
-  hosts: all
-  become: true
-  roles:
-    - role: ba_client_install
-      vars:
-        ba_client_state: "absent"
+- For upgrade of BA Client execute the 'ba_client_install.yml' playbook and make sure the greater version is passed as compared to already installed version.
+```bash
+ anisble-playbook -i inventory.ini playbooks/ba_client/ba_client_install.yml --extra-vars '{"target_hosts": "group1", "ba_client_state": "present", "ba_client_version": "8.1.25.0", "ba_client_tar_repo": "/path/to/repo"}'
 ```
+- Note: The role also performs patching. The installation playbook is capable of applying patches—just pass the desired version, and the role will handle it. For example, if version 8.1.15.0 is already installed, passing 8.1.15.1 to the installation playbook will upgrade the BA Client to the patched version.
 ## Requirements
-- **Operating System**: Linux with `x86_64` architecture.
+- **Operating System**: Linux with `x86_64` and `s390x` architecture.
 - **Disk Space**: Minimum 1400 MB of free space on remote vm's.
 - Make sure the playbook is executed with 'become' directive as true.
-- For fast .tar file tarnsfer role uses ansible.posix.synchronize module. So before executing playbook, install the ansible.posix from ansible galaxy.
+- Install the following collections from ansible galaxy on control node.
 ```bash
   ansible-galaxy collection install ansible.posix
+  ansible-galaxy collection install community.general
 ```

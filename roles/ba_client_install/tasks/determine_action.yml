@@ -9,7 +9,8 @@
   ansible.builtin.set_fact:
     installed_version: >-
       {{
-        installed_version_check.stdout.split('-')[2]
+        installed_version_check.stdout.split('-')[2] ~ '.' ~
+        installed_version_check.stdout.split('-')[3].split('.')[0]
       }}
   when: installed_version_check.rc == 0
 
@@ -17,10 +18,23 @@
   ansible.builtin.debug:
     var: installed_version
 
-- name: Parsing user version and installed version into lists for comparison
+- name: Normalize the user version and installed version
   ansible.builtin.set_fact:
-    user_version_list: "{{ ba_client_version.split('.') | map('int') | list }}"
-    installed_version_list: "{{ installed_version.split('.') | map('int') | list }}"
+    normalized_user_version: "{{ (ba_client_version.split('.') + ['0'])[0:4] | join('.') }}"
+    normalized_installed_version: "{{ (installed_version.split('.') + ['0'])[0:4] | join('.') }}"
+  when: installed_version is defined
+
+- name: Debug normalized versions
+  ansible.builtin.debug:
+    msg: >
+      User version (normalized): {{ normalized_user_version }},
+      Installed version (normalized): {{ normalized_installed_version }}
+  when: installed_version is defined
+
+- name: Parsing normalized versions into lists for comparison
+  ansible.builtin.set_fact:
+    user_version_list: "{{ normalized_user_version.split('.') | map('int') | list }}"
+    installed_version_list: "{{ normalized_installed_version.split('.') | map('int') | list }}"
   when: installed_version is defined
 
 - name: Determining action based on conditions

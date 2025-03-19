@@ -1,0 +1,7 @@
+---
+- name: Configure sp server
+  hosts: all
+  become: yes
+  roles:
+    - ibm.storage_protect.sp_server_install
+...

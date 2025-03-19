@@ -77,7 +77,7 @@ extends_documentation_fragment: ibm.storage_protect.auth
 EXAMPLES = '''
 ---
 - name: Gather server facts from IBM Storage Protect server
-  sp_server_facts:
+  ibm.storage_protect.sp_server_facts:
     q_status: true
     q_db: true
     q_stgpool: true

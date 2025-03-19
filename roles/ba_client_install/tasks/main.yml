@@ -6,7 +6,7 @@
   #      if version passed is greater than the already installed then ba_client_action is set to 'upgrade'
   #      if version passed is lower than already installed, role execution is stopped
   #      if no version is available on remote vm's then ba_client_action is set to 'install'
-  #  3) collect_system_info :- this role collects the system facts , which are used to perform pre-checks on remote vm's
+  #  3) system_info :- this role collects the system facts , which are used to perform pre-checks on remote vm's
   #  4) if ba_client_action == 'install' :- ba_client_install.yml is executed
   #  5) if ba_client_action == 'upgrade' :- ba_client_upgrade.yml is executed
 #
@@ -24,7 +24,7 @@
 
 - name: Gather system info for compatibility checks
   ansible.builtin.include_role:
-    name: collect_system_info
+    name: system_info
   when: ba_client_action is defined and ba_client_state == "present"
 
 - name: Run install tasks

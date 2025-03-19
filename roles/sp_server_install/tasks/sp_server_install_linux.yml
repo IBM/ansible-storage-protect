@@ -1,0 +1,108 @@
+- name: Install or Upgrade SP Server
+  block:
+    - name: Delete the existing directory
+      ansible.builtin.file:
+        path: "{{ sp_server_temp_dest }}"
+        state: absent
+
+    - name: Creating required directories for server installation
+      ansible.builtin.file:
+        path: "{{ sp_server_temp_dest }}"
+        state: directory
+        mode: '0755'
+
+    - name: Install required packages on remote VMs
+      ansible.builtin.package:
+        name:
+          - rsync
+          - lsof
+        state: present
+
+    # Transfer binary to the remote machines
+    - name: Transferring the binary to the remote host
+      ansible.builtin.synchronize:
+        src: "{{ sp_server_binary_file_path }}"
+        dest: "{{ sp_server_temp_dest }}"
+        mode: push
+      register: copy_result
+
+
+    # Validate file transfer and show error details
+    - name: Validating binary transfer
+      ansible.builtin.fail:
+        msg: >
+          Binary transfer to the remote host failed.
+          Error details: {{ copy_result.stderr | default('No error details available.') }}
+      when: not copy_result is defined
+
+    # Ensure the binary is executable
+    - name: Ensure binary is executable
+      ansible.builtin.file:
+        path: "{{ sp_server_temp_dest }}/{{ sp_server_binary_file_path | basename }}"
+        mode: "0755"
+
+
+    # Generate response.xml for installation
+    - name: Generate response.xml
+      ansible.builtin.template:
+        src: sp_server_install_response.xml.j2
+        dest: "{{ sp_server_temp_dest }}/response.xml"
+
+
+    # Execute the binary to initialize the repository
+    - name: Execute binary
+      ansible.builtin.command: "./{{ sp_server_binary_file_path | basename }}"
+      args:
+        chdir: "{{ sp_server_temp_dest }}"
+      register: sp_server_binary_status
+
+
+    # Execute install.sh with the generated response.xml
+    - name: Execute install.sh with response.xml
+      ansible.builtin.command: "./install.sh -s -input {{ sp_server_temp_dest }}/response.xml -acceptLicense"
+      args:
+        chdir: "{{ sp_server_temp_dest }}"
+      register: sp_server_installation_result
+
+
+    - name: Verfiy Installation of sp server
+      ansible.builtin.include_tasks: sp_server_postchecks_linux.yml
+
+    - name: SP Server Installation Success
+      ansible.builtin.debug:
+        msg: "SP Server installed successfully"
+      when: sp_server_installation_status == true and sp_server_action == "install"
+
+    - name: SP Server Upgrade Success
+      ansible.builtin.debug:
+        msg: "SP Server upgraded successfully"
+      when: sp_server_installation_status == true and sp_server_action == "upgrade"
+
+  rescue:
+#    - No rollback mechanism is needed if upgrade fails, since previous version is not uninstalled.
+    - name: Rollback if installation fails
+      when: not sp_server_installation_status and sp_server_action == "install"
+      block:
+        - name: Checking for installed packages
+          ansible.builtin.include_tasks: sp_server_postchecks_linux.yml
+
+        - name: Delete the created directories and remove binaries
+          ansible.builtin.file:
+            path: "{{ sp_server_temp_dest }}"
+            state: absent
+
+        - name: Execute command for each installed package
+          become: true
+          ansible.builtin.command:
+            cmd: /opt/IBM/InstallationManager/eclipse/tools/imcl uninstall {{ item }}
+          loop: "{{ sp_server_installed_components }}"
+          when: sp_server_installed_components | length > 0
+
+        - name: Debug failure message
+          ansible.builtin.debug:
+            msg: >
+              Failed to install the SP Server.
+              Failed task:- {{ ansible_failed_task.name }}
+              Error Message:- {{ ansible_failed_result | default('No error messages were captured') }} 
+              Maintained the state of the system by uninstalling the installed packages and removing the created directories.
+...

@@ -1,8 +1,8 @@
 ---
 galaxy_info:
-  role_name: ba_client_install
-  author: Sarthak Kshirsagar
-  description: "This Ansible role manages the life cycle of BA Client on remote hosts."
+  role_name: backup 
+  author: Amol kumar 
+  description: "Ansible role to take on-demand back up in IBM storage protect."
   license: MIT
   min_ansible_version: 2.15.0
   galaxy_tags: []
@@ -14,8 +14,7 @@ galaxy_info:
     #       Maximum 20 tags per role.
 
 dependencies:
-  - role: system_info
   # List your role dependencies here, one per line. Be sure to remove the '[]' above,
   # if you add dependencies to this list.
-#  - role: global_vars
+  - role: global_vars
 ...

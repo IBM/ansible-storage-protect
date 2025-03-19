@@ -1,0 +1,13 @@
+---
+- name: Install SP Server
+  hosts: all
+  become: true
+  roles:
+    - ibm.storage_protect.sp_server_install
+  vars:
+    sp_server_state: "present"
+    sp_server_version: "8.1.23"
+    sp_server_bin_repo: "/path/to/the/repo/on/control/node"
+    ssl_password: "YourPassword@@123"
+# env for bin repo
+...

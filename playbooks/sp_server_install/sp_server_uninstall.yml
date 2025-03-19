@@ -1,0 +1,9 @@
+---
+- name: Uninstall Sp server
+  hosts: all
+  become: true
+  roles:
+    - ibm.storage_protect.sp_server_install
+  vars:
+    sp_server_state: "absent"
+...

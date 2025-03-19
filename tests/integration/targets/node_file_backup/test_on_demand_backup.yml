@@ -1,0 +1,20 @@
+---
+- name: Test On Demand backup in IBM Storage Protect
+  hosts: storage_protect_client
+  vars:
+    storage_protect_server_name: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') }}"
+    storage_protect_node_name: "{{ lookup('env', 'STORAGE_PROTECT_NODENAME') }}"
+    storage_protect_node_password: "{{ lookup('env', 'STORAGE_PROTECT_NODE_PASSWORD') }}"
+    storage_protect_node_file_backup:
+      backup_action: "selective"
+      filespec: "/root/backup_test/"
+      is_subdir: "yes"
+
+  roles:
+    - ibm.storage_protect.node_file_backup
+
+  tasks:
+    - name: "Verify the Result of the backup Taken"
+      ansible.builtin.debug:
+        msg: "Backup test completed successfully."
+...

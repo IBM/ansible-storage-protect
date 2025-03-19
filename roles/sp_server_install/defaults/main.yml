@@ -1,0 +1,50 @@
+# Default variables
+# ==== installation and uninstallation vars =====
+sp_server_state: "present"
+profile_id: "IBM Storage Protect"
+install_location: "/opt/IBM/InstallationManager/eclipse"
+secure_port: "9443"
+ssl_password: ""
+ssl_password_confirm: "{{ ssl_password }}"
+license_value: "tsm"
+license_option: "A"
+sp_server_install_dest: "/opt/sp_server_binary/"
+sp_server_upgrade_dest: "/opt/sp_server_upgrade_binary"
+sp_server_temp_dest: "{{ sp_server_upgrade_dest if sp_server_state == 'upgrade' else sp_server_install_dest }}"
+repository_location: "{{ sp_server_temp_dest }}/repository"
+db2_instance_path: "/opt/tivoli/tsm/db2/instance"
+imcl_path: "/opt/IBM/InstallationManager/eclipse/tools/imcl"
+sp_server_version: ""
+sp_server_bin_repo: ""
+sp_server_installation_status: false
+# ==== tsm_user vars =====
+tsm_group: "tsmusers"
+tsm_group_gid: "10001"
+tsm_user: "tsminst1"
+tsm_user_uid: "10001"
+tsm_user_password: ""
+sp_server_active_log_size: 17000
+offerings:
+  server: true
+#  license: true
+  stagent: true
+  devices: true
+  oc: true
+  ossm: true
+
+# === configuration vars ======
+#disk_device: /dev/sdb
+root_dir: /tsmroot
+directories:
+  - tsminst1
+  - tsmdb001
+  - tsmdb002
+  - tsmdb003
+  - tsmdb004
+  - tsmlog
+  - tsmarchlog
+  - tsmlogmirror
+  - tsmarchlogfailover
+
+sp_server_compatible_architectures:
+  - x86_64

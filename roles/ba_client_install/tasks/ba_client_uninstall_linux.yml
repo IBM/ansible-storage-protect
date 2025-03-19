@@ -95,11 +95,15 @@
 
 
 # Uninstall packages in dependency order
+- name: Filter out missing packages
+  ansible.builtin.set_fact:
+    available_packages: "{{ installed_packages.results | selectattr('rc', 'eq', 0) | map(attribute='item') | list }}"
+
 - name: Uninstall BA Client packages in sequence
   block:
     - name: Uninstall each package sequentially
       ansible.builtin.command: "rpm -e {{ item }}"
-      loop: "{{ installed_packages.results | map(attribute='item') | list }}"
+      loop: "{{ available_packages }}"
       register: uninstall_result
       failed_when: uninstall_result.rc != 0  # Fail if uninstallation fails
       ignore_errors: false
@@ -172,7 +176,7 @@
 
     - name: Find RPM for each package
       ansible.builtin.find:
-        paths: "{{ extract_dest }}"
+        paths: "{{ ba_client_extract_dest }}"
         patterns: "{{ item }}*.rpm"
         file_type: file
       with_items: "{{ packages_to_reinstall }}"
@@ -195,6 +199,12 @@
       ansible.builtin.command: "rpm -ivh {{ rpms_to_install | join(' ') }}"
       ignore_errors: false
       changed_when: true
+
+    - name: Delete backup directory
+      ansible.builtin.file:
+        path: /opt/baClientPackagesBk
+        state: absent
+      when: uninstall_result is defined
 
     - name: Fail to uninstall the BAClient
       ansible.builtin.fail:
