@@ -1,19 +1,34 @@
+- name: Check if Installation Manager (IMCL) exists
+  ansible.builtin.stat:
+    path: "/opt/IBM/InstallationManager/eclipse/tools/imcl"
+  register: imcl_stat
+
+- name: Debug IMCL existence
+  ansible.builtin.debug:
+    msg: "IMCL exists: {{ imcl_stat.stat.exists }}"
+
 - name: Execute command to list installed packages on the remote VM
-  ansible.builtin.command:
-    cmd: '{{ imcl_path }} listInstalledPackages'
+  ansible.builtin.command: "{{ imcl_path }} listInstalledPackages"
   register: imcl_output
   changed_when: false
   become: true
   ignore_errors: true
+  when: imcl_stat.stat.exists  # Only run if the file exists
+
+- name: Ensure imcl_output is defined
+  ansible.builtin.set_fact:
+    imcl_output_lines: "{{ imcl_output.stdout_lines | default([]) }}"
 
 - name: Creating a list of installed packages
   ansible.builtin.set_fact:
-    sp_server_installed_components: "{{ imcl_output.stdout_lines }}"
-  when: imcl_output is defined
+    sp_server_installed_components: "{{ imcl_output_lines }}"
+  when: imcl_output_lines | length > 0
 
-- name: Check if the sp server package is installed
+- name: Check if the SP server package is installed
   ansible.builtin.set_fact:
     sp_server_installation_status: true
   when:
-    - imcl_output is defined
-    - imcl_output.stdout_lines | select('search', 'com.tivoli.dsm.server') | list | length > 0
+    - imcl_output_lines | length > 0
+    - imcl_output_lines | select('search', 'com.tivoli.dsm.server') | list | length > 0
+
+...

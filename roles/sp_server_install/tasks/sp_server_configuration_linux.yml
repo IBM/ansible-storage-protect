@@ -231,4 +231,9 @@
         msg: >
          SP Server Configuration Failed and system has been rolled back to previous state.
           See the individuals tasks executed to indentify the reason for failure.
+
+    - name: Stop execution of the role
+      meta: end_play
+
+#    need to add end play
 ...
