@@ -88,6 +88,13 @@
   when: file_status.matched > 0
   delegate_to: localhost
 
+- name: Debug the binary path
+  debug:
+    var: sp_server_binary_file_path
+
+- name: Debug binary path
+  debug:
+    msg: sp_server_binary_file_path
 - name: Gathering system info for compatibility checks
   ansible.builtin.include_role:
     name: system_info
