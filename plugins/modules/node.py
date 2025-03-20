@@ -8,6 +8,9 @@ from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
 
+from random import choices
+
+from pygments.lexer import default
 
 ANSIBLE_METADATA = {'metadata_version': '1.1', 'status': ['preview'], 'supported_by': 'community'}
 

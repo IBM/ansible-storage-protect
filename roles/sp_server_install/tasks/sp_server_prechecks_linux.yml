@@ -17,6 +17,56 @@
       ansible.builtin.include_tasks: sp_server_configuration_linux.yml
       when: sp_server_action is defined and sp_server_action == "configure"
 
+- name: Perform Prechecks before upgrading sp server
+  when: sp_server_state == "upgrade"
+  block:
+    - name: Extract the sp server from installed packages
+      ansible.builtin.set_fact:
+        sp_server_installed: "{{ sp_server_installed_components | select('search', 'com.tivoli.dsm.server_') | list }}"
+      when: imcl_output_lines | length > 0
+
+    - name: Store the server package string if found
+      ansible.builtin.set_fact:
+        sp_server_package: "{{ sp_server_installed[0] | string }}"
+      when: sp_server_installed is defined and sp_server_installed | length > 0
+
+    - name: Extract installed SP server version using regex
+      ansible.builtin.set_fact:
+        installed_sp_version: "{{ sp_server_package | regex_search('com\\.tivoli\\.dsm\\.server_([\\d]+\\.[\\d]+\\.[\\d]+)', '\\1') | first | string }}"
+      when: sp_server_installed is defined and sp_server_installed | length > 0
+
+    - name: Debug extracted installed SP server version
+      ansible.builtin.debug:
+        msg: "Installed SP server version is {{ installed_sp_version }}"
+      when: installed_sp_version is defined
+
+    - name: Convert installed SP version to a list of integers
+      ansible.builtin.set_fact:
+        installed_sp_version_list: "{{ installed_sp_version.split('.') | map('int') | list }}"
+      when: installed_sp_version is defined and installed_sp_version | length > 0
+
+    - name: Convert passed SP version to a list of integers
+      ansible.builtin.set_fact:
+        sp_server_version_list: "{{ sp_server_version.split('.') | map('int') | list }}"
+
+    #- name: Debug version lists
+    #  ansible.builtin.debug:
+    #    msg: "Installed version list: {{ installed_sp_version_list }}, Passed version list: {{ sp_server_version_list }}"
+
+    - name: Set sp_server_action to upgrade if user-passed version is greater than installed version
+      ansible.builtin.set_fact:
+        sp_server_action: "upgrade"
+      when:
+        - installed_sp_version_list is defined
+        - sp_server_version_list > installed_sp_version_list
+
+    - name: Fail if installed version is greater than or equal to user-passed version
+      ansible.builtin.fail:
+        msg: "Installed SP server version ({{ installed_sp_version }}) is greater than or equal to the passed version ({{ sp_server_version }}). Upgrade not required."
+      when:
+        - not (sp_server_version_list > installed_sp_version_list)
+
+
 - name: Finding SP Server binary locally
   ansible.builtin.find:
     paths: "{{ sp_server_bin_repo }}"
