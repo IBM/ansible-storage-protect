@@ -5,16 +5,15 @@
 
 - name: Install Sp Server
   ansible.builtin.include_tasks: sp_server_install_linux.yml
-  when: sp_server_action is defined and sp_server_action == "install"
+  when: sp_server_state == "present" and sp_server_action is defined and sp_server_action == "install"
 
 - name: Upgrade Sp Server
   ansible.builtin.include_tasks: sp_server_install_linux.yml
-  when: sp_server_action is defined and sp_server_action == "upgrade"
+  when: sp_server_state == "upgrade" and sp_server_action is defined and sp_server_action == "upgrade"
 
 - name: Uninstall Sp server
   ansible.builtin.include_tasks: sp_server_uninstall_linux.yml
   when: sp_server_state == "absent"
-
 ...
 
 # Tests to be conducted
