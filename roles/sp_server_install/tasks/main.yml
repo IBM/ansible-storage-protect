@@ -16,3 +16,12 @@
   when: sp_server_state == "absent"
 
 ...
+
+# Tests to be conducted
+# Fresh Installation
+# Failure during Fresh Installation
+# After Installation -> Upgrade
+# Fresh Installation -> Upgrade -> Configure
+#
+# Configure -> Uninstall
+# Installed -> Uninstall

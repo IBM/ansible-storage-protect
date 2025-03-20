@@ -64,7 +64,6 @@
         chdir: "{{ sp_server_temp_dest }}"
       register: sp_server_installation_result
 
-
     - name: Verfiy Installation of sp server
       ansible.builtin.include_tasks: sp_server_postchecks_linux.yml
 
