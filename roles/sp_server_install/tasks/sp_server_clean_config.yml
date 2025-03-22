@@ -29,7 +29,7 @@
 
 # sudo su - tsminst1 -c ". /home/tsminst1/sqllib/db2profile && dsmserv removedb tsmdb001"
 - name: Remove the TSM database
-  ansible.builtin.shell: "echo 'y' | su - {{ tsm_user }} -c 'dsmserv removedb tsmdb001'"
+  ansible.builtin.shell: "sudo su - {{ tsm_user }} -c '. /home/tsminst1/sqllib/db2profile && dsmserv removedb tsmdb001'"
   ignore_errors: true
 
 - name: Drop the DB2 instance
