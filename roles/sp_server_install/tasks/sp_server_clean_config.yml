@@ -31,7 +31,7 @@
 - name: Remove the TSM database
   ansible.builtin.shell: "sudo su - {{ tsm_user }} -c '. dsmserv removedb tsmdb001'"
   args:
-    chdir: "{{ tsmroot }}/{{ tsm_user }}/{{ tsm_user }}"
+    chdir: "{{ tsmroot }}/{{ tsm_user }}"
   ignore_errors: true
 
 - name: Drop the DB2 instance
