@@ -95,11 +95,15 @@
 
 
 # Uninstall packages in dependency order
+- name: Filter out missing packages
+  ansible.builtin.set_fact:
+    available_packages: "{{ installed_packages.results | selectattr('rc', 'eq', 0) | map(attribute='item') | list }}"
+
 - name: Uninstall BA Client packages in sequence
   block:
     - name: Uninstall each package sequentially
       ansible.builtin.command: "rpm -e {{ item }}"
-      loop: "{{ installed_packages.results | map(attribute='item') | list }}"
+      loop: "{{ available_packages }}"
       register: uninstall_result
       failed_when: uninstall_result.rc != 0  # Fail if uninstallation fails
       ignore_errors: false
