@@ -91,25 +91,52 @@
               db2set DB2NOEXITLIST=ON
           changed_when: true
 
-        - name: Ensure database directory is empty
-          ansible.builtin.command: "find {{ root_dir }}/tsmdb001 -mindepth 1"
-          register: dbdir_contents
-          ignore_errors: true
-
-        - name: Remove files from dbdir if not empty
-          ansible.builtin.command: "rm -rf {{ root_dir }}/tsmdb001/*"
-          when: dbdir_contents.stdout | length > 0
-
-        - name: Formatting the database and logs
+        - name: Check if the database is already formatted
           ansible.builtin.shell:
-            cmd: >
+            cmd: |
               source /home/{{ tsm_user }}/sqllib/db2profile
-
               export DB2INSTANCE="{{ tsm_user }}"
+              db2 list db directory | grep -i "Database alias"
+          register: db_check
+          changed_when: false
+          failed_when: false
 
-              dsmserv format dbdir={{ root_dir }}/tsmdb001 activelogsize={{ sp_server_active_log_size }} activelogdirectory={{ root_dir }}/tsmlog archlogdirectory={{ root_dir }}/tsmarchlog archfailoverlogdirectory={{ root_dir }}/tsmarchlogfailover mirrorlogdirectory={{ root_dir }}/tsmlogmirror
+        - name: Debug DB check output
+          ansible.builtin.debug:
+            msg: "DB check output: {{ db_check.stdout }}"
+
+        - name: Ensure database directory is empty if DB is not formatted
+          ansible.builtin.find:
+            paths: "{{ root_dir }}/tsmdb001"
+            file_type: file
+          register: dbdir_contents
+          when: db_check.rc != 0
+
+        - name: Remove files from dbdir if needed
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: absent
+          loop: "{{ dbdir_contents.files }}"
+          when: db_check.rc != 0 and dbdir_contents.matched > 0  # Remove only if needed
+
+        - name: Formatting the database if not already formatted
+          ansible.builtin.shell:
+            cmd: |
+              source /home/{{ tsm_user }}/sqllib/db2profile
+              export DB2INSTANCE="{{ tsm_user }}"
+              dsmserv format dbdir={{ root_dir }}/tsmdb001 \
+                activelogsize={{ sp_server_active_log_size }} \
+                activelogdirectory={{ root_dir }}/tsmlog \
+                archlogdirectory={{ root_dir }}/tsmarchlog \
+                archfailoverlogdirectory={{ root_dir }}/tsmarchlogfailover \
+                mirrorlogdirectory={{ root_dir }}/tsmlogmirror
             chdir: "{{ root_dir }}/tsminst1"
-          changed_when: true
+          when: db_check.rc != 0  # Format only if DB is not formatted
+
+        - name: Check if admin user setup has been completed
+          ansible.builtin.stat:
+            path: "{{ root_dir }}/tsminst1/.admin_user_setup_done"
+          register: admin_user_setup
 
         - name: Creating administrative user macro
           ansible.builtin.copy:
@@ -120,6 +147,7 @@
             owner: "{{ tsm_user }}"
             group: "{{ tsm_group }}"
             mode: "0644"
+          when: not admin_user_setup.stat.exists
 
         - name: Executing administrative user macro
           ansible.builtin.shell:
@@ -128,6 +156,14 @@
               export DB2INSTANCE="{{ tsm_user }}"
               dsmserv runfile setup.mac
             chdir: "{{ root_dir }}/tsminst1"
+          when: not admin_user_setup.stat.exists
+
+        - name: Mark admin user setup as completed
+          ansible.builtin.file:
+            path: "{{ root_dir }}/tsminst1/.admin_user_setup_done"
+            state: touch
+          when: not admin_user_setup.stat.exists
+
 
         - name: Ensure DB2 environment initialization in .profile
           ansible.builtin.lineinfile:
@@ -234,6 +270,4 @@
 
     - name: Stop execution of the role
       meta: end_play
-
-#    need to add end play
 ...
