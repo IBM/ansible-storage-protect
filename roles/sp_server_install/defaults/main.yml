@@ -24,6 +24,7 @@ tsm_user: "tsminst1"
 tsm_user_uid: "10001"
 tsm_user_password: ""
 sp_server_active_log_size: 17000
+sp_server_action: "install"
 offerings:
   server: true
 #  license: true

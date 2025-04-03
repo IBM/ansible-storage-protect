@@ -17,6 +17,56 @@
       ansible.builtin.include_tasks: sp_server_configuration_linux.yml
       when: sp_server_action is defined and sp_server_action == "configure"
 
+- name: Perform Prechecks before upgrading sp server
+  when: sp_server_state == "upgrade"
+  block:
+    - name: Extract the sp server from installed packages
+      ansible.builtin.set_fact:
+        sp_server_installed: "{{ sp_server_installed_components | select('search', 'com.tivoli.dsm.server_') | list }}"
+      when: imcl_output_lines | length > 0
+
+    - name: Store the server package string if found
+      ansible.builtin.set_fact:
+        sp_server_package: "{{ sp_server_installed[0] | string }}"
+      when: sp_server_installed is defined and sp_server_installed | length > 0
+
+    - name: Extract installed SP server version using regex
+      ansible.builtin.set_fact:
+        installed_sp_version: "{{ sp_server_package | regex_search('com\\.tivoli\\.dsm\\.server_([\\d]+\\.[\\d]+\\.[\\d]+)', '\\1') | first | string }}"
+      when: sp_server_installed is defined and sp_server_installed | length > 0
+
+    - name: Debug extracted installed SP server version
+      ansible.builtin.debug:
+        msg: "Installed SP server version is {{ installed_sp_version }}"
+      when: installed_sp_version is defined
+
+    - name: Convert installed SP version to a list of integers
+      ansible.builtin.set_fact:
+        installed_sp_version_list: "{{ installed_sp_version.split('.') | map('int') | list }}"
+      when: installed_sp_version is defined and installed_sp_version | length > 0
+
+    - name: Convert passed SP version to a list of integers
+      ansible.builtin.set_fact:
+        sp_server_version_list: "{{ sp_server_version.split('.') | map('int') | list }}"
+
+    #- name: Debug version lists
+    #  ansible.builtin.debug:
+    #    msg: "Installed version list: {{ installed_sp_version_list }}, Passed version list: {{ sp_server_version_list }}"
+
+    - name: Set sp_server_action to upgrade if user-passed version is greater than installed version
+      ansible.builtin.set_fact:
+        sp_server_action: "upgrade"
+      when:
+        - installed_sp_version_list is defined
+        - sp_server_version_list > installed_sp_version_list
+
+    - name: Fail if installed version is greater than or equal to user-passed version
+      ansible.builtin.fail:
+        msg: "Installed SP server version ({{ installed_sp_version }}) is greater than or equal to the passed version ({{ sp_server_version }}). Upgrade not required."
+      when:
+        - not (sp_server_version_list > installed_sp_version_list)
+
+
 - name: Finding SP Server binary locally
   ansible.builtin.find:
     paths: "{{ sp_server_bin_repo }}"
@@ -38,6 +88,13 @@
   when: file_status.matched > 0
   delegate_to: localhost
 
+- name: Debug the binary path
+  debug:
+    var: sp_server_binary_file_path
+
+- name: Debug binary path
+  debug:
+    msg: sp_server_binary_file_path
 - name: Gathering system info for compatibility checks
   ansible.builtin.include_role:
     name: system_info
@@ -76,66 +133,6 @@
       Architecture Found: {{ architecture_compatible }} 
       Current Available Disk Space: {{ avail_disk_space }}
   when: not (architecture_compatible and avail_disk_space)
-
-# If sp server is already installed, installed version and user passed version will be compared.
-# - if user_passed_version > already installed, action is set to upgrade.
-# - if both the versions are equal, playbook stops the execution.
-# - if no sp server is installed , action is set to install.
-
-- name: Loading environment variables and checking version with dsmserv
-  ansible.builtin.shell: |
-    source /home/{{ tsm_user }}/sqllib/db2profile
-    dsmserv -v
-  args:
-    chdir: /{{ root_dir }}/{{ tsm_user }}
-  register: dsmserv_output
-  changed_when: false
-  ignore_errors: yes  # Ignore errors if dsmserv is not found
-
-- name: Set action to install if dsmserv fails or SP server is not installed
-  ansible.builtin.set_fact:
-    sp_server_action: "install"
-  when: dsmserv_output.rc != 0
-
-- name: Extract version components by searching for 'Version', 'Release', and 'Level'
-  ansible.builtin.set_fact:
-    major_version: "{{ dsmserv_output.stdout | regex_search('Version (\\d+)') }}"
-    release_version: "{{ dsmserv_output.stdout | regex_search('Release (\\d+)') }}"
-    level_version: "{{ dsmserv_output.stdout | regex_search('Level (\\d+)') }}"
-  when: dsmserv_output.rc == 0
-
-- name: Combine version components into a full version string
-  ansible.builtin.set_fact:
-    extracted_version: "{{ major_version | regex_replace('\\D', '') }}.{{ release_version | regex_replace('\\D', '') }}.{{ level_version | regex_replace('\\D', '') }}"
-  when: dsmserv_output.rc == 0
-
-- name: Convert extracted version into a list of integers
-  ansible.builtin.set_fact:
-    extracted_version_list: "{{ extracted_version.split('.') | map('int') | list }}"
-  when: dsmserv_output.rc == 0
-
-- name: Convert passed version into a list of integers
-  ansible.builtin.set_fact:
-    passed_version_list: "{{ sp_server_version.split('.') | map('int') | list }}"
-  when: dsmserv_output.rc == 0
-
-- name: Compare extracted version and passed version
-  ansible.builtin.fail:
-    msg: "The already installed version ({{ extracted_version_list }}) is greater than the specified version ({{ passed_version_list }})."
-  when:
-    - dsmserv_output.rc == 0
-    - extracted_version_list is defined
-    - passed_version_list is defined
-    - extracted_version_list >= passed_version_list
-
-- name: Set action to upgrade if passed version is greater than extracted version
-  ansible.builtin.set_fact:
-    sp_server_action: "upgrade"
-  when:
-    - dsmserv_output.rc == 0
-    - extracted_version_list is defined
-    - passed_version_list is defined
-    - extracted_version_list < passed_version_list
 
 - name: Set the directory for installation
   ansible.builtin.set_fact:

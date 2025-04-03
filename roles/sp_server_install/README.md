@@ -48,6 +48,7 @@ offerings:
    - If no version is installed, it proceeds with installation.
 4. Installs the SP Server if the system meets the requirements.
 5. If Installation fails completely or for some components, the system is rolled-back to previous state and removes the components which were installed.
+6. If Server is already installed and role is executed with state as `present`, then role will configure the server.
 
 ### When `sp_server_state` is `upgrade`:
 1. Checks the installed version and determines if an upgrade is necessary.
@@ -86,8 +87,6 @@ ansible-playbook -i inventory.ini playbooks/sp_server_uninstall.yml --extra-vars
 - **Operating System**: Linux (x86_64 architecture).
 - **Disk Space**: Minimum 40000 MB free on the remote machine. Additional Memory will be required based on the value of `sp_server_active_log_size`.
 - The playbook should be executed with `become: true`.
-- Before performing upgrade, make sure the server is configured. Since role dynamically checks the version of SP Server and performs upgrade. If Server is not configured then role fails to fetch SP Server version.
-- 'ssl_password' should be 
 - Install the following collections from ansible galaxy on control node.
 ```bash
   ansible-galaxy collection install ansible.posix

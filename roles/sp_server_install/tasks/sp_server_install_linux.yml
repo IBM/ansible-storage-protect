@@ -11,6 +11,14 @@
         state: directory
         mode: '0755'
 
+    - name: Debug the binary path
+      debug:
+        var: sp_server_temp_dest
+
+    - name: Debug binary path
+      debug:
+        msg: sp_server_temp_dest
+
     - name: Install required packages on remote VMs
       ansible.builtin.package:
         name:
@@ -63,7 +71,6 @@
       args:
         chdir: "{{ sp_server_temp_dest }}"
       register: sp_server_installation_result
-
 
     - name: Verfiy Installation of sp server
       ansible.builtin.include_tasks: sp_server_postchecks_linux.yml
