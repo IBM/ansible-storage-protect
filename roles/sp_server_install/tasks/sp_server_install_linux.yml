@@ -79,14 +79,14 @@
         msg: |
           Following components were installed
           {{ installed_components }}
-      when: sp_server_installation_status == true and sp_server_action == "install"
+      when: imcl_output_lines | length > 0 and sp_server_action == "install"
 
     - name: SP Server Upgrade Success
       ansible.builtin.debug:
         msg: |
           Upgrade Successful
           {{ installed_components }}
-      when: sp_server_installation_status == true and sp_server_action == "upgrade"
+      when: imcl_output_lines | length > 0 and sp_server_action == "upgrade"
 
   rescue:
 #    - No rollback mechanism is needed if upgrade fails, since previous version is not uninstalled.
