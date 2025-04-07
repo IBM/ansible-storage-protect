@@ -77,7 +77,8 @@
     - name: SP Server Installation Success
       ansible.builtin.debug:
         msg: |
-          Following components were installed
+          Installation Successful
+          Version: {{ sp_server_version }}
           {{ installed_components }}
       when: imcl_output_lines | length > 0 and sp_server_action == "install"
 
@@ -85,6 +86,7 @@
       ansible.builtin.debug:
         msg: |
           Upgrade Successful
+          Version: {{ sp_server_version }}
           {{ installed_components }}
       when: imcl_output_lines | length > 0 and sp_server_action == "upgrade"
 
