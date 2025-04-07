@@ -77,12 +77,16 @@
 
     - name: SP Server Installation Success
       ansible.builtin.debug:
-        msg: "SP Server installed successfully"
+        msg: |
+          Following components were installed
+          {{ sp_server_installed_components }}
       when: sp_server_installation_status == true and sp_server_action == "install"
 
     - name: SP Server Upgrade Success
       ansible.builtin.debug:
-        msg: "SP Server upgraded successfully"
+        msg: |
+          Upgrade Successful
+          {{ sp_server_installed_components }}
       when: sp_server_installation_status == true and sp_server_action == "upgrade"
 
   rescue:
