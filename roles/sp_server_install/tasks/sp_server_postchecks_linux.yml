@@ -26,4 +26,37 @@
     - imcl_output_lines | length > 0
     - imcl_output_lines | select('search', 'com.tivoli.dsm.server') | list | length > 0
 
+- name: Check if the OC package is installed
+  ansible.builtin.set_fact:
+    oc_installation_status: true
+  when:
+    - imcl_output_lines | length > 0
+    - imcl_output_lines | select('search', 'com.tivoli.dsm.gui') | list | length > 0
+
+- name: Check if the OSSM package is installed
+  ansible.builtin.set_fact:
+    ossm_installation_status: true
+  when:
+    - imcl_output_lines | length > 0
+    - imcl_output_lines | select('search', 'com.tivoli.dsm.ossm') | list | length > 0
+
+- name: Check if the Storage Agent package is installed
+  ansible.builtin.set_fact:
+    stagent_installation_status: true
+  when:
+    - imcl_output_lines | length > 0
+    - imcl_output_lines | select('search', 'com.tivoli.dsm.stagent') | list | length > 0
+
+- name: Creating list of installed SP Server components
+  ansible.builtin.set_fact:
+    installed_components: >-
+      {{
+        [
+          (sp_server_installation_status | default(false)) | ternary("SP Server", None),
+          (oc_installation_status | default(false)) | ternary("Operations Center", None),
+          (ossm_installation_status | default(false)) | ternary("OSSM", None),
+          (stagent_installation_status | default(false)) | ternary("Storage Agent", None)
+        ] | select('defined') | select() | list
+      }}
+
 ...

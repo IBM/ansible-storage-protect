@@ -64,7 +64,6 @@
         chdir: "{{ sp_server_temp_dest }}"
       register: sp_server_binary_status
 
-
     # Execute install.sh with the generated response.xml
     - name: Execute install.sh with response.xml
       ansible.builtin.command: "./install.sh -s -input {{ sp_server_temp_dest }}/response.xml -acceptLicense"
@@ -79,14 +78,14 @@
       ansible.builtin.debug:
         msg: |
           Following components were installed
-          {{ sp_server_installed_components }}
+          {{ installed_components }}
       when: sp_server_installation_status == true and sp_server_action == "install"
 
     - name: SP Server Upgrade Success
       ansible.builtin.debug:
         msg: |
           Upgrade Successful
-          {{ sp_server_installed_components }}
+          {{ installed_components }}
       when: sp_server_installation_status == true and sp_server_action == "upgrade"
 
   rescue:
