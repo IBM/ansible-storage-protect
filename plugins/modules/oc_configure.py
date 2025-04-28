@@ -49,7 +49,7 @@ def main():
     )
 
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
-    dsmadmc_adapter = DsmadmcAdapter()
+    dsmadmc_adapter = DsmadmcAdapter(argument_spec=argument_spec)
 
     admin_name = module.params['admin_name']
     action = module.params['action']
