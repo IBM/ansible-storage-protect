@@ -33,10 +33,12 @@ EXAMPLES='''
   ibm.storage_protect.oc_configure:
     admin_name: tsmuser1
     action: configure
+
 - name: Stop OC
   ibm.storage_protect.oc_configure:
     admin_name: tsmuser1
     action: stop
+
 - name: Start OC
   ibm.storage_protect.oc_configure:
     admin_name: tsmuser1
@@ -44,7 +46,7 @@ EXAMPLES='''
 '''
 def main():
     argument_spec = dict(
-        admin_name=dict(type='str', required=True),
+        admin_name=dict(type='str', required=False),
         action=dict(type='str', required=True, choices=['configure', 'restart', 'stop'])
     )
 
@@ -53,6 +55,9 @@ def main():
 
     admin_name = module.params['admin_name']
     action = module.params['action']
+
+    if action == 'configure' and not admin_name:
+        module.fail_json(msg="'admin_name' is required when action is 'configure'")
 
     rc, out, err = module.run_command('systemctl status opscenter.service')
 
