@@ -15,10 +15,10 @@ export STORAGE_PROTECT_PASSWORD="your_password"
 
 ## Role Variables
 
-| Variable     | Default | Description                           |
-|--------------|---------|---------------------------------------|
-| `admin_name` | ""      | OC admin username (only for configure) |
-| `action`     | restart | Action to perform (configure, restart, stop) |
+| Variable     | Default | Description                                          |
+|--------------|---------|------------------------------------------------------|
+| `admin_name` | ""      | OC admin username (Required, if action == configure) |
+| `action`     | restart | Action to perform (configure, restart, stop)         |
 
 ## Example Playbook
 
@@ -32,6 +32,22 @@ export STORAGE_PROTECT_PASSWORD="your_password"
       vars:
         admin_name: tsmadmin
         action: configure
+
+- name: Stop OC
+  hosts: localhost
+  become: yes
+  roles:
+    - role: oc_configure
+      vars:
+        action: stop
+
+- name: Configure OC
+  hosts: localhost
+  become: yes
+  roles:
+    - role: oc_configure
+      vars:
+        action: restart
 ```
 
 # Sample playbook is available in playbooks directory of ibm/storage_protect github repo
