@@ -1,0 +1,7 @@
+---
+- name: Perform OC operation
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  roles:
+    - ibm.storage_protect.oc_configure
+...
