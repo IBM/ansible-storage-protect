@@ -3,10 +3,11 @@
 ## Overview
 An Ansible role to configure, restart, or stop IBM Storage Protect Operations Center.
 
+## Requirements
+1. Client should be installed and registered with the server.
+
 ## Environment Variables
-
 Before running the playbook, set the following environment variables in your terminal:
-
 ```bash
 export STORAGE_PROTECT_SERVERNAME="your_server_name"
 export STORAGE_PROTECT_USERNAME="your_username"
