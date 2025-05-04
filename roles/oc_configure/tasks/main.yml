@@ -1,0 +1,4 @@
+- name: Perform OC operation
+  oc_configure:
+    admin_name: "{{ admin_name }}"
+    action: "{{ action }}"
