@@ -391,6 +391,7 @@ def main():
         split_large_objects=dict(type='bool', aliases=['splitlargeobject']),
         min_extent_size=dict(type='int', choices=[50, 250, 750], default=50, aliases=['minimumextentsize']),
         state=dict(choices=['present', 'absent', 'registered', 'deregistered', 'removed'], default='present'),
+        new_name=dict(type='str'),
     )
 
     required_by = {
@@ -404,6 +405,7 @@ def main():
 
     name = module.params.get('name')
     state = module.params.get('state')
+    new_name = module.params.get('new_name', None)
     exists, existing = module.find_one('node', name)
 
     if state == 'absent' or state == 'deregistered' or state == 'removed':
@@ -429,6 +431,36 @@ def main():
             module.fail_json(
                 msg=f"Node not found: {existing}"
             )
+
+    elif state == 'present':
+      # Check if node exists
+      if not exists:
+          module.fail_json(msg=f"Node {name} not found for renaming.")
+      
+      # Check if new name is provided
+      if not new_name.strip():
+          module.fail_json(msg="New name must be provided for renaming.")
+      
+      # Command to rename the node
+      command = f'rename node {name} {new_name}'
+      rc, op, err = module.run_command(command, auto_exit=False, exit_on_fail=False)
+      
+      # Check the result of the command
+      if rc == 0:
+          # Node successfully renamed
+          module.json_output['changed'] = True
+          module.json_output['message'] = f"Node {name} renamed to {new_name}."
+          module.json_output['output'] = op
+          module.exit_json(**module.json_output)
+      else:
+          # Rename failed
+          module.warn(f"Failed to rename node {name} to {new_name}. Error: {err}")
+          module.json_output['changed'] = False
+          module.fail_json(
+              msg=f"Failed to rename node {name} to {new_name}",
+              output=op,
+          )
+
     else:
         options_params = {
             'node_password_expiry': 'PASSExp',
