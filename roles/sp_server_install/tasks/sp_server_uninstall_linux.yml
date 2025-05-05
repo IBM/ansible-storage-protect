@@ -41,10 +41,10 @@
           {{
             [
               (offerings.server and sp_server_state == "absent") | ternary("SP Server", None),
-              (offerings.oc and oc_state == "absent") | ternary("Operations Center", None),
-              (offerings.ossm and ossm_state == "absent") | ternary("OSSM", None),
-              (offerings.stagent and stagent_state == "absent") | ternary("Storage Agent", None),
-              (offerings.devices and devices_state == "absent") | ternary("Devices", None)
+              (offerings.oc and sp_server_state == "absent") | ternary("Operations Center", None),
+              (offerings.ossm and sp_server_state == "absent") | ternary("OSSM", None),
+              (offerings.stagent and sp_server_state == "absent") | ternary("Storage Agent", None),
+              (offerings.devices and sp_server_state == "absent") | ternary("Devices", None)
             ] | select('defined') | list
           }}
   rescue:
