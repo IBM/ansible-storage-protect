@@ -28,10 +28,25 @@
         - "/tsm/server/*/*"
       when: sp_server_state == "absent"
 
+#    - name: Uninstallation Status
+#      ansible.builtin.debug:
+#        msg:
+#          - "Successfully uninstalled SP Server"
+
     - name: Uninstallation Status
       ansible.builtin.debug:
-        msg:
-          - "Successfully uninstalled SP Server"
+        msg: "Successfully uninstalled: {{ uninstalled_components | join(', ') }}"
+      vars:
+        uninstalled_components: >-
+          {{
+            [
+              (offerings.server and sp_server_state == "absent") | ternary("SP Server", None),
+              (offerings.oc and oc_state == "absent") | ternary("Operations Center", None),
+              (offerings.ossm and ossm_state == "absent") | ternary("OSSM", None),
+              (offerings.stagent and stagent_state == "absent") | ternary("Storage Agent", None),
+              (offerings.devices and devices_state == "absent") | ternary("Devices", None)
+            ] | select('defined') | list
+          }}
   rescue:
     - name: Uninstallation Failed
       ansible.builtin.debug:
