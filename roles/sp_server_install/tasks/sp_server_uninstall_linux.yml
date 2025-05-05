@@ -45,7 +45,7 @@
               (offerings.ossm and sp_server_state == "absent") | ternary("OSSM", ""),
               (offerings.stagent and sp_server_state == "absent") | ternary("Storage Agent", ""),
               (offerings.devices and sp_server_state == "absent") | ternary("Devices", "")
-            ] | select('defined') | list
+            ] | select('defined') | select() | list
           }}
   rescue:
     - name: Uninstallation Failed
