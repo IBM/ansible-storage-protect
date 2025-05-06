@@ -7,8 +7,6 @@
 from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
-
-
 ANSIBLE_METADATA = {'metadata_version': '1.1', 'status': ['preview'], 'supported_by': 'community'}
 
 
@@ -392,6 +390,7 @@ def main():
         min_extent_size=dict(type='int', choices=[50, 250, 750], default=50, aliases=['minimumextentsize']),
         state=dict(choices=['present', 'absent', 'registered', 'deregistered', 'removed'], default='present'),
         new_name=dict(type='str'),
+        remove_schedule=dict(type='bool'),
     )
 
     required_by = {
@@ -406,9 +405,34 @@ def main():
     name = module.params.get('name')
     state = module.params.get('state')
     new_name = module.params.get('new_name', None)
+    remove_schedule = module.params.get('remove_schedule', 'false')
     exists, existing = module.find_one('node', name)
 
-    if state == 'absent' or state == 'deregistered' or state == 'removed':
+    if remove_schedule:
+        # Remove the node from its schedule without decommissioning if the node exists
+        if exists:
+            schedules = module.params.get('schedules')
+            policy_domain = module.params.get('policy_domain')
+            node_schedules = []
+
+            if schedules:
+                for schedule in schedules:
+                  module.perform_action('delete', 'association', f'{policy_domain} {schedule} {name}', exists=True, auto_exit=False)
+
+                # Exit after deleting association
+                module.json_output['changed'] = True
+                module.json_output['message'] = f"Node {name} removed from its schedules."
+                module.exit_json(**module.json_output)
+            else:
+                module.json_output['changed'] = False
+                module.json_output['message'] = f"No schedules specified, nothing to remove for node {name}."
+                module.exit_json(**module.json_output)
+        else:
+            module.fail_json(
+                msg=f"Node {name} not found: {existing}"
+            )
+
+    elif state == 'absent' or state == 'deregistered' or state == 'removed':
         # Step 1: Decommission node if node exists
         if exists:
             command = f'decommission node {name}'
