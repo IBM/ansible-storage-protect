@@ -81,13 +81,13 @@ def main():
     dsmadmc_adapter = DsmadmcAdapter(argument_spec=module_args)
 
     # Validate if a node is capable for LAN-Free data movement
-    if params['validate_lan_free']:
-        if not params['stg_agent_name'] or not params['node_name']:
-            module.fail_json(msg="For LAN-Free validation, both stg_agent_name and node_name must be provided.")
-
-        rc, std_out, std_err = module.run_command(f"./dsmsta", cwd=f"{params['stg_agent_bin_dir']}")
-        command = f"validate lanfree {params['node_name']} {params['stg_agent_name']}"
-        rc, std_out = dsmadmc_adapter.run_command(command)
+    # if params['validate_lan_free']:
+    #     if not params['stg_agent_name'] or not params['node_name']:
+    #         module.fail_json(msg="For LAN-Free validation, both stg_agent_name and node_name must be provided.")
+    #
+    #     rc, std_out, std_err = module.run_command(f"./dsmsta", cwd=f"{params['stg_agent_bin_dir']}")
+    #     command = f"validate lanfree {params['node_name']} {params['stg_agent_name']}"
+    #     rc, std_out = dsmadmc_adapter.run_command(command)
 
     if not all([params['stg_agent_name'], params['stg_agent_password'], params['stg_agent_hl_add'],
                     params['stg_agent_server_name'], params['ser_pass'], params['server_hl_address'], params['lladdress'],params['library'],
