@@ -155,12 +155,12 @@ def main():
     result['cmd'] = std_out
 
     # start stg agent
-    if params['start_stg_agent']:
-        rc, std_out, std_err = module.run_command(f"./dsmsta",cwd=f"{params['stg_agent_bin_dir']}")
-        if rc:
-            module.fail_json(msg="Failed to start the storage agent",std_err=std_err,std_out=std_out)
-        else:
-            result['stg_agent_started'] = True
+    # if params['start_stg_agent']:
+    #     rc, std_out, std_err = module.run_command(f"./dsmsta",cwd=f"{params['stg_agent_bin_dir']}")
+    #     if rc:
+    #         module.fail_json(msg="Failed to start the storage agent",std_err=std_err,std_out=std_out)
+    #     else:
+    #         result['stg_agent_started'] = True
 
     try:
         opt_lines = [
