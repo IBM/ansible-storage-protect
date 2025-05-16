@@ -1,0 +1,39 @@
+---
+- name: Install Python 3.9 on remote hosts and use it in Ansible
+  hosts: all
+  become: yes
+
+  vars:
+    python_version: "3.9.18"
+    python_install_prefix: "/opt/python{{ python_version }}"
+    python_bin_path: "{{ python_install_prefix }}/bin/python3"
+
+  tasks:
+    - name: Download Python source
+      get_url:
+        url: "https://www.python.org/ftp/python/{{ python_version }}/Python-{{ python_version }}.tgz"
+        dest: "/tmp/Python-{{ python_version }}.tgz"
+
+    - name: Extract Python source
+      unarchive:
+        src: "/tmp/Python-{{ python_version }}.tgz"
+        dest: "/tmp/"
+        remote_src: yes
+
+    - name: Compile and install Python
+      shell: |
+        cd /tmp/Python-{{ python_version }} && \
+        ./configure --prefix={{ python_install_prefix }} --enable-optimizations && \
+        make -j $(nproc) && \
+        make altinstall
+      args:
+        creates: "{{ python_bin_path }}"
+
+    - name: Set fact for new Python path
+      set_fact:
+        ansible_python_interpreter: "{{ python_bin_path }}"
+
+    - name: Use new Python interpreter
+      debug:
+        msg: "Now using Python interpreter at {{ ansible_python_interpreter }}"
+
