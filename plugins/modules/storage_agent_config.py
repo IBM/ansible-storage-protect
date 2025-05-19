@@ -11,7 +11,6 @@ description:
   - This module configures the IBM Storage Protect Storage Agent
   - Module executes the required dsmadmc commands to enable the communication between storage agent and server.
   - Module configures storage agent by executing setstorageserver command on client and adds required parameters in dsmsta.opt and dsm.sys file
-
 options:
     stg_agent_name:
         description:
