@@ -41,8 +41,8 @@ The following variables can be configured:
 - If `validate_lan_free` is `true`, the role only runs a validation to check the LAN-Free configuration and does not make any configuration changes. Make sure while configuring the storage agent , `validate_lan_free` is `false`.
 
 ### Prerequisites on target nodes
-1. BA client should be installed and configured to communicate with SP server. (Can be installed using ibm.storage_protect.ba_client_install)
-2. Storage agent should be installed. (Can be installed using ibm.storage_protect.sp_server_install.)
+1. BA client should be installed and configured to communicate with SP server. (Use ibm.storage_agent.ba_client_install)
+2. Storage agent should be installed. (Use ibm.storage_agent.sp_server_install)
 3. Refer the documentation of respective roles for detailed information. Sample playbooks are available in playbooks section/directory.
 4. A lanfree capable storage pool should be created on the server, required for `stg_pool` directive of module.
 
