@@ -231,7 +231,7 @@ def main():
     if not params['validate_lan_free']:
         rc,std_out,std_err = module.run_command('cp dsmsta.opt.smp dsmsta.opt', cwd=f"{params['stg_agent_bin_dir']}")
         if rc:
-            module.fail_json(msg="Failed", std_err=std_err, std_out=std_out)
+            module.fail_json(msg="Failed to copy dsmsta.opt.smp file", std_err=std_err, std_out=std_out)
 
     dsmadmc_adapter = DsmadmcAdapter(argument_spec=module_args)
 
@@ -293,7 +293,7 @@ def main():
         rc, std_out, std_err = dsmadmc_adapter.run_command(cmd,auto_exit=False)
         result[cmd] = f'{std_out}\n'
         if rc!=10 and rc!=0:
-            module.fail_json(msg=f"Command failed here2: {cmd}\nError: {std_out}")
+            module.fail_json(msg=f"Failed to execute: {cmd}\nError: {std_err}, std_out: {std_out}")
 
     # setup server to server communication
     server_to_server_communication = [
@@ -307,14 +307,14 @@ def main():
         rc, std_out, std_err = dsmadmc_adapter.run_command(cmd,auto_exit=False)
         result[cmd] = f'{std_out}\n'
         if rc:
-            module.fail_json(msg=f"Command failed here: {cmd}\nError: {std_out}")
+            module.fail_json(msg=f"Failed to execute:  {cmd}\nError: {std_err}")
 
 
     setstorageserver_command = f"./dsmsta setstorageserver myname={params['stg_agent_name']} mypassword={params['stg_agent_password']} myhladdress={params['stg_agent_hl_add']} servername={params['stg_agent_server_name']} serverpassword={params['server_password']} hladdress={params['server_hl_address']} lladdress={params['server_tcp_port']} ssl=yes"
 
     rc, std_out, std_err = module.run_command(setstorageserver_command, cwd=f"{params['stg_agent_bin_dir']}")
     if rc:
-        module.fail_json(msg="Failed", std_err=std_err, std_out=std_out)
+        module.fail_json(msg="setstorageserver command failed", std_err=std_err, std_out=std_out)
     result[setstorageserver_command] = f'{std_out}\n'
 
     try:
@@ -349,7 +349,7 @@ def main():
     except Exception as e:
         module.fail_json(msg=f"Failed to update dsm.sys: {str(e)}")
 
-    module.exit_json(msg="Configured",result=result)
+    module.exit_json(msg="Configuration Completed",result=result)
 
 if __name__ == '__main__':
     main()
