@@ -20,7 +20,7 @@ Collection supports 3.9+
 ### IBM Storage Protect
 
 This collection supports IBM Storage Protect versions >= 8.1.23.
-The Storage Protect Client (including dsmadmc CLI) must be pre-installed in the target client-node.
+The Storage Protect Client (including dsmadmc CLI) must be pre-installed in the target client-node for schedule,node,oc_configure,sp_server_facts and storage_agent modules.
 Refer to [IBM documentation](https://www.ibm.com/docs/en/storage-protect/8.1.24?topic=windows-install-unix-linux-backup-archive-clients) for more details
 
 ## Installation

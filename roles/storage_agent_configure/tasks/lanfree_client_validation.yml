@@ -1,0 +1,10 @@
+- name: Validate lanfree
+  storage_agent_config:
+    validate_lan_free: true
+    node_name: "{{ node_name }}"
+    stg_agent_name: "{{ stg_agent_name }}"
+  register: lanfree_out
+
+- name: Debug output result
+  debug:
+    msg: "{{ lanfree_out }}"

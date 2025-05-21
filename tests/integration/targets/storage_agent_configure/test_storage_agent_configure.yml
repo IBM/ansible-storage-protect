@@ -1,0 +1,45 @@
+---
+- name: Configure Storage Agent
+  hosts: all
+  become: yes
+  environment:
+    STORAGE_PROTECT_SERVERNAME: "server2"
+    STORAGE_PROTECT_USERNAME: "tsmuser1"
+    STORAGE_PROTECT_PASSWORD: "tsmuser1@@123456789"
+  roles:
+    - ibm.storage_protect.storage_agent_configure
+  vars:
+    stg_agent_name: "stgagent16"
+    stg_agent_password: "STGAGENT@123456789"
+    stg_agent_server_name: "server2"
+    stg_agent_hl_add: "9.11.69.158"
+    lladdress: "1502"
+    server_tcp_port: "1500"
+    server_hl_address: "9.47.89.61"
+    server_password: "ServerPassword@@12345"
+    stg_agent_path_name: "drv1"
+    stg_agent_path_dest: "drive"
+    library: "MSLG3LIB"
+    device: "/dev/sg1"
+    copygroup_domain: "lanfreedomain"
+    copygroup_policyset: "standard"
+    copygroup_mngclass: "LANFREEMGMT"
+    copygroup_destination: "LANFREEPOOL"
+    validate_lan_free: false
+    node_name: "lanfreeclient"
+    stg_pool: "LANFREEPOOL"
+
+- name: Validate lanfree
+  hosts: all
+  become: yes
+  environment:
+    STORAGE_PROTECT_SERVERNAME: "server2"
+    STORAGE_PROTECT_USERNAME: "tsmuser1"
+    STORAGE_PROTECT_PASSWORD: "tsmuser1@@123456789"
+  roles:
+    - ibm.storage_protect.storage_agent_configure
+  vars:
+    validate_lan_free: false
+    node_name: "lanfreeclient"
+    stg_agent_name: "stgagent16"
+    max_attempts: 2
