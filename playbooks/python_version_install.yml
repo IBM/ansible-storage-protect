@@ -1,39 +1,119 @@
 ---
-- name: Install Python 3.9 on remote hosts and use it in Ansible
+- name: Install Python 3.9+ on AIX, pLinux, zLinux, and Windows
   hosts: all
   become: yes
+  gather_facts: yes
 
   vars:
     python_version: "3.9.18"
-    python_install_prefix: "/opt/python{{ python_version }}"
-    python_bin_path: "{{ python_install_prefix }}/bin/python3"
+    python_major_minor: "3.9"
+    install_dir: "/opt/python{{ python_major_minor }}"
 
   tasks:
-    - name: Download Python source
-      get_url:
-        url: "https://www.python.org/ftp/python/{{ python_version }}/Python-{{ python_version }}.tgz"
-        dest: "/tmp/Python-{{ python_version }}.tgz"
-
-    - name: Extract Python source
-      unarchive:
-        src: "/tmp/Python-{{ python_version }}.tgz"
-        dest: "/tmp/"
-        remote_src: yes
-
-    - name: Compile and install Python
-      shell: |
-        cd /tmp/Python-{{ python_version }} && \
-        ./configure --prefix={{ python_install_prefix }} --enable-optimizations && \
-        make -j $(nproc) && \
-        make altinstall
-      args:
-        creates: "{{ python_bin_path }}"
-
-    - name: Set fact for new Python path
+    - name: Set platform-specific flags
       set_fact:
-        ansible_python_interpreter: "{{ python_bin_path }}"
+        is_aix: "{{ ansible_system == 'AIX' }}"
+        is_windows: "{{ ansible_os_family == 'Windows' }}"
+        is_linux_x86: "{{ ansible_architecture == 'x86_64' }}"
+        is_linux_power: "{{ ansible_architecture == 'ppc64le' }}"
+        is_linux_z: "{{ ansible_architecture == 's390x' }}"
 
-    - name: Use new Python interpreter
-      debug:
-        msg: "Now using Python interpreter at {{ ansible_python_interpreter }}"
+    ####################################################################
+    # WINDOWS BLOCK
+    ####################################################################
+    - name: Install Python 3.9 on Windows
+      block:
+        - name: Create temp directory
+          win_file:
+            path: C:\Temp
+            state: directory
 
+        - name: Download Python installer
+          win_get_url:
+            url: "https://www.python.org/ftp/python/{{ python_version }}/python-{{ python_version }}-amd64.exe"
+            dest: "C:\\Temp\\python-{{ python_version }}.exe"
+
+        - name: Install Python silently
+          win_package:
+            path: "C:\\Temp\\python-{{ python_version }}.exe"
+            arguments: /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
+            product_id: "Python {{ python_version }}"
+
+        - name: Verify Python install
+          win_command: "C:\\Program Files\\Python{{ python_major_minor | replace('.', '') }}\\python.exe --version"
+          register: win_python_check
+
+        - name: Show installed Python version (Windows)
+          debug:
+            var: win_python_check.stdout
+      when: is_windows
+
+    ####################################################################
+    # AIX BLOCK
+    ####################################################################
+    - name: Install Python 3.9 on AIX
+      block:
+        - name: Download Python RPM for AIX
+          get_url:
+            url: "http://public.dhe.ibm.com/aix/freeSoftware/aixtools/python/python-{{ python_version }}-1.aix7.1.ppc.rpm"
+            dest: "/tmp/python-{{ python_version }}.rpm"
+
+        - name: Install Python RPM
+          shell: rpm -ivh /tmp/python-{{ python_version }}.rpm
+          args:
+            creates: "/opt/freeware/bin/python{{ python_major_minor }}"
+
+        - name: Verify Python install
+          shell: "/opt/freeware/bin/python{{ python_major_minor }} --version"
+          register: aix_python_check
+          changed_when: false
+
+        - name: Show installed Python version (AIX)
+          debug:
+            var: aix_python_check.stdout
+      when: is_aix
+
+    ####################################################################
+    # LINUX (x86_64, pLinux, zLinux)
+    ####################################################################
+    - name: Install Python 3.9 on Linux (x86_64, Power, Z)
+      block:
+        - name: Install dependencies
+          package:
+            name:
+              - gcc
+              - openssl-devel
+              - wget
+              - make
+              - tar
+            state: present
+
+        - name: Download Python source
+          get_url:
+            url: "https://www.python.org/ftp/python/{{ python_version }}/Python-{{ python_version }}.tgz"
+            dest: "/tmp/Python-{{ python_version }}.tgz"
+
+        - name: Extract Python source
+          unarchive:
+            src: "/tmp/Python-{{ python_version }}.tgz"
+            dest: /tmp
+            remote_src: yes
+
+        - name: Build and install Python
+          shell: |
+            cd /tmp/Python-{{ python_version }}
+            ./configure --prefix={{ install_dir }} --enable-optimizations
+            make -j2
+            make altinstall
+          args:
+            creates: "{{ install_dir }}/bin/python{{ python_major_minor }}"
+
+        - name: Verify Python install
+          shell: "{{ install_dir }}/bin/python{{ python_major_minor }} --version"
+          register: linux_python_check
+          changed_when: false
+
+        - name: Show installed Python version (Linux)
+          debug:
+            var: linux_python_check.stdout
+      when: is_linux_x86 or is_linux_power or is_linux_z
