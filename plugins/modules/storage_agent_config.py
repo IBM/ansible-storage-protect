@@ -228,7 +228,7 @@ def main():
     module.run_command(f"pkill -f {params['stg_agent_bin_dir']}/dsmsta", check_rc=False)
 
     # Checking availability of BA Client
-    utils.rpm_package_check("rpm -q TIVsm-BA")
+    utils.rpm_package_check("TIVsm-BA")
     # Checking availability of BA Client
     # rc, rpm_out, rpm_err = module.run_command("rpm -q TIVsm-BA")
     # if rc != 0:
