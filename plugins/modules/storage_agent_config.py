@@ -3,7 +3,7 @@ import os
 from ..module_utils.sp_utils import StorageProtectUtils
 from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
 
-DOCUMENTATION = '''
+DOCUMENTATION = r'''
 ---
 module: storage_agent_config
 author: "Sarthak Kshirsagar"
@@ -137,7 +137,7 @@ extends_documentation_fragment: ibm.storage_protect.auth
 ...
 '''
 
-EXAMPLES = '''
+EXAMPLES = r'''
 ---
 - name: Storage agent config
   hosts: all
