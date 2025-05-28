@@ -19,14 +19,14 @@ class StorageProtectUtils:
         Verifies that the IBM Storage Protect Server component is installed via Installation Manager.
 
         :param imcl_path: Path to the IMCL executable (Installation Manager).
-        :param package_prefix: Prefix used by IMCL to identify the Storage Agent package.
+        :param package_prefix: Prefix used by IMCL to identify the Storage Agent package (e.g. com.tivoli.dsm.stagent_ , com.tivoli.dsm.gui.offering_ , com.tivoli.dsm.ossm_).
         """
         cmd = f"{imcl_path} listinstalledpackages"
         rc, out, err = self.module.run_command(cmd)
         if rc != 0:
             self.module.fail_json(msg=f"Failed to query IMCL packages: {err.strip() or out.strip()}")
         if package_prefix.lower() not in out.lower():
-            self.module.fail_json(msg=f"Storage Agent package with prefix '{package_prefix}' not found.")
+            self.module.fail_json(msg=f"Server component with prefix '{package_prefix}' not found.")
 
     def rpm_package_check(self, package_name: str):
         """

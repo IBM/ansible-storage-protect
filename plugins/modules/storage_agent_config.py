@@ -215,24 +215,12 @@ def main():
     result = {}
 
     # Checking availability of Storage Agent via Installation Manager
-    # imcl_cmd = f"{params['imcl_path']} listinstalledpackages"
-    # rc, imcl_out, imcl_err = module.run_command(imcl_cmd)
-    # if rc != 0:
-    #     module.fail_json(msg=f"Failed to query installed packages: {imcl_err.strip() or imcl_out.strip()}")
-    #
-    # if "com.tivoli.dsm.stagent_" not in imcl_out.lower():
-    #     module.fail_json(msg="IBM Storage Protect Storage Agent is not installed.")
-    # Checking availability of Storage Agent via Installation Manager
     utils.server_component_check(imcl_path=f"{params['imcl_path']}",package_prefix="com.tivoli.dsm.stagent_")
 
     module.run_command(f"pkill -f {params['stg_agent_bin_dir']}/dsmsta", check_rc=False)
 
     # Checking availability of BA Client
     utils.rpm_package_check("TIVsm-BA")
-    # Checking availability of BA Client
-    # rc, rpm_out, rpm_err = module.run_command("rpm -q TIVsm-BA")
-    # if rc != 0:
-    #     module.fail_json(msg="BA client package 'TIVsm-BA' is not installed.")
 
     # copy the dsmsta.opt.smp to dsmsta.opt, required for setstorageserver command
     if not params['validate_lan_free']:
