@@ -1,7 +1,6 @@
 from ansible.module_utils.basic import AnsibleModule
 import os
-
-from plugins.module_utils.sp_utils import StorageProtectUtils
+from ..module_utils.sp_utils import StorageProtectUtils
 from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
 
 DOCUMENTATION = '''

@@ -1,4 +1,3 @@
-## File: plugins/module_utils/storage_protect_utils.py
 """
  Utilities for IBM Storage Protect Ansible modules.
 """
