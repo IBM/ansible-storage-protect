@@ -1,5 +1,7 @@
 from ansible.module_utils.basic import AnsibleModule
 import os
+
+from plugins.module_utils.sp_utils import StorageProtectUtils
 from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
 
 DOCUMENTATION = '''
@@ -53,18 +55,18 @@ options:
         type: ''
         default: ''
     stg_agent_path_name:
-      description:
-        - Name to assign to the path when defining the SCSI path on the TSM server.
-        - (for example “drv1”, “drv2”) is used in DEFINE PATH commands.
-      type: str
-      required: false
+        description:
+          - Name to assign to the path when defining the SCSI path on the TSM server.
+          - (for example “drv1”, “drv2”) is used in DEFINE PATH commands.
+        type: str
+        required: false
 
     stg_agent_path_dest:
       description:
         - Destination type for the SCSI path on the TSM server.
         - Valid values are “drive” (for tape drives) or “library” (for the tape changer).
-    type: str
-    required: false
+      type: str
+      required: false
 
     library:
       description:
@@ -209,23 +211,29 @@ def main():
         )
 
     module = AnsibleModule(argument_spec=module_args)
+    utils = StorageProtectUtils(module)
     params = module.params
     result = {}
 
     # Checking availability of Storage Agent via Installation Manager
-    imcl_cmd = f"{params['imcl_path']} listinstalledpackages"
-    rc, imcl_out, imcl_err = module.run_command(imcl_cmd)
-    if rc != 0:
-        module.fail_json(msg=f"Failed to query installed packages: {imcl_err.strip() or imcl_out.strip()}")
-
-    if "com.tivoli.dsm.stagent_" not in imcl_out.lower():
-        module.fail_json(msg="IBM Storage Protect Storage Agent is not installed.")
+    # imcl_cmd = f"{params['imcl_path']} listinstalledpackages"
+    # rc, imcl_out, imcl_err = module.run_command(imcl_cmd)
+    # if rc != 0:
+    #     module.fail_json(msg=f"Failed to query installed packages: {imcl_err.strip() or imcl_out.strip()}")
+    #
+    # if "com.tivoli.dsm.stagent_" not in imcl_out.lower():
+    #     module.fail_json(msg="IBM Storage Protect Storage Agent is not installed.")
+    # Checking availability of Storage Agent via Installation Manager
+    utils.server_component_check(imcl_path=f"{params['imcl_path']}",package_prefix="com.tivoli.dsm.stagent_")
 
     module.run_command(f"pkill -f {params['stg_agent_bin_dir']}/dsmsta", check_rc=False)
+
     # Checking availability of BA Client
-    rc, rpm_out, rpm_err = module.run_command("rpm -q TIVsm-BA")
-    if rc != 0:
-        module.fail_json(msg="BA client package 'TIVsm-BA' is not installed.")
+    utils.rpm_package_check("rpm -q TIVsm-BA")
+    # Checking availability of BA Client
+    # rc, rpm_out, rpm_err = module.run_command("rpm -q TIVsm-BA")
+    # if rc != 0:
+    #     module.fail_json(msg="BA client package 'TIVsm-BA' is not installed.")
 
     # copy the dsmsta.opt.smp to dsmsta.opt, required for setstorageserver command
     if not params['validate_lan_free']:
