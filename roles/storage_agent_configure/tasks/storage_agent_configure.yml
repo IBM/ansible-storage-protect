@@ -1,0 +1,26 @@
+- name: Configure client
+  storage_agent_config:
+    stg_agent_name: "{{ stg_agent_name }}"
+    stg_agent_password: "{{ stg_agent_password }}"
+    stg_agent_server_name: "{{ stg_agent_server_name }}"
+    stg_agent_hl_add: "{{ stg_agent_hl_add }}"
+    lladdress: "{{ lladdress }}"
+    server_tcp_port: "{{ server_tcp_port }}"
+    server_hl_address: "{{ server_hl_address }}"
+    server_password: "{{ server_password }}"
+    stg_agent_path_name: "{{ stg_agent_path_name }}"
+    stg_agent_path_dest: "{{ stg_agent_path_dest }}"
+    library: "{{ library }}"
+    device: "{{ device }}"
+    copygroup_domain: "{{ copygroup_domain }}"
+    copygroup_policyset: "{{ copygroup_policyset }}"
+    copygroup_mngclass: "{{ copygroup_mngclass }}"
+    copygroup_destination: "{{ copygroup_destination }}"
+    validate_lan_free: false
+    node_name: "{{ node_name }}"
+    stg_pool: "{{ stg_pool }}"
+  register: stg_agent_config_result
+
+- name: Debug output result
+  debug:
+    msg: "{{ stg_agent_config_result }}"
