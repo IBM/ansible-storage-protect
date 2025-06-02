@@ -5,12 +5,27 @@
   register: ba_client_check
   ignore_errors: true
   changed_when: false
+  when: not (is_apionly | default(false))
 
 # Displaying the installation status ( if ba client is installed and still users passes the ba_client_action as install, playbook will terminate )
 - name: Display BA Client status
   ansible.builtin.debug:
     msg: "BA Client is already installed. Skipping installation. Installed Version -> {{ ba_client_check.stdout }}"
-  when: ba_client_check is defined and ba_client_check.rc == 0 and ba_client_action == "install"
+  when: ba_client_check is defined and ba_client_check.rc == 0 and ba_client_action == "install" and not (is_apionly | default(false))
+
+# Check if API is already installed
+- name: Check if API is already installed
+  ansible.builtin.command: rpm -q TIVsm-API64
+  register: ba_client_check
+  ignore_errors: true
+  changed_when: false
+  when: is_apionly
+  
+# Displaying the installation status ( if api only is installed and still users passes the ba_client_action as install, playbook will terminate )
+- name: Display API status
+  ansible.builtin.debug:
+    msg: "API is already installed. Skipping installation. Installed Version -> {{ ba_client_check.stdout }}"
+  when: ba_client_check is defined and ba_client_check.rc == 0 and ba_client_action == "install" and is_apionly
 
 # Skipping the installation if BA Client is already installed
 - name: Fail or Skip Installation
@@ -165,28 +180,32 @@
   register: check_ba
   ignore_errors: true
   changed_when: false
+  when: not (is_apionly | default(false))
 
 - name: Checking if BAcit package is installed or not
   ansible.builtin.command: rpm -q TIVsm-BAcit
   register: check_bacit
   ignore_errors: true
   changed_when: false
+  when: not (is_apionly | default(false))
 
 - name: Checking if BAhdw package is installed or not
   ansible.builtin.command: rpm -q TIVsm-BAhdw
   register: check_bahdw
   ignore_errors: true
   changed_when: false
+  when: not (is_apionly | default(false))
 
 - name: Checking if WEBGUI package is installed or not
   ansible.builtin.command: rpm -q TIVsm-WEBGUI
   register: check_webgui
   ignore_errors: true
   changed_when: false
+  when: not (is_apionly | default(false))
 
 # ===== Installing packages in sequence =====
 
-- name: Installing packages
+- name: Installing API packages
   block:
     # Installing GSKit crypt library (gskcrypt)
     - name: Install GSKit crypt library (gskcrypt)
@@ -231,6 +250,8 @@
       ignore_errors: false
       changed_when: apicit_install_result.rc == 0
 
+- name: Installing BA packages
+  block:
     # Installing BA packages (TIVsm-BA, TIVsm-BAcit)
     - name: Install BA package
       ansible.builtin.command: "rpm -ivh  {{ item }}"
@@ -263,6 +284,7 @@
       register: webgui_install_result
       ignore_errors: false
       changed_when: webgui_install_result.rc == 0
+  when: not (is_apionly | default(false))
 
 #    ==== if any error occurs while installing the packages =====
 #  ===  like if package is corrupted , then role will uninstall all the packages which were installed in previous step ===
@@ -279,6 +301,16 @@
           - "TIVsm-API64"
           - "gskssl64"
           - "gskcrypt64"
+      when: not (is_apionly | default(false))
+    
+    - name: Define API package uninstall order
+      ansible.builtin.set_fact:
+        uninstall_packages:
+          - "TIVsm-APIcit"
+          - "TIVsm-API64"
+          - "gskssl64"
+          - "gskcrypt64"
+      when: is_apionly
 
     - name: Debug all registered variables
       ansible.builtin.debug:
@@ -287,10 +319,10 @@
           gskssl_install_result: {{ gskssl_install_result | default('undefined') }}
           api64_install_result: {{ api64_install_result | default('undefined') }}
           apicit_install_result: {{ apicit_install_result | default('undefined') }}
-          ba_install_result: {{ ba_install_result | default('undefined') }}
-          bacit_install_result: {{ bacit_install_result | default('undefined') }}
-          bahdw_install_result: {{ bahdw_install_result | default('undefined') }}
-          webgui_install_result: {{ webgui_install_result | default('undefined') }}
+          ba_install_result: {{ ba_install_result | default('undefined') if not (is_apionly | default(false)) else 'N/A' }}
+          bacit_install_result: {{ bacit_install_result | default('undefined') if not (is_apionly | default(false)) else 'N/A' }}
+          bahdw_install_result: {{ bahdw_install_result | default('undefined') if not (is_apionly | default(false)) else 'N/A' }}
+          webgui_install_result: {{ webgui_install_result | default('undefined') if not (is_apionly | default(false)) else 'N/A' }}
 
 #    - name: Identify reason for failure
 #      ansible.builtin.set_fact:
@@ -345,9 +377,9 @@
           gskssl_install_result: {{ gskssl_install_result | default('undefined') }}
           api64_install_result: {{ api64_install_result | default('undefined') }}
           apicit_install_result: {{ apicit_install_result | default('undefined') }}
-          ba_install_result: {{ ba_install_result | default('undefined') }}
-          bacit_install_result: {{ bacit_install_result | default('undefined') }}
-          bahdw_install_result: {{ bahdw_install_result | default('undefined') }}
+          ba_install_result: {{ ba_install_result | default('undefined') if not (is_apionly | default(false)) else 'N/A' }}
+          bacit_install_result: {{ bacit_install_result | default('undefined') if not (is_apionly | default(false)) else 'N/A' }}
+          bahdw_install_result: {{ bahdw_install_result | default('undefined') if not (is_apionly | default(false)) else 'N/A' }}
 
       when: ba_client_action == "install"
 
@@ -357,16 +389,37 @@
   register: installation_check
   ignore_errors: true
   changed_when: installation_check.rc == 0
+  when: not (is_apionly | default(false))
 
 - name: Display BA Client installation status
   ansible.builtin.debug:
     msg: |
       BA Client {{ ba_client_version }} installation status: {{ "Installed Successfully" if installation_check.rc == 0 else "Not Installed" }}
+  when: not (is_apionly | default(false))
 
 - name: Mark install.yml as failed if verification fails
   ansible.builtin.fail:
     msg: "BA Client installation verification failed. Please check logs."
-  when: installation_check.rc != 0 and ba_client_action == "install"
+  when: installation_check.rc != 0 and ba_client_action == "install" and not (is_apionly | default(false))
+
+# ============ Post-checks to verify the installation of api ==========
+- name: Verify API installation
+  ansible.builtin.command: rpm -q TIVsm-API64
+  register: installation_check
+  ignore_errors: true
+  changed_when: installation_check.rc == 0
+  when: is_apionly
+
+- name: Display API installation status
+  ansible.builtin.debug:
+    msg: |
+      API {{ ba_client_version }} installation status: {{ "Installed Successfully" if installation_check.rc == 0 else "Not Installed" }}
+  when: is_apionly
+
+- name: Mark install.yml as failed if verification fails
+  ansible.builtin.fail:
+    msg: "API installation verification failed. Please check logs."
+  when: installation_check.rc != 0 and ba_client_action == "install" and is_apionly
 
 # ============ 'is_installation_successful' fact is used in ba_client_upgrade_linux.yml =======
 

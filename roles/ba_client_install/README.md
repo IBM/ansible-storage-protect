@@ -17,6 +17,7 @@ The following variables can be configured in the `defaults.yml` file:
 | `ba_client_extract_dest`| `/opt/baClient`           | Destination directory for extracted BA Client files.                                                                            |
 | `ba_client_temp_dest`   | `/tmp/`                   | Temporary directory for transferring `.tar` files.                                                                              |
 | `ba_client_start_daemon`   | `false`                   | Specify whether to start the daemon after the upgrade.                                                                          |
+| `is_apionly`            | `false`                   | Specify whether to perform operations only for the API client (true for API-only mode).                                         |
 
 ## Role Workflow
 ### General Workflow

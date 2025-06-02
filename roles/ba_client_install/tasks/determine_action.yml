@@ -4,6 +4,14 @@
   register: installed_version_check
   ignore_errors: true
   changed_when: false
+  when: not (is_apionly | default(false))
+
+- name: Query the installed version of TIVsm-API
+  ansible.builtin.command: rpm -q TIVsm-API64
+  register: installed_version_check
+  ignore_errors: true
+  changed_when: false
+  when: is_apionly
 
 - name: Extract installed version
   ansible.builtin.set_fact:

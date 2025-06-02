@@ -1,21 +1,42 @@
 ---
 
-- name: Check if BA Client is installed before uninstall
-  ansible.builtin.command: rpm -q TIVsm-BA
-  register: ba_client_check
-  ignore_errors: true
-  changed_when: false
+- block:
+    - name: Check if BA Client is installed before uninstall
+      ansible.builtin.command: rpm -q TIVsm-BA
+      register: ba_client_check
+      ignore_errors: true
+      changed_when: false
 
-# Display a message if BA Client is not installed
-- name: Display message if BA Client is not installed
-  ansible.builtin.debug:
-    msg: "BA Client is not installed on the system. Skipping uninstall process."
-  when: ba_client_check.rc != 0
+    # Display a message if BA Client is not installed
+    - name: Display message if BA Client is not installed
+      ansible.builtin.debug:
+        msg: "BA Client is not installed on the system. Skipping uninstall process."
+      when: ba_client_check.rc != 0
 
-# Fail or Skip the Upgrade Play
-- name: Skip uninstall if BA Client is not installed
-  ansible.builtin.meta: end_play
-  when: ba_client_check.rc != 0
+    # Fail or Skip the Upgrade Play
+    - name: Skip uninstall if BA Client is not installed
+      ansible.builtin.meta: end_play
+      when: ba_client_check.rc != 0
+  when: not (is_apionly | default(false))
+
+- block:
+    - name: Check if API is installed before uninstall
+      ansible.builtin.command: rpm -q TIVsm-API64
+      register: ba_client_check
+      ignore_errors: true
+      changed_when: false
+
+    # Display a message if API is not installed
+    - name: Display message if API is not installed
+      ansible.builtin.debug:
+        msg: "API is not installed on the system. Skipping uninstall process."
+      when: ba_client_check.rc != 0
+
+    # Fail or Skip the Upgrade Play
+    - name: Skip uninstall if API is not installed
+      ansible.builtin.meta: end_play
+      when: ba_client_check.rc != 0
+  when: is_apionly 
 
 # Stop BA client processes
 - name: Stop BA client processes using killall
@@ -27,13 +48,24 @@
   changed_when: true
 
 # Backup dsm.opt and dsm.sys files
-- name: Check if dsm.opt and dsm.sys exist
+- name: Check if dsm.opt and dsm.sys exist in ba client
   ansible.builtin.stat:
     path: "{{ item }}"
   with_items:
     - "/opt/tivoli/tsm/client/ba/bin/dsm.opt"
     - "/opt/tivoli/tsm/client/ba/bin/dsm.sys"
   register: file_status
+  when: not (is_apionly | default(false))
+  
+
+- name: Check if dsm.opt and dsm.sys exist in api directory
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  with_items:
+    - "/opt/tivoli/tsm/client/api/bin64/dsm.opt"
+    - "/opt/tivoli/tsm/client/api/bin64/dsm.sys"
+  register: file_status
+  when: is_apionly
 
 - name: Create backup directory if not exists
   ansible.builtin.file:
@@ -84,6 +116,17 @@
       - "TIVsm-API64"
       - "gskssl64"
       - "gskcrypt64"
+  when: not (is_apionly | default(false))
+
+# Defining API uninstallation order since the packages are dependent on each other
+- name: Define API package uninstall order
+  ansible.builtin.set_fact:
+    uninstall_packages:
+      - "TIVsm-APIcit"
+      - "TIVsm-API64"
+      - "gskssl64"
+      - "gskcrypt64"
+  when: is_apionly
 
 # Checking if the packages are installed
 - name: Check for installed packages
@@ -137,6 +180,16 @@
           - TIVsm-BAcit
           - TIVsm-BAhdw
           - TIVsm-WEBGUI
+      when: not (is_apionly | default(false))
+
+    - name: Define API package reinstall order
+      ansible.builtin.set_fact:
+        reinstall_order:
+          - gskcrypt64
+          - gskssl64
+          - TIVsm-API64
+          - TIVsm-APIcit
+      when: is_apionly
 
     # Extract names of successfully uninstalled packages (rc == 0)
     - name: Identifying successfully uninstalled packages
@@ -206,7 +259,7 @@
         state: absent
       when: uninstall_result is defined
 
-    - name: Fail to uninstall the BAClient
+    - name: Fail to uninstall packages
       ansible.builtin.fail:
         msg: >
           Uninstallation failed for the following package: {{ failed_packages }}.
