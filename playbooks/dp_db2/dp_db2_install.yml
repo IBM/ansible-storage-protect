@@ -12,7 +12,7 @@
       register: precheck_result
 
     # Query the API version to check if installed
-    - name: Query the installed version of TIVsm-API64
+    - name: Query the API installed version
       ansible.builtin.command: rpm -q TIVsm-API64
       register: installed_version_check
       ignore_errors: true

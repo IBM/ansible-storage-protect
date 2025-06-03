@@ -2,7 +2,7 @@
 storage_protect_server_name: "" # IBM Storage Protect server name
 storage_protect_server_ip: "" # IBM Storage Protect server IP address
 storage_protect_user_name: "" # IBM Storage Protect user name
-storage_protect_user_password: "" # IBM Storage Protect user password
+storage_protect_password: "" # IBM Storage Protect user password
 storage_protect_nodes: 
   - name: ""  # Name of the client node to register
     policy_domain: ""  # Policy domain for the client node
