@@ -5,8 +5,8 @@ db2_instance_owner: "" # DB2 instance owner
 
 # Current password for IBM Storage Protect API
 # It is used to authenticate and set a new password for IBM Storage Protect.
-storage_protect_current_password: ""
+node_current_password: ""
 
 # New password for IBM Storage Protect API
 # It is used to set a new password for IBM Storage Protect.
-storage_protect_new_password: ""
+node_new_password: ""

@@ -98,5 +98,5 @@
     - role: ibm.storage_protect.dp_db2_postcheck
       vars:
         db2_instance_owner: "db2inst1"
-        tsm_current_password: "oldpassword" 
-        tsm_new_password: "newpassword" 
+        node_current_password: "oldpassword" 
+        node_new_password: "newpassword" 

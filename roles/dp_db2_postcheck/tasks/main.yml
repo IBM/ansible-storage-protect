@@ -164,13 +164,13 @@
   ansible.builtin.expect:
     command: "/home/{{ db2_instance_owner }}/sqllib/adsm/dsmapipw"
     responses:
-      'Enter your current password:': "{{ storage_protect_current_password }}"
-      'Enter your new password:': "{{ storage_protect_new_password }}"
-      'Enter your new password again:': "{{ storage_protect_new_password }}"
+      'Enter your current password:': "{{ node_current_password }}"
+      'Enter your new password:': "{{ node_new_password }}"
+      'Enter your new password again:': "{{ node_new_password }}"
   register: dsmapipw_output
   when:
-    - storage_protect_current_password is defined
-    - storage_protect_new_password is defined
+    - node_current_password is defined
+    - node_new_password is defined
 
 # Validate the output of dsmapipw for errors
 - name: Check for errors in dsmapipw output
