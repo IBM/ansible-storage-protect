@@ -1,0 +1,205 @@
+---
+# (Re)Determine DB2 bit level in case it's not already set
+- name: Run db2level again to determine DB2 bit level (if not set)
+  become: yes
+  become_user: "{{ db2_instance_owner }}"
+  ansible.builtin.shell: ". ~{{ db2_instance_owner }}/sqllib/db2profile && db2level"
+  register: db2level_output
+
+- name: Set db2_bit fact from db2level output
+  ansible.builtin.set_fact:
+    db2_bit: "{{ '64' if '64' in db2level_output.stdout else '32' }}"
+  when: db2level_output is defined
+
+- name: Install pexpect on remote VMs
+  ansible.builtin.package:
+    name: python3-pexpect
+    state: present
+
+# Get DSMI_* environment variables
+- name: Get DSMI_* environment variables for DB2 user
+  become: yes
+  become_user: "{{ db2_instance_owner }}"
+  ansible.builtin.shell: ". ~{{ db2_instance_owner }}/sqllib/db2profile && set | grep DSMI"
+  register: dsmi_env
+  ignore_errors: true
+
+- name: Fail if command to get DSMI environment variables failed
+  ansible.builtin.fail:
+    msg: "Failed to run command to get DSMI_* variables. DB2 environment may not be initialized."
+  when: dsmi_env.rc is defined and dsmi_env.rc != 0
+
+- name: Parse DSMI_* environment variables into a dictionary
+  ansible.builtin.set_fact:
+    dsmi_vars: >-
+      {{
+        dict(
+          dsmi_env.stdout_lines
+          | select('match', '^DSMI_')
+          | map('split', '=', 1)
+        )
+      }}
+
+# Set default DSMI variables if not found
+- name: Set default DSMI variables if not found
+  when: dsmi_vars | length == 0
+  block:
+    - name: Determine default DSMI paths based on DB2 bit level
+      ansible.builtin.set_fact:
+        dsmi_dir: >-
+          {{ '/opt/tivoli/tsm/client/api/bin64' if db2_bit == '64' else '/opt/tivoli/tsm/client/api/bin' }}
+        dsmi_config: >-
+          {{ '/opt/tivoli/tsm/client/api/bin64/dsm.opt' if db2_bit == '64' else '/opt/tivoli/tsm/client/api/bin/dsm.opt' }}
+        dsmi_log: "/home/{{ db2_instance_owner }}/tsmlog"
+
+    - name: Create DSMI_LOG directory if it doesn't exist
+      become: yes
+      ansible.builtin.file:
+        path: "{{ dsmi_log }}"
+        state: directory
+        owner: "{{ db2_instance_owner }}"
+        mode: '0755'
+
+    - name: Append DSMI environment variables to userprofile
+      become: yes
+      become_user: "{{ db2_instance_owner }}"
+      ansible.builtin.lineinfile:
+        path: "/home/{{ db2_instance_owner }}/sqllib/userprofile"
+        create: yes
+        line: "{{ item }}"
+        insertafter: EOF
+      loop:
+        - "DSMI_DIR={{ dsmi_dir }}"
+        - "DSMI_CONFIG={{ dsmi_config }}"
+        - "DSMI_LOG={{ dsmi_log }}"
+
+# Source DB2 profile in .bash_profile
+- name: Source DB2 profile in .bash_profile
+  become: yes
+  become_user: "{{ db2_instance_owner }}"
+  ansible.builtin.lineinfile:
+    path: "/home/{{ db2_instance_owner }}/.bash_profile"
+    line: "source /home/{{ db2_instance_owner }}/sqllib/db2profile"
+    insertafter: EOF
+
+# Reload DSMI environment after setting defaults
+- name: Re-load DSMI environment after setting defaults
+  when: dsmi_vars | length == 0
+  become: yes
+  become_user: "{{ db2_instance_owner }}"
+  ansible.builtin.shell: ". ~{{ db2_instance_owner }}/sqllib/db2profile && set | grep DSMI"
+  register: dsmi_env
+
+- name: Parse DSMI_* environment variables into a dictionary
+  when: dsmi_vars | length == 0
+  ansible.builtin.set_fact:
+    dsmi_vars: >-
+      {{
+        dict(
+          dsmi_env.stdout_lines
+          | select('match', '^DSMI_')
+          | map('split', '=', 1)
+        )
+      }}
+
+- name: Debug parsed DSMI variables
+  ansible.builtin.debug:
+    var: dsmi_vars
+
+# Validate DSMI_DIR based on DB2 bitness
+- name: Fail if DSMI_DIR is not valid for DB2 bitness
+  ansible.builtin.fail:
+    msg: >
+      Invalid DSMI_DIR '{{ dsmi_vars.DSMI_DIR }}' for {{ db2_bit }}-bit DB2.
+      Expected: {{ '/opt/tivoli/tsm/client/api/bin' if db2_bit == '32' else '/opt/tivoli/tsm/client/api/bin64' }}
+  when: >
+    (db2_bit == '32' and 'bin64' in dsmi_vars.DSMI_DIR) or
+    (db2_bit == '64' and 'bin64' not in dsmi_vars.DSMI_DIR)
+
+# Check that dsm.sys exists in DSMI_DIR
+- name: Check that dsm.sys exists in DSMI_DIR
+  ansible.builtin.stat:
+    path: "{{ dsmi_vars.DSMI_DIR }}/dsm.sys"
+  register: dsm_sys
+
+- name: Fail if dsm.sys does not exist in DSMI_DIR
+  ansible.builtin.fail:
+    msg: "dsm.sys file does not exist in {{ dsmi_vars.DSMI_DIR }}"
+  when: not dsm_sys.stat.exists
+
+# Validate DSMI_CONFIG (dsm.opt)
+- name: Check that dsm.opt exists (DSMI_CONFIG)
+  ansible.builtin.stat:
+    path: "{{ dsmi_vars.DSMI_CONFIG }}"
+  register: dsm_opt
+
+- name: Fail if dsm.opt file does not exist
+  ansible.builtin.fail:
+    msg: "dsm.opt file '{{ dsmi_vars.DSMI_CONFIG }}' does not exist."
+  when: not dsm_opt.stat.exists
+
+# Extract 'servername' value from dsm.opt
+- name: Extract 'servername' value from dsm.opt
+  ansible.builtin.command: "grep -i '^servername' {{ dsmi_vars.DSMI_CONFIG }}"
+  register: dsm_opt_server
+  failed_when: dsm_opt_server.rc != 0 or dsm_opt_server.stdout_lines | length == 0
+
+# Validate servername exists in dsm.sys
+- name: Validate 'servername' exists in dsm.sys
+  ansible.builtin.command: "grep -i 'servername {{ dsm_opt_server.stdout.split()[1] }}' {{ dsmi_vars.DSMI_DIR }}/dsm.sys"
+  register: dsm_sys_check
+  failed_when: dsm_sys_check.rc != 0
+
+# Verify DSMI environment variables
+- name: Verify DSMI environment variables
+  become: yes
+  become_user: "{{ db2_instance_owner }}"
+  ansible.builtin.shell: "set | grep DSMI"
+  register: dsmi_env_check
+
+# Run dsmapipw to set the password
+- name: Run dsmapipw to set the password
+  become: yes
+  become_user: "{{ db2_instance_owner }}"
+  ansible.builtin.expect:
+    command: "/home/{{ db2_instance_owner }}/sqllib/adsm/dsmapipw"
+    responses:
+      'Enter your current password:': "{{ tsm_current_password }}"
+      'Enter your new password:': "{{ tsm_new_password }}"
+      'Enter your new password again:': "{{ tsm_new_password }}"
+  register: dsmapipw_output
+  when:
+    - tsm_current_password is defined
+    - tsm_new_password is defined
+
+# Validate the output of dsmapipw for errors
+- name: Check for errors in dsmapipw output
+  ansible.builtin.fail:
+    msg: >
+      Failed to set the password using dsmapipw. Error:
+      {{ dsmapipw_output.stdout_lines | join('\n') }}
+  when: dsmapipw_output.stdout_lines is defined and
+      dsmapipw_output.stdout_lines | select('search', '(?i)failed') | list | length > 0
+
+# Recycle the DB2 instance
+- name: Stop the DB2 instance
+  become: yes
+  become_user: "{{ db2_instance_owner }}"
+  ansible.builtin.shell: ". /home/{{ db2_instance_owner }}/sqllib/db2profile && db2stop"
+
+- name: Start the DB2 instance
+  become: yes
+  become_user: "{{ db2_instance_owner }}"
+  ansible.builtin.shell: ". /home/{{ db2_instance_owner }}/sqllib/db2profile && db2start"
+
+# Final Task: Successfully configured DB2 with IBM Storage Protect
+- name: Successfully configured DB2 with IBM Storage Protect
+  ansible.builtin.debug:
+    msg: "DB2 has been successfully configured with IBM Storage Protect."
+  when: 
+    - dsm_sys_check is defined
+    - dsm_sys_check.rc == 0
+    - dsm_opt_server is defined
+    - dsm_opt_server.rc == 0
+    - dsmi_env_check is defined
+    - dsmi_env_check.rc == 0
