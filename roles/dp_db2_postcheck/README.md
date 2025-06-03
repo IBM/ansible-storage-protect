@@ -23,8 +23,8 @@ The following variables can be configured in the `defaults/main.yml` file or pas
 | Variable                  | Default Value | Description                                                                 |
 |---------------------------|---------------|-----------------------------------------------------------------------------|
 | `db2_instance_owner`      | `""`          | The user under which the DB2 instance runs. Must be overridden.            |
-| `tsm_current_password`    | `""`          | The current password for the IBM Storage Protect API.                      |
-| `tsm_new_password`        | `""`          | The new password to set for the IBM Storage Protect API.                   |
+| `storage_protect_current_password`    | `""`          | The current password for the IBM Storage Protect API.                      |
+| `storage_protect_new_password`        | `""`          | The new password to set for the IBM Storage Protect API.                   |
                                 |
 
 ## Usage
@@ -37,9 +37,8 @@ The following variables can be configured in the `defaults/main.yml` file or pas
     - role: dp_db2_postcheck
       vars:
         db2_instance_owner: "db2inst1"
-        tsm_current_password: "current_password"
-        tsm_new_password: "new_password"
-        debug_mode: true
+        storage_protect_current_password: "current_password"
+        storage_protect_new_password: "new_password"
 ```
 
 ## Tasks Overview
@@ -80,7 +79,7 @@ The role performs the following tasks:
 
 ## Notes
 - Ensure that the `db2_instance_owner` user has the necessary permissions to run DB2 commands and access configuration files.
-- Use Ansible Vault to securely store sensitive variables like `tsm_current_password` and `tsm_new_password`.
+- Use Ansible Vault to securely store sensitive variables like `storage_protect_current_password` and `storage_protect_new_password`.
 
 ### Example:
 Encrypt sensitive variables:

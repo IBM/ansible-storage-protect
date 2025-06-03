@@ -21,5 +21,5 @@ storage_protect_server_name: "" # IBM Storage Protect server name
 storage_protect_server_ip: "" 
 
 #dp_db2_postcheck role variables
-tsm_current_password: "" # Current TSM password
-tsm_new_password: "" # New TSM password
+storage_protect_current_password: "" # Current TSM password
+storage_protect_new_password: "" # New TSM password
