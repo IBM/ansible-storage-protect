@@ -5,3 +5,4 @@ __pycache__
 *.tar
 .idea
 .python-version
+.DS_Store
