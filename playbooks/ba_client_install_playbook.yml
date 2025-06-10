@@ -2,6 +2,33 @@
 - name: Install BA Client
   hosts: "{{ target_hosts | default('all') }}"
   become: true
+
+  pre_tasks:
+
+    - name: Check current Python version
+      ansible.builtin.command: python3 -V
+      register: python_version_output
+      ignore_errors: true
+
+    - name: Print current Python version
+      ansible.builtin.debug:
+        msg: "Current Python version: {{ python_version_output.stdout | default('Not found') }}"
+
+    - name: Set fact for current Python version
+      ansible.builtin.set_fact:
+        current_python_version: "{{ python_version_output.stdout.split(' ')[1] | default('0.0') }}"
+
+    - name: Download and install Python 3.9 from source
+      ansible.builtin.shell: |
+        cd /usr/src
+        wget https://www.python.org/ftp/python/3.9.18/Python-3.9.18.tgz
+        tar xzf Python-3.9.18.tgz
+        cd Python-3.9.18
+        ./configure --enable-optimizations
+        make altinstall
+      args:
+        creates: /usr/local/bin/python3.9
+      when: current_python_version is version('3.9', '<')
+
   roles:
     - role: ibm.storage_protect.ba_client_install
-...
