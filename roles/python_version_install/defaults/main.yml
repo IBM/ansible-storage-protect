@@ -1,0 +1,7 @@
+# Default Python version to install if current is less than required
+
+required_python_version: "3.9"
+python_source_url: "https://www.python.org/ftp/python/3.9.18/Python-3.9.18.tgz"
+python_source_filename: "Python-3.9.18.tgz"
+python_source_dir: "Python-3.9.18"
+python_bin_path: "/usr/local/bin/python3.9"
