@@ -1,0 +1,18 @@
+---
+galaxy_info:
+  role_name: python_version_install
+  author: Shalu Mishra
+  description: >
+    This Ansible role checks the current Python version on remote hosts and installs
+    the specified Python version from source if the installed version is older.
+  license: MIT
+  min_ansible_version: "2.15.0"
+  galaxy_tags:
+    - python
+    - setup
+    - install
+    - environment
+    - system
+    - automation
+
+dependencies: []
