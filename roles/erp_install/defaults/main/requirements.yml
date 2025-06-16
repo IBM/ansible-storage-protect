@@ -1,0 +1,8 @@
+sp_erp_hana_required_utilities:
+  - hdbcompileserver
+  - hdbpreprocessor
+  - hdbwebdispatcher
+  - hdbindexserver
+  - hdbxsengine
+  - hdbnameserver
+    #  - testfile
