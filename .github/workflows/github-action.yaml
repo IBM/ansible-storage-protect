@@ -295,6 +295,7 @@ jobs:
           CLIENT_PASSWORD: ${{ secrets.CLIENT_PASSWORD }}
           CLIENT_POLICY_DOMAIN: ${{ secrets.CLIENT_POLICY_DOMAIN }}
           CLIENT_HOST: ${{ secrets.CLIENT_HOST }}
+          BA_CLIENT_TAR_REPO_PATH: "/home/githubrunner/tars "
         run: |
           EXIT_CODE=0
 
