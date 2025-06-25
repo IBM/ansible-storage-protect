@@ -232,4 +232,6 @@ jobs:
               "storage_protect_server_ip": "10.240.64.6",
               "STORAGE_PROTECT_REQUEST_TIMEOUT": 10
             }'
+        working-directory: ${{ github.workspace }}
+
 
