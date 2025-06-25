@@ -298,7 +298,7 @@ jobs:
         run: |
           EXIT_CODE=0
 
-          for playbook in tests/integration/targets/ba_client_install/test_ba_client_install_linux.yml; do
+          for playbook in tests/integration/targets//client_node/test_sp_client.yml; do
             echo "▶️ Running $playbook"
             ansible-playbook -i inventory "$playbook" \
               --extra-vars "{
