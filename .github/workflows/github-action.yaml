@@ -240,10 +240,10 @@ jobs:
           ansible-playbook -i inventory \
            tests/integration/targets/client_node/test_sp_client.yml \
            --extra-vars '{
-             "storage_protect_server_name": "IBMSPSVR01",
-             "storage_protect_username": "admin2",
+             "storage_protect_server_name": "tsmcbuildlnx23.storage.tucson.ibm.com",
+             "storage_protect_username": "root",
              "storage_protect_password": "a",
-             "storage_protect_server_ip": "10.240.64.6",
+             "storage_protect_server_ip": "9.11.61.54",
              "STORAGE_PROTECT_REQUEST_TIMEOUT": 10
            }'
 
