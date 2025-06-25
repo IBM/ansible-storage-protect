@@ -7,14 +7,14 @@ all:
   storage_protect_password: adminPassw0rd@321
 storage_protect_server:
  vars:
-  ansible_private_key_file: ~/ssh-ansible-ibm-sp_rsa.prv
+  ansible_private_key_file: /home/githubrunner/.ssh/ssh-ansible-ibm-sp_rsa.prv
  hosts:
   tsmcbuildlnx23.storage.tucson.ibm.com:
    ansible_host: 9.11.61.54
    ansible_user: root
 storage_protect_clients:
  vars:
-  ansible_private_key_file: ~/ssh-ansible-ibm-sp_rsa.prv
+  ansible_private_key_file: /home/githubrunner/.ssh/ssh-ansible-ibm-sp_rsa.prv
  hosts:
   tsmcbuildlnx24.storage.tucson.ibm.com:
    ansible_host: 9.11.61.55
