@@ -282,6 +282,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
+          ansible-galaxy collection install ansible.posix
           ansible-galaxy collection install ibm.storage_protect --force
           
       - name: Run All Test Playbooks (non-blocking)
