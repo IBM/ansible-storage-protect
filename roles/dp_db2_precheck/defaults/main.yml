@@ -1,0 +1,4 @@
+# Default DB2 instance owner
+# This is the user under which the DB2 instance runs.
+# Update this value if your DB2 instance is owned by a different user.
+db2_instance_owner: ""

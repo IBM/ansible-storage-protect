@@ -1,0 +1,70 @@
+---
+- name: Generate a new IBM Storage Protect server certificate by using the administrative console.
+  hosts: CERT_ADMIN_CLIENT
+  gather_facts: no
+  tasks:
+    - name: Produce a certificate label that utilizes the date time.
+      shell: "echo SP_CERT_$(date '+%b_%d_%Y_%H_%M_%S')"
+      register: "sp_server_date_time"
+
+    - name: "Print Certificate Label"
+      debug:
+        var: sp_server_date_time.stdout
+
+    - name: Create a new self-signed certificate on the IBM Storage Protect server.
+      shell: "cd /opt/tivoli/tsm/client/ba/bin/;dsmadmc -id={{ lookup('ini', 'SP_SERVER_USERNAME', file='data.ini') }} -password={{ lookup('ini', 'SP_SERVER_PASSWORD', file='data.ini') }} \"create certificate \\\"{{ sp_server_date_time.stdout }}\\\"\""
+      register: cert_info
+
+    - name: Display the output from the server command.
+      debug:
+        var: cert_info.stdout_lines
+
+- name: Copy the certificate from the IBM Storage Protect server instance directory to the local directory.
+  hosts: CERT_SP_SERVER
+  gather_facts: no
+  tasks:
+    - name: Acquire the exact path to the certificate file.
+      shell: "find / -name '{{ hostvars['CERT_ADMIN_CLIENT']['sp_server_date_time'].stdout }}.arm' 2>/dev/null | grep \".\""
+      register: search_result
+
+    - name: "Print out the server's certificate file location."
+      debug:
+        var: search_result.stdout
+
+    - name: Fetch the certificate file from the IBM Storage Protect Server and save it on the local computer.
+      fetch:
+        src: "{{ search_result.stdout }}"
+        dest: "{{ lookup('ini', 'LOCAL_CERT_DIR', file='data.ini') }}"
+        flat: yes
+
+- name: Distribute certificate to clients.
+  hosts: CERT_SP_CLIENTS
+  gather_facts: no
+  tasks:
+    - name: Copy the certificate to the client machine.
+      copy:
+        src: "{{ lookup('ini', 'LOCAL_CERT_DIR', file='data.ini') }}/{{ hostvars['CERT_ADMIN_CLIENT']['sp_server_date_time'].stdout }}.arm"
+        dest: /opt/tivoli/tsm/client/ba/bin/
+
+    - name: Get a valid keystore path.
+      shell: z='/dsmcert.kdb';y='/opt/tivoli/tsm/client/';a=$PASSWORDDIR\$z;b=$DSM_DIR$z;c=~'/IBM/StorageProtect/certs'$z;d=$y'ba/bin64'$z;e=$y'ba/bin'$z;f=$y'api/bin64'$z;g=$y'api/bin'$z;if [ -f $a ]; then h=$a;elif [ -f $b ]; then h=$b;elif [ -f $c ]; then h=$c;elif [ -f $d ]; then h=$d;elif [ -f $e ]; then h=$e;elif [ -f $f ]; then h=$f;else h=$g;fi;echo $h;
+      register: key_store_path
+
+    - name: Print out the path to the keystore.
+      debug:
+        var: key_store_path.stdout
+
+    - name: Using GSKIT, add a certificate to the client key-store.
+      shell: /usr/local/ibm/gsk8_64/bin/gsk8capicmd_64 -cert -add -label {{ hostvars['CERT_ADMIN_CLIENT']['sp_server_date_time'].stdout }} -file /opt/tivoli/tsm/client/ba/bin/{{ hostvars['CERT_ADMIN_CLIENT']['sp_server_date_time'].stdout }}.arm -db {{ key_store_path.stdout }} -stashed
+      register: gskit_cmd_result
+
+    - name: Verify the distribution of the certificate to the client.
+      shell: /usr/local/ibm/gsk8_64/bin/gsk8capicmd_64 -cert -list -db {{ key_store_path.stdout }} -stashed
+      register: gskit_list_grep_result
+
+    - name: Print the certificates stored in the client key store.
+      debug:
+        var: gskit_list_grep_result.stdout_lines
+
+
+

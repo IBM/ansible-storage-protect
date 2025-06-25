@@ -11,6 +11,14 @@
         state: directory
         mode: '0755'
 
+    - name: Debug the binary path
+      debug:
+        var: sp_server_temp_dest
+
+    - name: Debug binary path
+      debug:
+        msg: sp_server_temp_dest
+
     - name: Install required packages on remote VMs
       ansible.builtin.package:
         name:
@@ -56,7 +64,6 @@
         chdir: "{{ sp_server_temp_dest }}"
       register: sp_server_binary_status
 
-
     # Execute install.sh with the generated response.xml
     - name: Execute install.sh with response.xml
       ansible.builtin.command: "./install.sh -s -input {{ sp_server_temp_dest }}/response.xml -acceptLicense"
@@ -64,19 +71,24 @@
         chdir: "{{ sp_server_temp_dest }}"
       register: sp_server_installation_result
 
-
     - name: Verfiy Installation of sp server
       ansible.builtin.include_tasks: sp_server_postchecks_linux.yml
 
     - name: SP Server Installation Success
       ansible.builtin.debug:
-        msg: "SP Server installed successfully"
-      when: sp_server_installation_status == true and sp_server_action == "install"
+        msg: |
+          Installation Successful
+          Version: {{ sp_server_version }}
+          {{ installed_components }}
+      when: imcl_output_lines | length > 0 and sp_server_action == "install"
 
     - name: SP Server Upgrade Success
       ansible.builtin.debug:
-        msg: "SP Server upgraded successfully"
-      when: sp_server_installation_status == true and sp_server_action == "upgrade"
+        msg: |
+          Upgrade Successful
+          Version: {{ sp_server_version }}
+          {{ installed_components }}
+      when: imcl_output_lines | length > 0 and sp_server_action == "upgrade"
 
   rescue:
 #    - No rollback mechanism is needed if upgrade fails, since previous version is not uninstalled.

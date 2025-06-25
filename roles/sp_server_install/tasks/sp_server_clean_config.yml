@@ -1,17 +1,46 @@
+#- name: Kill all dsmserv processes
+#  ansible.builtin.shell: "pkill -f dsmserv"
+#  ignore_errors: true
+
+- name: Stop DB2 process
+  ansible.builtin.shell: "/opt/tivoli/tsm/db2/bin/db2fmcu -d"
+  ignore_errors: true
+  become: true
+# sudo /opt/tivoli/tsm/db2/bin/db2fmcu -d
+
+# sudo su - tsminst1 -c ". /home/tsminst1/sqllib/db2profile && db2 force application all"
+- name: Kill DB2 Processes
+  ansible.builtin.shell: "sudo su - {{ tsm_user }} -c '. /home/{{ tsm_user }}/sqllib/db2profile && db2 force application all' "
+  ignore_errors: true
+
+# sudo su - tsminst1 -c ". /home/tsminst1/sqllib/db2profile && db2stop force"
+
+- name: Stop DB2 instance
+  ansible.builtin.shell: "sudo su - {{ tsm_user }} -c '. /home/{{ tsm_user }}/sqllib/db2profile && db2stop force'"
+  ignore_errors: true
+
+#- name: Stop the DB2 instance
+#  ansible.builtin.shell: "su - {{ tsm_user }} -c 'db2stop'"
+#  ignore_errors: true
+
 - name: Kill all dsmserv processes
   ansible.builtin.shell: "pkill -f dsmserv"
   ignore_errors: true
 
-- name: Stop the DB2 instance
-  ansible.builtin.shell: "su - {{ tsm_user }} -c 'db2stop'"
-  ignore_errors: true
-
+# sudo su - tsminst1 -c ". /home/tsminst1/sqllib/db2profile && dsmserv removedb tsmdb001"
 - name: Remove the TSM database
-  ansible.builtin.shell: "echo 'y' | su - {{ tsm_user }} -c 'dsmserv removedb tsmdb001'"
+  ansible.builtin.shell: "sudo su - {{ tsm_user }} -c '. dsmserv removedb tsmdb001'"
+  args:
+    chdir: "{{ root_dir }}/{{ tsm_user }}"
   ignore_errors: true
 
 - name: Drop the DB2 instance
   ansible.builtin.shell: "{{ db2_instance_path }}/db2idrop {{ tsm_user }}"
+  ignore_errors: true
+
+# sudo pkill -KILL -u tsminst1
+- name: Kill the processes of user before removing
+  ansible.builtin.shell: "sudo pkill -KILL -u {{ tsm_user }}"
   ignore_errors: true
 
 - name: Remove the TSM user

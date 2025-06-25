@@ -10,13 +10,14 @@
     sp_server_bin_repo: "/home/onecloud-user/sp_servr_bin/"
     ssl_password: "YourPassword@@123"
 
+# server should be installed
 - name: Configure sp server
   hosts: all
   become: yes
   roles:
     - ibm.storage_protect.sp_server_install
   vars:
-    sp_server_state: "configure"
+    ssl_password: "YourPassword@@123"
 
 - name: Upgrade SP Server
   hosts: all
