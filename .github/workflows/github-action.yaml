@@ -199,11 +199,18 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Set up Python and Ansible
+        
+      - name: Set up Python venv and Ansible
         run: |
-          python -m pip install --upgrade pip
-          pip install ansible
+                python3.12 -m venv ~/ansible_venv
+                source ~/ansible_venv/bin/activate
+                pip install --upgrade pip
+                pip install ansible
+
+      # - name: Set up Python and Ansible
+      #   run: |
+      #     python -m pip install --upgrade pip
+      #     pip install ansible
       # Step 3: Set environment variable to disable SSH host key checking
       - name: Set environment variable to disable SSH host key checking
         run: echo "ANSIBLE_HOST_KEY_CHECKING=False" >> $GITHUB_ENV
