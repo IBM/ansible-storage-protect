@@ -219,19 +219,32 @@ jobs:
         run: |
           ansible-galaxy collection install ibm.storage_protect --force
 
+      # - name: Run Ansible Test Playbook
+      #   working-directory: ${{ github.workspace }}
+      #   env:
+      #     ANSIBLE_HOST_KEY_CHECKING: "False"
+      #   run: |
+      #     ansible-playbook -i /home/github_runner/actions-runner/ansible/ansible-storage-protect/ansible-storage-protect/inventory \
+      #       /home/github_runner/actions-runner/ansible/ansible-storage-protect/ansible-storage-protect/tests/integration/targets/client_node/test_sp_client.yml \
+      #       --extra-vars '{
+      #         "storage_protect_server_name": "IBMSPSVR01",
+      #         "storage_protect_username": "admin2",
+      #         "storage_protect_password": "a",
+      #         "storage_protect_server_ip": "10.240.64.6",
+      #         "STORAGE_PROTECT_REQUEST_TIMEOUT": 10
+      #       }'
+
       - name: Run Ansible Test Playbook
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-        run: |
-          ansible-playbook -i /home/github_runner/actions-runner/ansible/ansible-storage-protect/ansible-storage-protect/inventory \
-            /home/github_runner/actions-runner/ansible/ansible-storage-protect/ansible-storage-protect/tests/integration/targets/client_node/test_sp_client.yml \
-            --extra-vars '{
-              "storage_protect_server_name": "IBMSPSVR01",
-              "storage_protect_username": "admin2",
-              "storage_protect_password": "a",
-              "storage_protect_server_ip": "10.240.64.6",
-              "STORAGE_PROTECT_REQUEST_TIMEOUT": 10
-            }'
         working-directory: ${{ github.workspace }}
+        run: |
+          ansible-playbook -i inventory \
+           tests/integration/targets/client_node/test_sp_client.yml \
+           --extra-vars '{
+             "storage_protect_server_name": "IBMSPSVR01",
+             "storage_protect_username": "admin2",
+             "storage_protect_password": "a",
+             "storage_protect_server_ip": "10.240.64.6",
+             "STORAGE_PROTECT_REQUEST_TIMEOUT": 10
+           }'
 
 
