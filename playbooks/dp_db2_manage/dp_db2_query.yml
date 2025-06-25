@@ -1,0 +1,13 @@
+- name: Run DB2 Query Backups from TSM
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  vars:
+    db2_operation: "query"
+    db2_instance: ""
+    db2_user: ""
+    db2_password: ""
+    db2_query_command: ""          # Default is QUERY if not set
+    db2_query_database: ""                 # Database to query about
+    db2_query_verbose: true                     # Optional verbose output
+  roles:
+    - dp_db2_manage

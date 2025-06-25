@@ -1,0 +1,74 @@
+---
+# Ensure DB2 instance profile exists
+- name: Check if DB2 instance profile exists
+  ansible.builtin.stat:
+    path: "/home/{{ db2_instance }}/sqllib/db2profile"
+  register: db2profile_check
+
+- name: Fail if DB2 instance profile is missing
+  ansible.builtin.fail:
+    msg: "DB2 instance profile not found at /home/{{ db2_instance }}/sqllib/db2profile"
+  when: not db2profile_check.stat.exists
+
+# Construct the DB2 restore command
+- name: Construct DB2 restore command
+  ansible.builtin.set_fact:
+    db2_restore_cmd: >
+      RESTORE DATABASE {{ db2_database }}
+      {% if db2_restore_into %} INTO {{ db2_restore_into }}{% endif %}
+      {% if db2_user and db2_password %} USER '{{ db2_user }}' USING '{{ db2_password }}'{% endif %}
+      USE TSM
+      {% if db2_restore_replace_existing %} REPLACE EXISTING{% endif %}
+      {% if db2_restore_tablespaces | length > 0 %} TABLESPACE {{ db2_restore_tablespaces | join(',') }}{% endif %}
+      {% if db2_restore_dbpartitions %} ON {{ db2_restore_dbpartitions }}{% endif %}
+      {% if db2_restore_target_path %} FROM {{ db2_restore_target_path }}{% endif %}
+      {% if db2_restore_logtarget %} LOGTARGET {{ db2_restore_logtarget }}{% endif %}
+      {% if db2_restore_buffer %} BUFFER {{ db2_restore_buffer }}{% endif %}
+      {% if db2_restore_parallelism %} PARALLELISM {{ db2_restore_parallelism }}{% endif %}
+      {% if db2_restore_encrypt %} ENCRYPT{% endif %}
+      {% if db2_restore_encrlib %} ENCRLIB {{ db2_restore_encrlib }}{% endif %}
+      {% if db2_restore_encrpwd %} ENCRPWD {{ db2_restore_encrpwd }}{% endif %}
+      {{ db2_restore_options | default('') }}
+      {% if db2_restore_without_rollforward %} WITHOUT ROLLING FORWARD{% endif %}
+
+# Display the constructed DB2 restore command
+- name: Show DB2 restore command
+  ansible.builtin.debug:
+    msg: "DB2 restore command: {{ db2_restore_cmd }}"
+
+# Execute the restore command with environment sourced
+- name: Execute DB2 restore command
+  ansible.builtin.shell: |
+    source /home/{{ db2_instance }}/sqllib/db2profile
+    db2 "{{ db2_restore_cmd }}"
+  args:
+    executable: /bin/bash
+  register: restore_result
+  changed_when: "'SQL' in restore_result.stdout or 'SQL' in restore_result.stderr"
+
+# Show output of the restore command
+- name: Show DB2 restore output
+  ansible.builtin.debug:
+    var: restore_result.stdout_lines
+
+# Show errors from restore if any
+- name: Show DB2 restore errors if any
+  ansible.builtin.debug:
+    var: restore_result.stderr_lines
+  when: restore_result.rc != 0
+
+# Optionally perform rollforward
+- name: Rollforward database if required
+  ansible.builtin.shell: |
+    source /home/{{ db2_instance }}/sqllib/db2profile
+    db2 "ROLLFORWARD DATABASE {{ db2_restore_into | default(db2_database) }} TO END OF LOGS AND STOP"
+  args:
+    executable: /bin/bash
+  register: rollforward_result
+  when: db2_restore_rollforward
+
+# Show rollforward output
+- name: Show rollforward output
+  ansible.builtin.debug:
+    var: rollforward_result.stdout_lines
+  when: db2_restore_rollforward

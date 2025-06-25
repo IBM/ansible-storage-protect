@@ -1,0 +1,14 @@
+- name: Run DB2 Delete Backup from TSM
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  vars:
+    db2_operation: "delete"
+    db2_instance: ""
+    db2_user: ""
+    db2_password: ""
+    db2_delete_type: ""                   # e.g., FULL, INCREMENTAL, DELTA, TABLESPACE
+    db2_delete_tablespaces: []                # List tablespaces to delete (optional)
+    db2_delete_keep: "5"                      # Keep last 5 backups (optional)
+    db2_delete_older_than: ""          # Delete backups older than 30 days (optional)
+  roles:
+    - dp_db2_manage
