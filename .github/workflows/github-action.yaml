@@ -313,8 +313,8 @@ jobs:
                 \"CLIENT_PASSWORD\": \"$CLIENT_PASSWORD\",
                 \"CLIENT_POLICY_DOMAIN\": \"$CLIENT_POLICY_DOMAIN\",
                 \"CLIENT_HOST\": \"$CLIENT_HOST\",
-                \"STORAGE_PROTECT_REQUEST_TIMEOUT\": 10
-                \"ba_client_version\": "8.1.27.0"
+                \"STORAGE_PROTECT_REQUEST_TIMEOUT\": 10,
+                \"ba_client_version\": \"8.1.27.0\"
               }" || {
                 echo "❌ Playbook failed: $playbook"
                 EXIT_CODE=1
