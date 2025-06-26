@@ -1,0 +1,66 @@
+---
+# Ensure DB2 instance profile exists
+- name: Check if DB2 instance profile exists
+  ansible.builtin.stat:
+    path: "/home/{{ db2_instance }}/sqllib/db2profile"
+  register: db2profile_check
+
+- name: Fail if DB2 instance profile is missing
+  ansible.builtin.fail:
+    msg: "DB2 instance profile not found at /home/{{ db2_instance }}/sqllib/db2profile"
+  when: not db2profile_check.stat.exists
+
+# Construct the DB2 backup command from variables
+- name: Construct DB2 backup command
+  ansible.builtin.set_fact:
+    db2_backup_cmd: >
+      BACKUP DATABASE {{ db2_database }}
+      {% if db2_user and db2_password %}
+        USER '{{ db2_user }}' USING '{{ db2_password }}'
+      {% endif %}
+      {% if db2_backup_type %}
+        {{ db2_backup_type | upper }}
+      {% endif %}
+      USE TSM
+      {% if db2_backup_online %}
+        ONLINE
+      {% endif %}
+      {% if db2_backup_include_logs %}
+        INCLUDE LOGS
+      {% endif %}
+      {% if db2_backup_tablespaces | length > 0 %}
+        TABLESPACE {{ db2_backup_tablespaces | join(',') }}
+      {% endif %}
+      {% if db2_backup_dbpartitions %}
+        ON {{ db2_backup_dbpartitions }}
+      {% endif %}
+      {% if db2_backup_compress %}
+        COMPRESS
+      {% endif %}
+      {% if db2_backup_encrypt %}
+        ENCRYPT
+      {% endif %}
+      {% if db2_backup_parallelism %}
+        PARALLELISM {{ db2_backup_parallelism }}
+      {% endif %}
+      {{ db2_backup_options | default('') }}
+
+# Display the constructed DB2 backup command
+- name: Show constructed DB2 backup command
+  ansible.builtin.debug:
+    msg: "DB2 backup command: {{ db2_backup_cmd }}"
+
+# Execute the DB2 backup command with profile sourced
+- name: Execute DB2 backup command with environment sourced
+  ansible.builtin.shell: |
+    source /home/{{ db2_instance }}/sqllib/db2profile
+    db2 "{{ db2_backup_cmd }}"
+  args:
+    executable: /bin/bash
+  register: backup_result
+  changed_when: "'SQL' in backup_result.stdout or 'SQL' in backup_result.stderr"
+
+# Show the output of the DB2 backup command
+- name: Show DB2 backup command output
+  ansible.builtin.debug:
+    var: backup_result.stdout_lines

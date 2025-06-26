@@ -1,0 +1,63 @@
+---
+# Ensure DB2 instance profile exists
+- name: Check if DB2 instance profile exists
+  ansible.builtin.stat:
+    path: "/home/{{ db2_instance }}/sqllib/db2profile"
+  register: db2profile_check
+
+- name: Fail if DB2 instance profile is missing
+  ansible.builtin.fail:
+    msg: "DB2 instance profile not found at /home/{{ db2_instance }}/sqllib/db2profile"
+  when: not db2profile_check.stat.exists
+
+# Construct the DB2 delete command using db2adutl
+- name: Construct DB2 delete command using db2adutl
+  ansible.builtin.set_fact:
+    db2_delete_cmd: >
+      db2adutl DELETE
+      {% if db2_delete_type %} {{ db2_delete_type | upper }}{% endif %}
+      {% if db2_delete_tablespaces | length > 0 %} TABLESPACE {{ db2_delete_tablespaces | join(',') }}{% endif %}
+      {% if db2_delete_keep %} KEEP {{ db2_delete_keep }}{% endif %}
+      {% if db2_delete_older_than %} OLDER THAN {{ db2_delete_older_than }}{% endif %}
+      {% if db2_delete_taken_at %} TAKEN AT {{ db2_delete_taken_at }}{% endif %}
+      {% if db2_delete_logs_between %} LOGS BETWEEN {{ db2_delete_logs_between }}{% endif %}
+      {% if db2_delete_chain %} CHAIN {{ db2_delete_chain }}{% endif %}
+      {% if db2_query_database %} DATABASE {{ db2_query_database }}{% endif %}
+      {% if db2_query_dbpartitionnum %} DBPARTITIONNUM {{ db2_query_dbpartitionnum }}{% endif %}
+      {% if db2_query_nodename %} NODENAME {{ db2_query_nodename }}{% endif %}
+      {% if db2_query_owner %} OWNER {{ db2_query_owner }}{% endif %}
+      {% if db2_query_options_param %} OPTIONS "{{ db2_query_options_param }}"{% endif %}
+      {% if db2_query_password %} PASSWORD "{{ db2_query_password }}"{% endif %}
+      {% if db2_query_verbose %} VERBOSE{% endif %}
+      {% if db2_query_without_prompting %} WITHOUT PROMPTING{% endif %}
+      {{ db2_delete_options | default('') }}
+      {{ db2_query_options | default('') }}
+
+# Display constructed command
+- name: Display DB2 delete command
+  ansible.builtin.debug:
+    msg: "DB2 delete command: {{ db2_delete_cmd }}"
+
+# Execute the db2adutl delete command with profile sourced
+- name: Execute DB2 delete command
+  ansible.builtin.shell: |
+    source /home/{{ db2_instance }}/sqllib/db2profile
+    {{ db2_delete_cmd }}
+  args:
+    executable: /bin/bash
+    chdir: "/home/{{ db2_user | default(db2_instance) }}"
+  environment:
+    DB2INSTANCE: "{{ db2_instance }}"
+  register: delete_result
+  changed_when: "'DB2' in delete_result.stdout or 'DB2' in delete_result.stderr"
+
+# Show DB2 delete command output
+- name: Show DB2 delete output
+  ansible.builtin.debug:
+    var: delete_result.stdout_lines
+
+# Show errors if any
+- name: Show DB2 delete errors if any
+  ansible.builtin.debug:
+    var: delete_result.stderr_lines
+  when: delete_result.rc != 0
