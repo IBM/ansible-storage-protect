@@ -9,8 +9,8 @@
       vars:
         ba_client_start_daemon: true
         ba_client_state: "present"
-        # ba_client_version: "8.1.23.0"
-        # ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
+        ba_client_version: "{{ ba_client_version }}"
+        ba_client_tar_repo: "{{ BA_CLIENT_TAR_REPO_PATH }}"
 
 # - name: Upgrade BA Client
 #   hosts: all
