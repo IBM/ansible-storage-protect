@@ -5,7 +5,7 @@ name: Run Ansible Playbook to Register Client
 on:
   push:
     branches:
-      - dev-gitops
+      - main
 
 jobs:
   run_ansible_playbook:
