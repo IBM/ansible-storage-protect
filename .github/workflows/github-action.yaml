@@ -1,70 +1,121 @@
-# =========================
+# # =========================
 
-name: Run Ansible Playbook to Register Client
+# name: Run Ansible Playbook to Register Client
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# jobs:
+#   run_ansible_playbook:
+#     runs-on: self-hosted
+
+#     steps:
+#       - name: Checkout Code
+#         uses: actions/checkout@v4
+        
+#       - name: Set up Python venv and Ansible
+#         run: |
+#                 python3.12 -m venv ~/ansible_venv
+#                 source ~/ansible_venv/bin/activate
+#                 pip install --upgrade pip
+#                 pip install ansible
+
+#       - name: Set environment variable to disable SSH host key checking
+#         run: echo "ANSIBLE_HOST_KEY_CHECKING=False" >> $GITHUB_ENV
+
+#       - name: Install Dependencies
+#         run: |
+#           ansible-galaxy collection install ansible.posix
+#           ansible-galaxy collection install ibm.storage_protect --force
+          
+#       - name: Run All Test Playbooks (non-blocking)
+#         working-directory: ${{ github.workspace }}
+#         env:
+#           SP_SERVER_NAME: ${{ secrets.SP_SERVER_NAME }}
+#           SP_SERVER_USERNAME: ${{ secrets.SP_SERVER_USERNAME }}
+#           SP_SERVER_PASSWORD: ${{ secrets.SP_SERVER_PASSWORD }}
+#           SP_SERVER_IP: ${{ secrets.SP_SERVER_IP }}
+#           CLIENT_NAME: ${{ secrets.CLIENT_NAME }}
+#           CLIENT_PASSWORD: ${{ secrets.CLIENT_PASSWORD }}
+#           CLIENT_POLICY_DOMAIN: ${{ secrets.CLIENT_POLICY_DOMAIN }}
+#           CLIENT_HOST: ${{ secrets.CLIENT_HOST }}
+#           BA_CLIENT_TAR_REPO_PATH: "/home/githubrunner/tars"
+#           ba_client_version: "8.1.27.0"
+#         run: |
+#           EXIT_CODE=0
+
+#           for playbook in tests/integration/targets/ba_client_install/test_ba_client_install_linux.yml; do
+#             echo "▶️ Running $playbook"
+#             ansible-playbook -i inventory "$playbook" \
+#               --extra-vars "{
+#                 \"storage_protect_server_name\": \"$SP_SERVER_NAME\",
+#                 \"storage_protect_username\": \"$SP_SERVER_USERNAME\",
+#                 \"storage_protect_password\": \"$SP_SERVER_PASSWORD\",
+#                 \"storage_protect_server_ip\": \"$SP_SERVER_IP\",
+#                 \"CLIENT_NAME\": \"$CLIENT_NAME\",
+#                 \"CLIENT_PASSWORD\": \"$CLIENT_PASSWORD\",
+#                 \"CLIENT_POLICY_DOMAIN\": \"$CLIENT_POLICY_DOMAIN\",
+#                 \"CLIENT_HOST\": \"$CLIENT_HOST\",
+#                 \"STORAGE_PROTECT_REQUEST_TIMEOUT\": 10,
+#                 \"ba_client_version\": \"8.1.27.0\"
+#               }" || {
+#                 echo "❌ Playbook failed: $playbook"
+#                 EXIT_CODE=1
+#               }
+#           done
+
+# =========below is used for vault config================
+
+name: Run Ansible Playbook to install Client
 
 on:
   push:
     branches:
       - main
-
 jobs:
   run_ansible_playbook:
     runs-on: self-hosted
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        
+
       - name: Set up Python venv and Ansible
         run: |
-                python3.12 -m venv ~/ansible_venv
-                source ~/ansible_venv/bin/activate
-                pip install --upgrade pip
-                pip install ansible
+          python3.12 -m venv ~/ansible_venv
+          source ~/ansible_venv/bin/activate
+          pip install --upgrade pip
+          pip install ansible
 
-      - name: Set environment variable to disable SSH host key checking
+      - name: Disable SSH host key checking
         run: echo "ANSIBLE_HOST_KEY_CHECKING=False" >> $GITHUB_ENV
 
-      - name: Install Dependencies
+      - name: Install Ansible Galaxy Dependencies
         run: |
           ansible-galaxy collection install ansible.posix
           ansible-galaxy collection install ibm.storage_protect --force
-          
-      - name: Run All Test Playbooks (non-blocking)
+
+      - name: Create Ansible Vault password file
+        run: echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > vault_pass.txt
+
+      - name: Run Playbooks with Vault
         working-directory: ${{ github.workspace }}
-        env:
-          SP_SERVER_NAME: ${{ secrets.SP_SERVER_NAME }}
-          SP_SERVER_USERNAME: ${{ secrets.SP_SERVER_USERNAME }}
-          SP_SERVER_PASSWORD: ${{ secrets.SP_SERVER_PASSWORD }}
-          SP_SERVER_IP: ${{ secrets.SP_SERVER_IP }}
-          CLIENT_NAME: ${{ secrets.CLIENT_NAME }}
-          CLIENT_PASSWORD: ${{ secrets.CLIENT_PASSWORD }}
-          CLIENT_POLICY_DOMAIN: ${{ secrets.CLIENT_POLICY_DOMAIN }}
-          CLIENT_HOST: ${{ secrets.CLIENT_HOST }}
-          BA_CLIENT_TAR_REPO_PATH: "/home/githubrunner/tars"
-          ba_client_version: "8.1.27.0"
         run: |
           EXIT_CODE=0
-
           for playbook in tests/integration/targets/ba_client_install/test_ba_client_install_linux.yml; do
             echo "▶️ Running $playbook"
-            ansible-playbook -i inventory "$playbook" \
-              --extra-vars "{
-                \"storage_protect_server_name\": \"$SP_SERVER_NAME\",
-                \"storage_protect_username\": \"$SP_SERVER_USERNAME\",
-                \"storage_protect_password\": \"$SP_SERVER_PASSWORD\",
-                \"storage_protect_server_ip\": \"$SP_SERVER_IP\",
-                \"CLIENT_NAME\": \"$CLIENT_NAME\",
-                \"CLIENT_PASSWORD\": \"$CLIENT_PASSWORD\",
-                \"CLIENT_POLICY_DOMAIN\": \"$CLIENT_POLICY_DOMAIN\",
-                \"CLIENT_HOST\": \"$CLIENT_HOST\",
-                \"STORAGE_PROTECT_REQUEST_TIMEOUT\": 10,
-                \"ba_client_version\": \"8.1.27.0\"
-              }" || {
+            ansible-playbook -i inventory.yml "$playbook" \
+              --vault-password-file vault_pass.txt || {
                 echo "❌ Playbook failed: $playbook"
                 EXIT_CODE=1
               }
           done
-
           exit $EXIT_CODE
+
+      - name: Cleanup Vault password
+        run: rm -f vault_pass.txt
+
+
+#           exit $EXIT_CODE
 
