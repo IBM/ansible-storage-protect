@@ -106,6 +106,7 @@ jobs:
           for playbook in tests/integration/targets/ba_client_install/test_ba_client_install_linux.yml; do
             echo "▶️ Running $playbook"
             ansible-playbook -i inventory "$playbook" \
+              --extra-vars "{\"ba_client_version\": \"8.1.27.0\"}" \
               --vault-password-file vault_pass.txt || {
                 echo "❌ Playbook failed: $playbook"
                 EXIT_CODE=1
