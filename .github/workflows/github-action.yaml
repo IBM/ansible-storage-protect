@@ -73,7 +73,7 @@ name: Run Ansible Playbook to install Client
 on:
   push:
     branches:
-      - main
+      - Ansible-vault
 jobs:
   run_ansible_playbook:
     runs-on: self-hosted
