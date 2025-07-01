@@ -165,14 +165,13 @@
   become: true
 
 # fstab directive failing the above task, so explicitly adding to /etc/fstab
-- name: Mount disks to corresponding directories
-  mount:
-    path: "/{{ instance_dir }}/{{ item.key }}"
-    src: "/dev/{{ item.value }}"
-    fstype: xfs
-    state: mounted
+- name: Add mount entry to /etc/fstab manually
+  lineinfile:
+    path: /etc/fstab
+    line: "/dev/{{ item.value }} /{{ instance_dir }}/{{ item.key }} xfs defaults 0 0"
+    state: present
+    insertafter: EOF
   loop: "{{ dir_to_disk | dict2items }}"
-  become: true
 
 - name: Create directory for active log
   file:
@@ -210,7 +209,7 @@
 - name: Add active log mount to /etc/fstab
   lineinfile:
     path: /etc/fstab
-    line: "/dev/vg_actlog/lv_actlog  /{{ instance_dir }}/TSMalog  xfs  defaults  0 0"
+    line: "/dev/vg_actlog/lv_actlog  {{ instance_dir }}/TSMalog  xfs  defaults  0 0"
     create: yes
     state: present
     insertafter: EOF
@@ -252,7 +251,7 @@
 - name: Add archive log mount to /etc/fstab
   lineinfile:
     path: /etc/fstab
-    line: "/dev/vg_archlog/lv_archlog  /{{ instance_dir }}/TSMarchlog  xfs  defaults  0 0"
+    line: "/dev/vg_archlog/lv_archlog  {{ instance_dir }}/TSMarchlog  xfs  defaults  0 0"
     create: yes
     state: present
     insertafter: EOF

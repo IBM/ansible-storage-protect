@@ -1,5 +1,5 @@
 clean_up: false
-instance_dir: "tsminst1"
+instance_dir: "/tsminst1"
 size: "xsmall"
 
 allowed_sizes:
