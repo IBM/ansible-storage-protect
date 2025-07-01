@@ -112,6 +112,18 @@
     tsmdbpaths: "{{ dir_to_disk.keys() | select('match', '^TSMdbspace') |
       map('trim') | list | join(',') }}"
 
+- name: Debug paths
+  debug:
+    msg: "Storage pool dir:- {{ tsmstgpaths  }}"
+
+- name: Debug paths
+  debug:
+    msg: "BK dir:- {{ tsmbkpaths  }}"
+
+- name: Debug paths
+  debug:
+    msg: "DB dir:- {{ tsmdbpaths  }}"
+
 - name: Format disks with xfs
   filesystem:
     fstype: xfs

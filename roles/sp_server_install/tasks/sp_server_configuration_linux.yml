@@ -133,7 +133,7 @@
             paths: "/{{ tsm_user }}/TSMdbspace01"
             file_type: file
           register: dbdir_contents
-          when: db_check.rc != 0 and server_blueprint == false
+          when: db_check.rc != 0
 
         - name: Remove files from dbdir if needed
           ansible.builtin.file:
@@ -197,7 +197,6 @@
             path: "/{{ tsm_user }}/.admin_user_setup_done"
             state: touch
           when: not admin_user_setup.stat.exists
-
 
         - name: Generate and execute macro files
           when: server_blueprint
