@@ -29,11 +29,11 @@
 
 - name: Build full path for actlog
   set_fact:
-    actlog_mount_path: "{{ instance_dir }}/{{ actlog.mount_point }}"
+    actlog_mount_path: "/{{ instance_dir }}/{{ actlog.mount_point }}"
 
 - name: Build full path for archlog
   set_fact:
-    archlog_mount_path: "{{ instance_dir }}/{{ archlog.mount_point }}"
+    archlog_mount_path: "/{{ instance_dir }}/{{ archlog.mount_point }}"
 
 - name: Remove active log logical volume
   lvol:

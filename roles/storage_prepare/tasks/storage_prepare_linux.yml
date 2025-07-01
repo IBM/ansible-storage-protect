@@ -161,7 +161,16 @@
     src: /dev/{{ item.value }}
     fstype: xfs
     state: mounted
-    fstab: yes
+  loop: "{{ dir_to_disk | dict2items }}"
+  become: true
+
+# fstab directive failing the above task, so explicitly adding to /etc/fstab
+- name: Mount disks to corresponding directories
+  mount:
+    path: "/{{ instance_dir }}/{{ item.key }}"
+    src: "/dev/{{ item.value }}"
+    fstype: xfs
+    state: mounted
   loop: "{{ dir_to_disk | dict2items }}"
   become: true
 
@@ -197,7 +206,15 @@
     fstype: xfs
     state: mounted
     opts: defaults
-    fstab: yes
+
+- name: Add active log mount to /etc/fstab
+  lineinfile:
+    path: /etc/fstab
+    line: "/dev/vg_actlog/lv_actlog  /{{ instance_dir }}/TSMalog  xfs  defaults  0 0"
+    create: yes
+    state: present
+    insertafter: EOF
+  become: true
 
 - name: Create directory for archive log
   file:
@@ -231,5 +248,13 @@
     fstype: xfs
     state: mounted
     opts: defaults
-    fstab: yes
+
+- name: Add archive log mount to /etc/fstab
+  lineinfile:
+    path: /etc/fstab
+    line: "/dev/vg_archlog/lv_archlog  /{{ instance_dir }}/TSMarchlog  xfs  defaults  0 0"
+    create: yes
+    state: present
+    insertafter: EOF
+  become: true
 ...
