@@ -1,11 +1,11 @@
 ---
 - name: Configuring SP Server
   block:
-    - name: Creating root directories
-      ansible.builtin.file:
-        path: "{{ root_dir }}"
-        state: directory
-        mode: "0755"
+#    - name: Creating root directories
+#      ansible.builtin.file:
+#        path: "{{ root_dir }}"
+#        state: directory
+#        mode: "0755"
 
     - name: Creating group and user for the server instance
       block:
@@ -31,12 +31,23 @@
 
     - name: Creating subdirectories under the root directory
       ansible.builtin.file:
-        path: "{{ root_dir }}/{{ item }}"
+        path: "/{{ tsm_user }}/{{ item }}"
         state: directory
         owner: "{{ tsm_user }}"
         group: "{{ tsm_group }}"
         mode: "0755"
       loop: "{{ directories }}"
+      when: server_blueprint == false
+
+    - name: Set write access on /tsminst1 and child dir
+      ansible.builtin.file:
+        path: /tsminst1
+        state: directory
+        owner: "{{ tsm_user }}"
+        group: "{{ tsm_group }}"
+        mode: "0755"
+        recurse: yes
+      when: server_blueprint
 
     - name: Creating the DB2 server instance as root
       ansible.builtin.command:
@@ -52,7 +63,7 @@
             cmd: |
               source /home/{{ tsm_user }}/sqllib/db2profile
               export DB2INSTANCE="{{ tsm_user }}"
-              db2 update dbm cfg using dftdbpath {{ root_dir }}/tsminst1
+              db2 update dbm cfg using dftdbpath /{{ tsm_user }}
           changed_when: true
 
         - name: Modifying LD_LIBRARY_PATH for the instance user
@@ -65,14 +76,14 @@
         - name: Copying sample server options file
           ansible.builtin.copy:
             src: /opt/tivoli/tsm/server/bin/dsmserv.opt.smp
-            dest: "{{ root_dir }}/tsminst1/dsmserv.opt"
+            dest: "/{{ tsm_user }}/dsmserv.opt"
             owner: "{{ tsm_user }}"
             group: "{{ tsm_group }}"
             mode: "0644"
 
         - name: Configuring server options
           ansible.builtin.lineinfile:
-            path: "{{ root_dir }}/tsminst1/dsmserv.opt"
+            path: "/{{ tsm_user }}/dsmserv.opt"
             line: "{{ item }}"
             state: present
           loop:
@@ -82,6 +93,18 @@
             - tcpnodelay yes
             - commmethod sharedmem
             - shmport 1510
+            - ACTIVELOGSIZE "{{ act_log_size[server_size] }}"
+            - COMMTIMEOUT 3600
+            - DEDUPREQUIRESBACKUP NO
+            - DEVCONFIG devconf.dat
+            - EXPINTERVAL 0
+            - IDLETIMEOUT 60
+            - MAXSESSIONS "{{ max_sessions[server_size] }}"
+            - NUMOPENVOLSALLOWED 20
+            - TCPWINDOWSIZE 0
+            - VOLUMEHISTORY volhist.out
+            - ACTIVELOGDIRECTORY /tsminst1/TSMalog
+            - ARCHLOGDIRECTORY /tsminst1/TSMarchlog
 
         - name: Setting DB2 registry variable
           ansible.builtin.shell:
@@ -107,10 +130,10 @@
 
         - name: Ensure database directory is empty if DB is not formatted
           ansible.builtin.find:
-            paths: "{{ root_dir }}/tsmdb001"
+            paths: "/{{ tsm_user }}/TSMdbspace01"
             file_type: file
           register: dbdir_contents
-          when: db_check.rc != 0
+          when: db_check.rc != 0 and server_blueprint == false
 
         - name: Remove files from dbdir if needed
           ansible.builtin.file:
@@ -124,23 +147,34 @@
             cmd: |
               source /home/{{ tsm_user }}/sqllib/db2profile
               export DB2INSTANCE="{{ tsm_user }}"
-              dsmserv format dbdir={{ root_dir }}/tsmdb001 \
+              dsmserv format dbdir=/{{ tsm_user }}/TSMdbspace01,/{{ tsm_user }}/TSMdbspace02,/{{ tsm_user }}/TSMdbspace03,/{{ tsm_user }}/TSMdbspace04 \
                 activelogsize={{ sp_server_active_log_size }} \
-                activelogdirectory={{ root_dir }}/tsmlog \
-                archlogdirectory={{ root_dir }}/tsmarchlog \
-                archfailoverlogdirectory={{ root_dir }}/tsmarchlogfailover \
-                mirrorlogdirectory={{ root_dir }}/tsmlogmirror
-            chdir: "{{ root_dir }}/tsminst1"
-          when: db_check.rc != 0  # Format only if DB is not formatted
+                activelogdirectory=/{{ tsm_user }}/TSMalog \
+                archlogdirectory=/{{ tsm_user }}/TSMarchlog
+            chdir: "/{{ tsm_user }}"
+          when: db_check.rc != 0 and server_blueprint == false # Format only if DB is not formatted
+
+        - name: Formatting the database if not already formatted
+          ansible.builtin.shell:
+            cmd: |
+              source /home/{{ tsm_user }}/sqllib/db2profile
+              export DB2INSTANCE="{{ tsm_user }}"
+              dsmserv format dbdir=/{{ tsm_user }}/TSMdbspace01,/{{ tsm_user }}/TSMdbspace02 \
+                activelogsize={{ act_log_size[serversize] }} \
+                activelogdirectory=/{{ tsm_user }}/TSMalog \
+                archlogdirectory=/{{ tsm_user }}/TSMarchlog
+            chdir: "/{{ tsm_user }}"
+          when: db_check.rc != 0 and server_blueprint == true # Format only if DB is not formatted
+
 
         - name: Check if admin user setup has been completed
           ansible.builtin.stat:
-            path: "{{ root_dir }}/tsminst1/.admin_user_setup_done"
+            path: "/{{ tsm_user }}/.admin_user_setup_done"
           register: admin_user_setup
 
         - name: Creating administrative user macro
           ansible.builtin.copy:
-            dest: "{{ root_dir }}/tsminst1/setup.mac"
+            dest: "/{{ tsm_user }}/setup.mac"
             content: |
               register admin tsmuser1 tsmuser1@@123456789
               grant auth tsmuser1 classes=system
@@ -155,14 +189,43 @@
               source /home/{{ tsm_user }}/sqllib/db2profile
               export DB2INSTANCE="{{ tsm_user }}"
               dsmserv runfile setup.mac
-            chdir: "{{ root_dir }}/tsminst1"
+            chdir: "/{{ tsm_user }}"
           when: not admin_user_setup.stat.exists
 
         - name: Mark admin user setup as completed
           ansible.builtin.file:
-            path: "{{ root_dir }}/tsminst1/.admin_user_setup_done"
+            path: "/{{ tsm_user }}/.admin_user_setup_done"
             state: touch
           when: not admin_user_setup.stat.exists
+
+
+        - name: Generate and execute macro files
+          when: server_blueprint
+          block:
+            - name: Define macro list
+              set_fact:
+                macros:
+                  - { name: "policy", src: "templates/policy.j2", dest: "/{{ tsm_user }}/policy.mac" }
+                  - { name: "cntrpool", src: "templates/cntrpool.j2", dest: "/{{ tsm_user }}/cntrpool.mac" }
+                  - { name: "cntrmaintenance", src: "templates/cntrmaintenance.j2", dest: "/{{ tsm_user }}/cntrmaintenance.mac" }
+
+            - name: Generate macro files
+              ansible.builtin.template:
+                src: "{{ item.src }}"
+                dest: "{{ item.dest }}"
+                owner: "{{ tsm_user }}"
+                group: "{{ tsm_group }}"
+                mode: "0644"
+              loop: "{{ macros }}"
+
+            - name: Execute macro files
+              ansible.builtin.shell:
+                cmd: |
+                  source /home/{{ tsm_user }}/sqllib/db2profile
+                  export DB2INSTANCE="{{ tsm_user }}"
+                  dsmserv runfile {{ item.dest }}
+                chdir: "/{{ tsm_user }}"
+              loop: "{{ macros }}"
 
 
         - name: Ensure DB2 environment initialization in .profile
@@ -182,9 +245,9 @@
             group: "{{ tsm_group }}"
             mode: "0644"
           loop:
-            - DSMI_CONFIG={{ root_dir }}/{{ tsm_user }}/tsmdbmgr.opt
+            - DSMI_CONFIG=/{{ tsm_user }}/tsmdbmgr.opt
             - DSMI_DIR=/opt/tivoli/tsm/server/bin/dbbkapi
-            - DSMI_LOG={{ root_dir }}/{{ tsm_user }}
+            - DSMI_LOG=/{{ tsm_user }}
             - export DSMI_CONFIG DSMI_DIR DSMI_LOG
 
         - name: Configuring DSMI environment variables in usercshrc
@@ -196,13 +259,13 @@
             group: "{{ tsm_group }}"
             mode: "0644"
           loop:
-            - setenv DSMI_CONFIG {{ root_dir }}/{{ tsm_user }}/tsmdbmgr.opt
+            - setenv DSMI_CONFIG /{{ tsm_user }}/tsmdbmgr.opt
             - setenv DSMI_DIR /opt/tivoli/tsm/server/bin/dbbkapi
-            - setenv DSMI_LOG {{ root_dir }}/{{ tsm_user }}
+            - setenv DSMI_LOG /{{ tsm_user }}
 
         - name: Creating tsmdbmgr.opt file
           ansible.builtin.copy:
-            dest: "{{ root_dir }}/{{ tsm_user }}/tsmdbmgr.opt"
+            dest: "/{{ tsm_user }}/tsmdbmgr.opt"
             content: SERVERNAME TSMDBMGR_TSMINST1
             owner: "{{ tsm_user }}"
             group: "{{ tsm_group }}"
@@ -238,12 +301,12 @@
         - "commmethod tcpip"
         - "tcpserveraddr localhost"
         - "tcpport 1500"
-        - "errorlogname {{ root_dir }}/{{ tsm_user }}/tsmdbmgr.log"
+        - "errorlogname /{{ tsm_user }}/tsmdbmgr.log"
         - "nodename $$_TSMDBMGR_$$"
 
     - name: Configure server database maintenance options
       ansible.builtin.lineinfile:
-        path: "{{ root_dir }}/{{ tsm_user }}/dsmserv.opt"
+        path: "/{{ tsm_user }}/dsmserv.opt"
         line: "{{ item }}"
         state: present
       loop:
@@ -261,6 +324,7 @@
   rescue:
     - name: Cleanup the server configuration
       ansible.builtin.include_tasks: sp_server_clean_config.yml
+      when: server_blueprint == false
 
     - name: Server Configuration Status
       debug:

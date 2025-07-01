@@ -1,0 +1,35 @@
+cleanup: true
+instance_dir: "/tsminst1"
+size: "xsmall"
+
+allowed_sizes:
+  - xsmall
+  - small
+  - medium
+  - large
+
+dsk_size:
+  xsmall:
+    TSMdbspace: [100, 150]
+    TSMalog: [30, 80]
+    TSMarchlog: [250, 300]
+    TSMfile: [1000, 1005]
+    TSMbkup: [2000, 6000]
+  small:
+    TSMdbspace: [10000, 10050]
+    TSMalog: [140, 190]
+    TSMarchlog: [10000, 10050]
+    TSMfile: [38000, 38050]
+    TSMbkup: [30000, 30050]
+  medium:
+    TSMdbspace: [20000, 20050]
+    TSMalog: [140, 190]
+    TSMarchlog: [20000, 20050]
+    TSMfile: [180000, 180050]
+    TSMbkup: [10000, 10050]
+  large:
+    TSMdbspace: [40000, 40050]
+    TSMalog: [550, 600]
+    TSMarchlog: [40000, 40050]
+    TSMfile: [500000, 500050]
+    TSMbkup: [16000, 16050]
