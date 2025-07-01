@@ -4,6 +4,15 @@
   register: installed_version_check
   ignore_errors: true
   changed_when: false
+  when: ansible_os_family != "AIX"
+
+- name: Query installed version of TSM BA Client on AIX
+  ansible.builtin.shell: |
+    lslpp -Lc | grep -i TIVsm | cut -d',' -f2
+  register: installed_version_check
+  ignore_errors: true
+  changed_when: false
+  when: ansible_system == "AIX"
 
 - name: Extract installed version
   ansible.builtin.set_fact:
@@ -12,7 +21,25 @@
         installed_version_check.stdout.split('-')[2] ~ '.' ~
         installed_version_check.stdout.split('-')[3].split('.')[0]
       }}
-  when: installed_version_check.rc == 0
+  when: 
+    - installed_version_check.rc == 0
+    - ansible_os_family != "AIX"
+
+- name: Extract installed version (AIX format)
+  ansible.builtin.set_fact:
+    installed_version: "{{ installed_version_check.stdout.strip() }}"
+  when:
+    - ansible_system == "AIX"
+    - installed_version_check.rc == 0
+    - installed_version_check.stdout != ""
+
+# - name: Extract installed version (AIX format)
+#   ansible.builtin.set_fact:
+#     installed_version: "{{ installed_version_check.stdout.strip() }}"
+#   when:
+#     - ansible_system == "AIX"
+#     - installed_version_check.rc == 0
+#     - installed_version_check.stdout != ""
 
 - name: Debug the installed version
   ansible.builtin.debug:

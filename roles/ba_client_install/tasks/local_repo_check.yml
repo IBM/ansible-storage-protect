@@ -10,7 +10,7 @@
 - name: Find version-specific .tar files in the directory
   ansible.builtin.find:
     paths: "{{ ba_client_tar_repo }}"
-    patterns: "{{ ba_client_version }}*.tar"
+    patterns: "{{ ba_client_version }}*.tar*"
     file_type: file
   register: tar_files
   delegate_to: localhost
