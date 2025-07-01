@@ -33,14 +33,6 @@
     - installed_version_check.rc == 0
     - installed_version_check.stdout != ""
 
-# - name: Extract installed version (AIX format)
-#   ansible.builtin.set_fact:
-#     installed_version: "{{ installed_version_check.stdout.strip() }}"
-#   when:
-#     - ansible_system == "AIX"
-#     - installed_version_check.rc == 0
-#     - installed_version_check.stdout != ""
-
 - name: Debug the installed version
   ansible.builtin.debug:
     var: installed_version
