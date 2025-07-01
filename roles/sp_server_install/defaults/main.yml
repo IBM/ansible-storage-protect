@@ -35,17 +35,58 @@ offerings:
 
 # === configuration vars ======
 #disk_device: /dev/sdb
-root_dir: /tsmroot
+#root_dir: /tsmroot
+#directories:
+#  - tsminst1
+#  - tsmdb001
+#  - tsmdb002
+#  - tsmdb003
+#  - tsmdb004
+#  - tsmlog
+#  - tsmarchlog
+#  - tsmlogmirror
+#  - tsmarchlogfailover
+
 directories:
-  - tsminst1
-  - tsmdb001
-  - tsmdb002
-  - tsmdb003
-  - tsmdb004
-  - tsmlog
-  - tsmarchlog
-  - tsmlogmirror
-  - tsmarchlogfailover
+  - TSMdbspace01
+  - TSMdbspace02
+  - TSMdbspace03
+  - TSMdbspace04
+  - TSMalog
+  - TSMarchlog
 
 sp_server_compatible_architectures:
   - x86_64
+
+server_size: 'xsmall'
+act_log_size:
+  xsmall: 24576
+  small: 131072
+  medium: 131072
+  large: 524032
+
+max_sessions:
+  xsmall: 75
+  small: 250
+  medium: 500
+  large: 1000
+
+num_ident_proc: "4"
+backup_start_time: "12:00"
+backup_start_plus_seventeen: "17:00"
+backup_start_plus_thirteen: "13:00"
+backup_start_plus_fourteen: "14:00"
+expire_resource: "default"
+maxcap: "100G"
+dbbk_streams: "4"
+dbbk_compress: "compress=yes"
+dbbk_password: "password=YourDBkPassword@@123456789"
+backup_start_plus_ten: "10:00"
+tsm_stg_paths: "/tsminst1/TSMfile01"
+dbback_dir_paths: "/tsminst1/TSMbkup01,/tsminst1/TSMbkup02"
+server_name: ""
+server_blueprint: false
+
+
+# need to add entries in /etc/fstab
+# need to remove hardcoded paths
