@@ -43,7 +43,6 @@
     - ba_client_state == "present"
     - ansible_system == "AIX"
 
-
 - name: Run upgrade tasks
   ansible.builtin.include_tasks: ba_client_upgrade_linux.yml
   when: ba_client_action is defined and ba_client_action == "upgrade" and ba_client_state == "present"
