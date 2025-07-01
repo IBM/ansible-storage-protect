@@ -323,22 +323,12 @@
   rescue:
     - name: Cleanup the server configuration
       ansible.builtin.include_tasks: sp_server_clean_config.yml
-      when: server_blueprint == false
 
     - name: Server Configuration Status
       debug:
         msg: >
          SP Server Configuration Failed and system has been rolled back to previous state.
           See the individuals tasks executed to indentify the reason for failure.
-      when: server_blueprint == false
-
-    - name: Server Configuration Status
-      debug:
-        msg: >
-          SP Server Configuration Failed.
-           See the individuals tasks executed to identify the reason for failure.
-          To cleanup the configured steps, execute the storage_prepare role with clean_up=true
-      when: server_blueprint == false
 
     - name: Stop execution of the role
       meta: end_play

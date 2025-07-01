@@ -60,6 +60,7 @@
 #  ansible.builtin.command: "sudo umount {{ root_dir }}"
 #  ignore_errors: true
 
+# Importing storage_prepare role to umount the directories only if blueprint is set to true
 - name: Umount the directories
   ansible.builtin.include_role:
     name: storage_prepare
