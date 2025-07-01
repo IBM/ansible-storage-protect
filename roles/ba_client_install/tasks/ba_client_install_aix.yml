@@ -1,0 +1,289 @@
+# Check if BA Client is already installed (AIX)
+- name: Check if BA Client is already installed on AIX
+  ansible.builtin.shell: "lslpp -Lc | grep -i TIVsm-BA | cut -d',' -f2"
+  register: ba_client_check
+  ignore_errors: true
+  changed_when: false
+  when: ansible_system == "AIX"
+
+# Display installation status (AIX)
+- name: Display BA Client status (AIX)
+  ansible.builtin.debug:
+    msg: "BA Client is already installed. Skipping installation. Installed Version -> {{ ba_client_check.stdout }}"
+  when: 
+    - ansible_system == "AIX"
+    - ba_client_check is defined
+    - ba_client_check.stdout != ""
+    - ba_client_action == "install"
+
+# End play if BA Client is already installed and action is 'install' (AIX)
+- name: Fail or Skip Installation (AIX)
+  ansible.builtin.meta: end_play
+  when:
+    - ansible_system == "AIX"
+    - ba_client_check is defined
+    - ba_client_check.stdout != ""
+    - ba_client_action == "install"
+
+
+# ================= Pre-checks ==========================
+
+# System Compatibility checks for installing the BA Client (AIX-specific)
+
+- name: Collect system facts and architecture
+  ansible.builtin.set_fact:
+    system_info:
+      Architecture: "{{ ansible_architecture }}"
+
+- name: Checking architecture compatibility (AIX)
+  ansible.builtin.set_fact:
+    architecture_compatible: "{{ 'powerpc' in sp_server_compatible_architectures }}"
+
+- name: Collect disk space info for /opt (AIX)
+  ansible.builtin.command: df -m /opt
+  register: disk_info
+  changed_when: false
+  ignore_errors: true
+
+- name: Parse disk space info for AIX
+  ansible.builtin.set_fact:
+    disk_space:
+      filesystem: "{{ disk_info.stdout_lines[1].split()[0] }}"
+      size_mb: "{{ disk_info.stdout_lines[1].split()[1] | int }}"
+      available_mb: "{{ disk_info.stdout_lines[1].split()[2] | int }}"
+      use_percent: "{{ disk_info.stdout_lines[1].split()[3] }}"
+      mount_point: "{{ disk_info.stdout_lines[1].split()[6] }}"
+  when: disk_info is defined and disk_info.stdout_lines | length > 1
+
+- name: Checking available disk space (AIX)
+  ansible.builtin.set_fact:
+    avail_disk_space: "{{ disk_space.available_mb | int > 1500 }}"
+
+- name: Compatibility results (AIX)
+  ansible.builtin.debug:
+    msg: |
+      Architecture check: {{ architecture_compatible }}
+      Disk Space: {{ avail_disk_space }}
+
+- name: Compatibility check result (AIX) - System is compatible
+  ansible.builtin.debug:
+    msg: "System is compatible"
+  when: architecture_compatible and avail_disk_space
+
+- name: Compatibility check result (AIX) - System is incompatible
+  ansible.builtin.debug:
+    msg: "System is incompatible"
+  when: not (architecture_compatible and avail_disk_space)
+
+- name: Fail if system is incompatible (AIX)
+  ansible.builtin.fail:
+    msg: >
+      System compatibility checks failed. Please ensure the following
+      requirements are met: - Compatible architecture: powerpc - Sufficient disk space: > 1500 MB
+      Architecture check: {{ architecture_compatible }} | Disk Space: {{ avail_disk_space }}
+  when: not (architecture_compatible and avail_disk_space)
+
+- name: Check if rsync is already installed on AIX
+  ansible.builtin.command: rpm -q rsync
+  register: rsync_check
+  failed_when: false
+  changed_when: false
+
+- name: Check if wget is available (full path)
+  ansible.builtin.command: /opt/freeware/bin/wget --version
+  register: wget_check
+  failed_when: false
+  changed_when: false
+
+- name: Download rsync RPM using wget
+  ansible.builtin.command: /opt/freeware/bin/wget -O /tmp/rsync-3.4.1-2.src.rpm https://public.dhe.ibm.com/aix/freeSoftware/aixtoolbox/SRPMS/rsync/rsync-3.4.1-2.src.rpm
+  args:
+    creates: /tmp/rsync-3.4.1-2.src.rpm
+  when: rsync_check.rc != 0
+
+- name: Install rsync RPM on AIX
+  ansible.builtin.command: rpm -Uvh /tmp/rsync-3.4.1-2.src.rpm
+  when: rsync_check.rc != 0
+
+
+# ====================== Transferring packages on remote vm's ======================
+
+# Transfer files to the remote machines
+- name: Transferring the packages on the AIX host
+  ansible.builtin.copy:
+    src: "{{ tar_file_path }}"
+    dest: "{{ ba_client_temp_dest }}"
+    mode: '0644'
+  when: architecture_compatible and avail_disk_space
+  register: copy_result
+
+# Validate file transfer and show error details
+- name: Validating file transfer
+  ansible.builtin.fail:
+    msg: >
+      Package transfer to the remote host failed.
+      Error details: {{ copy_result.msg | default('No error details available.') }}
+  when: copy_result is not defined or copy_result.failed | default(false)
+
+
+# ======= Extracting and finding the packages on remote vm's =======
+
+# creating a temporary directory to extract the .rpm files
+- name: Remove existing /opt/baClient directory
+  ansible.builtin.file:
+    path: "{{ ba_client_extract_dest }}"
+    state: absent
+
+- name: Creating /opt/baClient directory
+  ansible.builtin.file:
+    path: "{{ ba_client_extract_dest }}"
+    state: directory
+    mode: '0755'
+  when: architecture_compatible and avail_disk_space
+
+- name: Extract .tar using GNU tar on AIX
+  ansible.builtin.shell: |
+    cd "{{ ba_client_extract_dest }}"
+    /usr/bin/uncompress "{{ ba_client_temp_dest }}{{ tar_file_path | basename }}"
+    /opt/freeware/bin/tar -xvf "{{ ba_client_temp_dest }}{{ tar_file_path | basename | regex_replace('\\.Z$', '') }}"
+  when: architecture_compatible and avail_disk_space
+  register: extraction_result
+
+- name: Finding extracted files
+  ansible.builtin.find:
+    paths: /opt/baClient
+    recurse: true
+  register: extracted_files
+
+- name: List of extracted files
+  ansible.builtin.debug:
+    msg: "Extracted files: {{ extracted_files.files | map(attribute='path') | list }}"
+  when: extracted_files is defined and extracted_files.files | length > 0
+
+
+# ===== Checking whether the packages are already installed or not to maintain the idempotency ====
+
+# Checking if GSKit cryptographic library (gskcrypt) is installed
+- name: Checking if GSKit cryptographic library (gskcrypt) is installed
+  ansible.builtin.command: rpm -q gskcrypt64
+  register: check_gskcrypt
+  ignore_errors: true
+  changed_when: false
+
+# Checking if GSKit SSL library (gskssl) is installed
+- name: Checking if GSKit SSL library (gskssl) is installed
+  ansible.builtin.command: rpm -q gskssl64
+  register: check_gskssl
+  ignore_errors: true
+  changed_when: false
+
+- name: Check if TSM API64 package is installed
+  ansible.builtin.command: lslpp -L tivoli.tsm.client.api.64bit
+  register: check_api64
+  ignore_errors: true
+  changed_when: false
+
+- name: Check if TSM BA Client (ba.64bit) is installed
+  ansible.builtin.command: lslpp -L tivoli.tsm.client.ba.64bit
+  register: check_ba64
+  ignore_errors: true
+  changed_when: false
+
+- name: Check if TSM JBB component is installed
+  ansible.builtin.command: lslpp -L tivoli.tsm.client.jbb.64bit
+  register: check_jbb64
+  ignore_errors: true
+  changed_when: false
+
+- name: Check if TSM Web GUI is installed
+  ansible.builtin.command: lslpp -L tivoli.tsm.client.webgui
+  register: check_webgui
+  ignore_errors: true
+  changed_when: false
+
+
+# ===== Installing packages in sequence =====
+
+- name: Install GSKit libraries on AIX using installp
+  block:
+
+    - name: Install GSKit crypt library (gskcrypt) from .rte
+      ansible.builtin.command: >
+        installp -aXYd {{ item }} all
+      with_items: >
+        {{ extracted_files.files | map(attribute='path')
+            | select('search', 'GSKit8\.gskcrypt64\.ppc\.rte$')
+            | list }}
+      when: extracted_files is defined and extracted_files.files | length > 0
+      register: gskcrypt_install_result
+      ignore_errors: true
+      changed_when: gskcrypt_install_result.rc == 0
+
+    - name: Install GSKit SSL library (gskssl) from .rte
+      ansible.builtin.command: >
+        installp -aXYd {{ item }} all
+      with_items: >
+        {{ extracted_files.files | map(attribute='path')
+            | select('search', 'GSKit8\.gskssl64\.ppc\.rte$')
+            | list }}
+      when: extracted_files is defined and extracted_files.files | length > 0
+      register: gskssl_install_result
+      ignore_errors: true
+      changed_when: gskssl_install_result.rc == 0
+
+# Installing API packages (tivoli.tsm.client.api.64bit)
+- name: Install TSM API64 package on AIX using installp
+  ansible.builtin.command: >
+    installp -aXYd {{ item }} all
+  with_items: >
+    {{ extracted_files.files | map(attribute='path')
+        | select('search', 'tivoli\.tsm\.client\.api\.64bit$')
+        | list }}
+  when: (check_api64 | default({})).rc != 0
+  register: api64_install_result
+  ignore_errors: false
+  changed_when: api64_install_result.rc == 0
+
+# Installing BA packages
+- name: Install TSM BA Client components using installp on AIX
+  block:
+
+    - name: Install BA Client (ba.64bit)
+      ansible.builtin.command: >
+        installp -aXYd {{ item }} all
+      with_items: >
+        {{ extracted_files.files | map(attribute='path')
+            | select('search', 'tivoli\.tsm\.client\.ba\.64bit$')
+            | list }}
+      when: (check_ba64 | default({})).rc != 0
+      register: ba64_install_result
+      changed_when: ba64_install_result.rc == 0
+
+    - name: Install Web GUI (webgui)
+      ansible.builtin.command: >
+        installp -aXYd {{ item }} all
+      with_items: >
+        {{ extracted_files.files | map(attribute='path')
+            | select('search', 'tivoli\.tsm\.client\.webgui$')
+            | list }}
+      when: (check_webgui | default({})).rc != 0
+      register: webgui_install_result
+      changed_when: webgui_install_result.rc == 0
+
+
+# ============ Post-checks to verify the installation of ba client ==========
+- name: Verify BA Client installation using grep
+  ansible.builtin.shell: lslpp -L | grep -i 'tsm.client.ba'
+  register: installation_check
+  ignore_errors: true
+  changed_when: installation_check.rc == 0
+
+- name: Display BA Client installation status
+  ansible.builtin.debug:
+    msg: |
+      BA Client {{ ba_client_version }} installation status: {{ "Installed Successfully" if installation_check.rc == 0 else "Not Installed" }}
+
+- name: Mark install.yml as failed if verification fails
+  ansible.builtin.fail:
+    msg: "BA Client installation verification failed. Please check logs."
+  when: installation_check.rc != 0 and ba_client_action == "install"
