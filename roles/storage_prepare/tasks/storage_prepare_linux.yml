@@ -157,7 +157,7 @@
 
 - name: Mount disks to corresponding directories
   mount:
-    path: {{ instance_dir }}/{{ item.key }}
+    path: "{{ instance_dir }}/{{ item.key }}"
     src: /dev/{{ item.value }}
     fstype: xfs
     state: mounted
@@ -175,7 +175,7 @@
 
 - name: Create directory for active log
   file:
-    path: /{{ instance_dir }}/TSMalog
+    path: "/{{ instance_dir }}/TSMalog"
     state: directory
     owner: root
     group: root
@@ -200,7 +200,7 @@
 
 - name: Mount the logical volume to {{ instance_dir }}/actlog
   mount:
-    path: {{ instance_dir }}/TSMalog
+    path: "{{ instance_dir }}/TSMalog"
     src: /dev/vg_actlog/lv_actlog
     fstype: xfs
     state: mounted
@@ -217,7 +217,7 @@
 
 - name: Create directory for archive log
   file:
-    path: /{{ instance_dir }}/TSMarchlog
+    path: "/{{ instance_dir }}/TSMarchlog"
     state: directory
     owner: root
     group: root
@@ -242,7 +242,7 @@
 
 - name: Mount the logical volume to {{ instance_dir }}/archlog
   mount:
-    path: {{ instance_dir }}/TSMarchlog
+    path: "{{ instance_dir }}/TSMarchlog"
     src: /dev/vg_archlog/lv_archlog
     fstype: xfs
     state: mounted
