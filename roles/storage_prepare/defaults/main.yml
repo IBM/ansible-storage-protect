@@ -1,4 +1,4 @@
-cleanup: false
+clean_up: false
 instance_dir: "/tsminst1"
 size: "xsmall"
 
