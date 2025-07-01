@@ -1,0 +1,64 @@
+---
+- name: Gather only mount facts
+  ansible.builtin.setup:
+    filter: ansible_mounts
+
+- name: Extract mountpoints under {{ instance_dir }}
+  set_fact:
+    tsminst1_mounts: |-
+      {{
+        ansible_mounts
+        | map(attribute='mount')
+        | select('search', '^' + instance_dir)
+        | list
+        | sort(reverse=true)
+      }}
+
+- name: Debug mountpoints under {{ instance_dir }}
+  debug:
+    var: tsminst1_mounts
+
+- name: Unmount all directories under {{ instance_dir }}
+  ansible.builtin.mount:
+    path: "{{ item }}"
+    state: unmounted
+  loop: "{{ tsminst1_mounts }}"
+  ignore_errors: true
+
+#=== cleanup for active and archive log ===
+
+- name: Build full path for actlog
+  set_fact:
+    actlog_mount_path: "{{ instance_dir }}/{{ actlog.mount_point }}"
+
+- name: Build full path for archlog
+  set_fact:
+    archlog_mount_path: "{{ instance_dir }}/{{ archlog.mount_point }}"
+
+- name: Remove active log logical volume
+  lvol:
+    vg: "{{ actlog.vg }}"
+    lv: "{{ actlog.lv }}"
+    state: absent
+    force: true
+  ignore_errors: true
+
+- name: Remove archive log logical volume
+  lvol:
+    vg: "{{ archlog.vg }}"
+    lv: "{{ archlog.lv }}"
+    state: absent
+    force: true
+  ignore_errors: true
+
+- name: Remove active log volume group
+  lvg:
+    vg: "{{ actlog.vg }}"
+    state: absent
+  ignore_errors: true
+
+- name: Remove archive log volume group
+  lvg:
+    vg: "{{ archlog.vg }}"
+    state: absent
+  ignore_errors: true
