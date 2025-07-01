@@ -117,21 +117,21 @@
     tsmstgpaths: >-
       {{ dir_to_disk.keys()
          | select('match', '^TSMfile')
-         | map('regex_replace', '^(.*)$', '/{{ tsm_user }}/\\1')
+         | map('regex_replace', '^', instance_dir ~ '/')
          | list
          | join(',')
       }}
     tsmbkpaths: >-
       {{ dir_to_disk.keys()
          | select('match', '^TSMbkup')
-         | map('regex_replace', '^(.*)$', '/{{ tsm_user }}/\\1')
+         | map('regex_replace', '^', instance_dir ~ '/')
          | list
          | join(',')
       }}
     tsmdbpaths: >-
       {{ dir_to_disk.keys()
          | select('match', '^TSMdbspace')
-         | map('regex_replace', '^(.*)$', '/{{ tsm_user }}/\\1')
+         | map('regex_replace', '^', instance_dir ~ '/')
          | list
          | join(',')
       }}
