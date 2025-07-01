@@ -60,6 +60,13 @@
 #  ansible.builtin.command: "sudo umount {{ root_dir }}"
 #  ignore_errors: true
 
+- name: Umount the directories
+  ansible.builtin.include_role:
+    name: storage_prepare
+  vars:
+    clean_up: true
+  when: server_blueprint == true
+
 - name: Remove user-related directories
   ansible.builtin.file:
     path: "{{ item }}"

@@ -1,8 +1,8 @@
 ---
 - name: Prepare Storage for SP Server
   ansible.builtin.include_tasks: storage_prepare_linux.yml
-  when: cleanup == false
+  when: clean_up == false
 
 - name: Cleanup storage
   ansible.builtin.include_tasks: storage_cleanup_linux.yml
-  when: cleanup == true
+  when: clean_up == true
