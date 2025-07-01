@@ -1,4 +1,4 @@
-cleanup: true
+cleanup: false
 instance_dir: "/tsminst1"
 size: "xsmall"
 
@@ -33,3 +33,15 @@ dsk_size:
     TSMarchlog: [40000, 40050]
     TSMfile: [500000, 500050]
     TSMbkup: [16000, 16050]
+
+# required for cleanup
+# Required for cleanup
+actlog:
+  mount_point: "TSMalog"
+  lv: lv_actlog
+  vg: vg_actlog
+
+archlog:
+  mount_point: "TSMarchlog"
+  lv: lv_archlog
+  vg: vg_archlog

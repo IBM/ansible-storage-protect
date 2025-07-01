@@ -86,7 +86,3 @@ tsm_stg_paths: "/tsminst1/TSMfile01"
 dbback_dir_paths: "/tsminst1/TSMbkup01,/tsminst1/TSMbkup02"
 server_name: ""
 server_blueprint: false
-
-
-# need to add entries in /etc/fstab
-# need to remove hardcoded paths
