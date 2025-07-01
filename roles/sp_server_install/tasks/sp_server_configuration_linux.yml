@@ -159,8 +159,8 @@
             cmd: |
               source /home/{{ tsm_user }}/sqllib/db2profile
               export DB2INSTANCE="{{ tsm_user }}"
-              dsmserv format dbdir=/{{ tsm_user }}/TSMdbspace01,/{{ tsm_user }}/TSMdbspace02 \
-                activelogsize={{ act_log_size[serversize] }} \
+              dsmserv format dbdir={{ tsmdbpaths }} \
+                activelogsize={{ act_log_size[server_size] }} \
                 activelogdirectory=/{{ tsm_user }}/TSMalog \
                 archlogdirectory=/{{ tsm_user }}/TSMarchlog
             chdir: "/{{ tsm_user }}"
