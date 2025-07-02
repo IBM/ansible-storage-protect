@@ -91,7 +91,6 @@
         | list
       }}
 
-- name: Wipe filesystem signatures from existing /tsminst1 devices
+- name: Wipe filesystem from existing /tsminst1 devices
   command: wipefs -a {{ item }}
   loop: "{{ existing_tsminst1_devices }}"
-  when: cleanup | default(false)
