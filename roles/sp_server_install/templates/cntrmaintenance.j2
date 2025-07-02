@@ -5,7 +5,7 @@
 define devclass DBBACK_FILEDEV devtype=file maxcapacity={{ maxcap }} mountlimit=32 directory={{ dbback_dir_paths }}
 
 /* Set the DB recovery properties */
-set dbrecovery DBBACK_FILEDEV numstreams={{ dbbk_streams }} {{ dbbk_compress }} {{ dbbk_password }}
+set dbrecovery DBBACK_FILEDEV numstreams={{ dbbk_streams }} compress={{ dbbk_compress }} password={{ dbbk_password }}
 
 /* Setup DB backup maintenance script and schedule to run at 9AM */
 def script DBBACKUP description="Run full TSM server database backup and remove old backups."

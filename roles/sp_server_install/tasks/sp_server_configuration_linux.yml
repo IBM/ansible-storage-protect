@@ -204,7 +204,9 @@
             - name: Define macro list
               set_fact:
                 macros:
+                  - { name: "basics", src: "templates/basics.j2", dest: "/{{ tsm_user }}/basics.mac" }
                   - { name: "policy", src: "templates/policy.j2", dest: "/{{ tsm_user }}/policy.mac" }
+                  - { name: "schedule", src: "templates/schedules.j2", dest: "/{{ tsm_user }}/schedules.mac" }
                   - { name: "cntrpool", src: "templates/cntrpool.j2", dest: "/{{ tsm_user }}/cntrpool.mac" }
                   - { name: "cntrmaintenance", src: "templates/cntrmaintenance.j2", dest: "/{{ tsm_user }}/cntrmaintenance.mac" }
 
