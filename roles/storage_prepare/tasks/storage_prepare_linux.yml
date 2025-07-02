@@ -148,6 +148,10 @@
   debug:
     msg: "DB dir:- {{ tsmdbpaths  }}"
 
+- name: Wipe filesystem
+  command: "wipefs -a /dev/{{ item.value }}"
+  loop: "{{ dir_to_disk | dict2items }}"
+
 - name: Format disks with xfs
   filesystem:
     fstype: xfs
@@ -164,14 +168,17 @@
   loop: "{{ dir_to_disk | dict2items }}"
   become: true
 
-# fstab directive failing the above task, so explicitly adding to /etc/fstab
-#- name: Add mount entry to /etc/fstab manually
-#  lineinfile:
-#    path: /etc/fstab
-#    line: "/dev/{{ item.value }} {{ instance_dir }}/{{ item.key }} xfs defaults 0 0"
-#    state: present
-#    insertafter: EOF
-#  loop: "{{ dir_to_disk | dict2items }}"
+# === Initially Wipe disks used by active and archive log groups ===
+
+- name: Wipe filesystem on active log disks
+  command: "wipefs -a /dev/{{ item }}"
+  loop: "{{ disk_allocations['TSMalog'] }}"
+  ignore_errors: true
+
+- name: Wipe filesystem signatures on archive log disks
+  command: "wipefs -a /dev/{{ item }}"
+  loop: "{{ disk_allocations['TSMarchlog'] }}"
+  ignore_errors: true
 
 - name: Create directory for active log
   file:
