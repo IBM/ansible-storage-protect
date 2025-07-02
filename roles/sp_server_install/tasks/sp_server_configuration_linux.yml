@@ -176,7 +176,7 @@
           ansible.builtin.copy:
             dest: "/{{ tsm_user }}/setup.mac"
             content: |
-              register admin tsmuser1 tsmuser1@@123456789
+              register admin {{ admin_name }} {{ admin_password }}
               grant auth tsmuser1 classes=system
             owner: "{{ tsm_user }}"
             group: "{{ tsm_group }}"

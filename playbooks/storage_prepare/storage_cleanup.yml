@@ -1,0 +1,10 @@
+---
+- name: Prepare Storage for xsmall server
+  hosts: all
+  become: true
+  roles:
+    - storage_prepare
+  vars:
+    clean_up: true
+    instance_dir: "/tsminst1"
+...

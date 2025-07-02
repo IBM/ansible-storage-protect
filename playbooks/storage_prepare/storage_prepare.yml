@@ -1,0 +1,8 @@
+---
+- name: Prepare Storage for xsmall server
+  hosts: all
+  become: true
+  roles:
+    - storage_prepare
+  vars:
+    storage_prepare_size: "xsmall"

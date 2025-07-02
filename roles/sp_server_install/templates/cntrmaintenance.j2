@@ -2,14 +2,14 @@
 /* DB BACKUP, as long as needed beginning @ backup start + 14 hours    */
 /*---------------------------------------------------------------------*/
 /* Create the device class of type file for database backups */
-define devclass DBBACK_FILEDEV devtype=file maxcapacity={{ maxcap }} mountlimit=32 directory={{ dbback_dir_paths }}
+define devclass DBBACK_FILEDEV devtype=file maxcapacity={{ maxcap }} mountlimit=32 directory={{ tsmbkpaths }}
 
 /* Set the DB recovery properties */
 set dbrecovery DBBACK_FILEDEV numstreams={{ dbbk_streams }} compress={{ dbbk_compress }} password={{ dbbk_password }}
 
 /* Setup DB backup maintenance script and schedule to run at 9AM */
 def script DBBACKUP description="Run full TSM server database backup and remove old backups."
-upd script DBBACKUP "backup db devc=DBBACK_FILEDEV type=full numstreams={{ dbbk_streams }} {{ dbbk_compress }} wait=yes" line=010
+upd script DBBACKUP "backup db devc=DBBACK_FILEDEV type=full numstreams={{ dbbk_streams }} compress={{ dbbk_compress }} wait=yes" line=010
 upd script DBBACKUP "if(error) goto done" line=020
 upd script DBBACKUP "backup volhist" line=030
 upd script DBBACKUP "backup devconf" line=040

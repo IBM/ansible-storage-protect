@@ -3,8 +3,8 @@
   assert:
     that:
       - size in allowed_sizes
-    fail_msg: Invalid size '{{ size }}' – choose from {{ allowed_sizes }}.
-    success_msg: "'size' '{{ size }}' is valid."
+    fail_msg: Invalid size '{{ storage_prepare_size }}' – choose from {{ allowed_sizes }}.
+    success_msg: "'size' '{{ storage_prepare_size }}' is valid."
 
 - name: Get all block devices (JSON)
   command: lsblk -b -J -o NAME,SIZE,MOUNTPOINT,TYPE
@@ -40,7 +40,7 @@
       selected_disks }) }}"
     used_disks: "{{ used_disks | default([]) + selected_disks }}"
   vars:
-    thresholds: "{{ dsk_size[size] }}"
+    thresholds: "{{ dsk_size[storage_prepare_size] }}"
     system_disks: |-
       {{
         devices_info.blockdevices
@@ -59,7 +59,7 @@
         | list
       }}
     selected_disks: "{{ available_disks | map(attribute='name') | list }}"
-  loop: "{{ dsk_size[size] | dict2items }}"
+  loop: "{{ dsk_size[storage_prepare_size] | dict2items }}"
 
 - name: Show final disk allocations
   debug:
@@ -69,14 +69,14 @@
   assert:
     that:
       - (disk_allocations[item.key] | length) > 0
-    fail_msg: Group '{{ item.key }}' has NO disks for size='{{ size }}'!
+    fail_msg: Group '{{ item.key }}' has NO disks for size='{{ storage_prepare_size }}'!
     success_msg: Group '{{ item.key }}' has {{ disk_allocations[item.key] | length
       }} disk(s).
-  loop: "{{ dsk_size[size] | dict2items }}"
+  loop: "{{ dsk_size[storage_prepare_size] | dict2items }}"
 
 - name: All checks passed
   debug:
-    msg: "Success: all groups have at least one disk for size='{{ size }}'."
+    msg: "Success: all groups have at least one disk for size='{{ storage_prepare_size }}'."
 
 - name: Initialize empty dir_to_disk dictionary
   set_fact:

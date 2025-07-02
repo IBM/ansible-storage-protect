@@ -1,0 +1,20 @@
+---
+# Install SP Server on specified hosts
+- name: Install SP Server
+  hosts: all
+  become: true
+  vars_files:
+    - blueprint_vars.yml
+  roles:
+    - sp_server_install
+
+# Prepares storage and configures the server as specified in blueprint
+- name: Deploy xsmall SP Server
+  hosts: all
+  become: true
+  vars_files:
+    - blueprint_vars.yml
+  roles:
+    - storage_prepare
+    - sp_server_install
+...
