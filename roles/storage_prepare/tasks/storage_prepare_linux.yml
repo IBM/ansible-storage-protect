@@ -2,7 +2,7 @@
 - name: Validate 'size' parameter
   assert:
     that:
-      - size in allowed_sizes
+      - storage_prepare_size in allowed_sizes
     fail_msg: Invalid size '{{ storage_prepare_size }}' – choose from {{ allowed_sizes }}.
     success_msg: "'size' '{{ storage_prepare_size }}' is valid."
 
