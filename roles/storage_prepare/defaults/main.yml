@@ -1,6 +1,6 @@
 clean_up: false
 instance_dir: "/tsminst1"
-size: "xsmall"
+storage_prepare_size: "xsmall"
 
 allowed_sizes:
   - xsmall

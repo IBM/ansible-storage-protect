@@ -4,4 +4,4 @@
 define stgpool DEDUPPOOL stgtype=directory maxwriters=nolimit description="Deduplicated disk storage"
 
 /* Create the deduplicated storage pool directories */
-define stgpooldirectory DEDUPPOOL {{ tsm_stg_paths }}
+define stgpooldirectory DEDUPPOOL {{ tsmstgpaths }}

@@ -71,20 +71,16 @@ max_sessions:
   medium: 500
   large: 1000
 
-num_ident_proc: "4"
 backup_start_time: "12:00"
 backup_start_time_string: "12PM"
-backup_start_plus_seventeen: "17:00"
-backup_start_plus_thirteen: "13:00"
 backup_start_plus_fourteen: "14:00"
-expire_resource: "default"
 maxcap: "100G"
 dbbk_streams: "4"
 dbbk_compress: "YES"
 dbbk_password: "YourDBkPassword@@123456789"
 backup_start_plus_ten: "10:00"
-tsm_stg_paths: "/tsminst1/TSMfile01"
-dbback_dir_paths: "/tsminst1/TSMbkup01,/tsminst1/TSMbkup02"
 server_name: "Server1"
 server_password: "IBMSPServer@@123456789"
 server_blueprint: false
+admin_name: "tsmuser1"
+admin_password: "tsmuser1@@123456789"

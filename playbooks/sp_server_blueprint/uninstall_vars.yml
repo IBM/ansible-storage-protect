@@ -1,0 +1,3 @@
+---
+sp_server_state: "absent"
+server_blueprint: true

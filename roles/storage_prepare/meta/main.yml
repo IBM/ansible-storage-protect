@@ -2,7 +2,7 @@
 galaxy_info:
   role_name: storage_prepare
   author: Sarthak Kshirsagar
-  description: "This Ansible role prepares the storage required for IBM Storage Protect Server"
+  description: "This Ansible role prepares the storage required for IBM Storage Protect Server Blueprint"
   license: MIT
   min_ansible_version: 2.15.0
   galaxy_tags: []
