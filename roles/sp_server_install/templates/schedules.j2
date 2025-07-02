@@ -1,0 +1,1 @@
+define schedule {{ server_name}}_FILE FILE_INCRFOREVER_{{ backup_start_time }} starttime={{ backup_start_time }} period=1 perunit=day duration=60 durunit=minutes act=incremental description="File incremental-forever backup starting at {{ backup_start_time }}"
