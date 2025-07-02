@@ -31,27 +31,27 @@ The following variables can be configured in the `defaults/main.yml` file:
 ```yaml
 dsk_size:
   xsmall:
-    TSMdbspace: [100, 150]
+    TSMdbspace: [200, 250]
     TSMalog: [30, 80]
-    TSMarchlog: [250, 300]
-    TSMfile: [1000, 1005]
-    TSMbkup: [2000, 6000]
+    TSMarchlog: [251, 300]
+    TSMfile: [10000, 10050]
+    TSMbkup: [1000, 1050]
   small:
-    TSMdbspace: [10000, 10050]
+    TSMdbspace: [1000, 1050]
     TSMalog: [140, 190]
-    TSMarchlog: [10000, 10050]
+    TSMarchlog: [1000, 1005]
     TSMfile: [38000, 38050]
-    TSMbkup: [30000, 30050]
+    TSMbkup: [3000, 3050]
   medium:
-    TSMdbspace: [20000, 20050]
+    TSMdbspace: [2000, 2005]
     TSMalog: [140, 190]
-    TSMarchlog: [20000, 20050]
+    TSMarchlog: [2000, 2005]
     TSMfile: [180000, 180050]
     TSMbkup: [10000, 10050]
   large:
-    TSMdbspace: [40000, 40050]
+    TSMdbspace: [4000, 4050]
     TSMalog: [550, 600]
-    TSMarchlog: [40000, 40050]
+    TSMarchlog: [4000, 4050]
     TSMfile: [500000, 500050]
     TSMbkup: [16000, 16050]
   ```
