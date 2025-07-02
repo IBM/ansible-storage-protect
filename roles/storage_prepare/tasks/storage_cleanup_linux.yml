@@ -62,3 +62,36 @@
     vg: "{{ archlog.vg }}"
     state: absent
   ignore_errors: true
+
+- name: Extract device paths mounted under {{ instance_dir }}
+  set_fact:
+    tsminst1_devices: |-
+      {{
+        ansible_mounts
+        | selectattr('mount', 'search', '^' + instance_dir)
+        | map(attribute='device')
+        | map('regex_replace', '^/dev/mapper/', '/dev/')
+        | list | unique
+      }}
+
+- name: Check if each device still exists
+  stat:
+    path: "{{ item }}"
+  loop: "{{ tsminst1_devices }}"
+  register: device_stats
+
+- name: Filter existing devices to wipe
+  set_fact:
+    existing_tsminst1_devices: |-
+      {{
+        device_stats.results
+        | selectattr('stat.exists', 'defined')
+        | selectattr('stat.exists', 'equalto', true)
+        | map(attribute='invocation.module_args.path')
+        | list
+      }}
+
+- name: Wipe filesystem signatures from existing /tsminst1 devices
+  command: wipefs -a {{ item }}
+  loop: "{{ existing_tsminst1_devices }}"
+  when: cleanup | default(false)
