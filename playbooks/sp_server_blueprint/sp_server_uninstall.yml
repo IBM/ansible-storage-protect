@@ -4,7 +4,7 @@
   hosts: all
   become: true
   vars_files:
-    - uninstall_vars.yml
+    - vars/uninstall_vars.yml
   roles:
     - sp_server_install
 ...

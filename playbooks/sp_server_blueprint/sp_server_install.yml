@@ -1,0 +1,9 @@
+# Install SP Server on specified hosts
+- name: Install SP Server
+  hosts: all
+  become: true
+  vars_files:
+    - vars/install_vars.yml
+  roles:
+    - sp_server_install
+...
