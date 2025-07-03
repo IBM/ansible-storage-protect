@@ -30,34 +30,13 @@
 
 # System Compatibility checks for installing the BA Client (AIX-specific)
 
-- name: Collect system facts and architecture
-  ansible.builtin.set_fact:
-    system_info:
-      Architecture: "{{ ansible_architecture }}"
-
 - name: Checking architecture compatibility (AIX)
   ansible.builtin.set_fact:
-    architecture_compatible: "{{ 'powerpc' in sp_server_compatible_architectures }}"
-
-- name: Collect disk space info for /opt (AIX)
-  ansible.builtin.command: df -m /opt
-  register: disk_info
-  changed_when: false
-  ignore_errors: true
-
-- name: Parse disk space info for AIX
-  ansible.builtin.set_fact:
-    disk_space:
-      filesystem: "{{ disk_info.stdout_lines[1].split()[0] }}"
-      size_mb: "{{ disk_info.stdout_lines[1].split()[1] | int }}"
-      available_mb: "{{ disk_info.stdout_lines[1].split()[2] | int }}"
-      use_percent: "{{ disk_info.stdout_lines[1].split()[3] }}"
-      mount_point: "{{ disk_info.stdout_lines[1].split()[6] }}"
-  when: disk_info is defined and disk_info.stdout_lines | length > 1
+    architecture_compatible: "{{ system_info_aix.architecture in sp_server_compatible_architectures }}"
 
 - name: Checking available disk space (AIX)
   ansible.builtin.set_fact:
-    avail_disk_space: "{{ disk_space.available_mb | int > 1500 }}"
+    avail_disk_space: "{{ system_info_aix.disk_space.available_mb | int > 1500 }}"
 
 - name: Compatibility results (AIX)
   ansible.builtin.debug:
@@ -79,7 +58,7 @@
   ansible.builtin.fail:
     msg: >
       System compatibility checks failed. Please ensure the following
-      requirements are met: - Compatible architecture: powerpc - Sufficient disk space: > 1500 MB
+      requirements are met: - Compatible architecture: chrp - Sufficient disk space: > 1500 MB
       Architecture check: {{ architecture_compatible }} | Disk Space: {{ avail_disk_space }}
   when: not (architecture_compatible and avail_disk_space)
 
