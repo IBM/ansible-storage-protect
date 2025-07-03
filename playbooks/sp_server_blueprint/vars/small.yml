@@ -1,0 +1,11 @@
+# Note: Use Ansible-Valut to encrypt secrets
+
+# Required for configuration
+server_blueprint: true
+server_size: "small"
+storage_prepare_size: "small"
+dbbk_password: "YourDBBkpass@12345"
+server_name: "Server1"
+server_password: "YourServerPass@12345"
+admin_password: "MyPassword@12345"
+...

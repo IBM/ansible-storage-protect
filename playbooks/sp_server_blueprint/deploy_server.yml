@@ -1,0 +1,5 @@
+---
+# file: deploy_server.yml
+- import_playbook: playbooks/sp_server_blueprint/sp_server_install.yml
+- import_playbook: playbooks/sp_server_blueprint/sp_server_blueprint.yml
+...
