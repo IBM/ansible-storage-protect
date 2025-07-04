@@ -1,8 +1,0 @@
-# Note: Use Ansible-Valut to encrypt secrets
-
-# Required for installation
-sp_server_version: "8.1.24.0"
-ssl_password: "YourSSLPass@12345"
-sp_server_state: "present"
-sp_server_bin_repo: "/path/to/local/bin/repo"
-...

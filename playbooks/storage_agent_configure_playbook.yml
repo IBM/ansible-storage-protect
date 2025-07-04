@@ -1,6 +1,6 @@
 ---
 - name: Configure Storage Agent
-  hosts: all
+  hosts: "{{ target_hosts | default('all') }}"
   become: yes
   environment:
     STORAGE_PROTECT_SERVERNAME: "server_name_for_dsmadmc cli"
@@ -30,7 +30,7 @@
     stg_pool: "LANFREEPOOL"
 
 - name: Validate lanfree
-  hosts: all
+  hosts: "{{ target_hosts | default('all') }}"
   become: yes
   environment:
     STORAGE_PROTECT_SERVERNAME: "server2"

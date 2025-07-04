@@ -92,4 +92,23 @@ dsk_size:
 ---
 
 ## Example Playbooks
-Example playbooks are available under the playbooks directory of [IBM/ansible-storage-protect](https://github.com/IBM/ansible-storage-protect/tree/main/playbooks/storage_prepare) github repo.
+- Example playbooks are available under the playbooks directory of [IBM/ansible-storage-protect](https://github.com/IBM/ansible-storage-protect/tree/main/playbooks/) github repo.
+- The `target_hosts` variable allows you to dynamically specify the target hosts or host group at runtime.
+- If `target_hosts` is not provided, the playbook defaults to using "all" hosts from your inventory.
+Make sure the specified target_hosts exist in your inventory file (INI, YAML, or dynamic inventory).
+- To prepare the storage according to the blueprint, execute the below command.
+```bash
+ansible-playbook -i inventory.ini ibm.storage_protect.storage_prepare_playbook.yml -e 'storage_prepare_size=xsmall' 
+```
+- To cleanup the storage, execute the below command.
+```bash
+ansible-playbook -i inventory.ini ibm.storage_protect.storage_cleanup_playbook.yml -e 'clean_up=true' 
+```
+- For custom storage preparation:-
+  - Create a vars file in working directory.
+  - Include all the vars as mentioned in `role_varibles` above.
+  - Modify the dsk_size variable accordingly.
+  - Execute the playbook provided by collection using below command.
+```bash
+ansible-playbook -i inventory.ini ibm.storage_protect.storage_prepare_playbook.yml -e @your_vars_file.yml 
+  ```

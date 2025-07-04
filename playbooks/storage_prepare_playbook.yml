@@ -1,8 +1,8 @@
 ---
 - name: Prepare Storage for xsmall server
-  hosts: all
+  hosts: "{{ target_hosts | default('all') }}"
   become: true
   roles:
-    - storage_prepare
+    - ibm.storage_protect.storage_prepare
   vars:
     storage_prepare_size: "xsmall"
