@@ -9,13 +9,12 @@ This Ansible role automates the installation, upgrade, configuration, and uninst
 - Uninstalling the SP Server and restoring the system to a clean state.
 
 ## Role Variables
-The following variables can be configured in the `defaults/main.yml` file:
 
 | Variable                     | Default Value                   | Description                                                                                                                 |
 |------------------------------|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
 | `sp_server_state`            | `present`                       | Desired state of the SP Server (`present`, `upgrade`, `absent`).                                                            |
 | `secure_port`                | `9443`                          | Secure port for SP Server.                                                                                                  |
-| `ssl_password`               | `""`                            | Password for SSL encryption. Include symbols, uppercase,lowercase and numbers in your password.                             |
+| `ssl_password`               | `"YourSSLPassword"`                            | Password for SSL encryption. Include symbols, uppercase,lowercase and numbers in your password.                             |
 | `sp_server_install_dest`     | `/opt/sp_server_binary/`        | Destination directory for SP Server installation files.                                                                     |
 | `sp_server_upgrade_dest`     | `/opt/sp_server_upgrade_binary` | Destination directory for upgrade binaries.                                                                                 |
 | `root_dir`                   | `/tsmroot`                      | Root directory for SP Server.                                                                                               |
@@ -25,14 +24,14 @@ The following variables can be configured in the `defaults/main.yml` file:
 | `tsm_group_gid`                | `10001`                         | Group Id                                                                                                                    |
 | `tsm_user`                | `tsminst1`                      | Specifies the name of the user who will own the SP Server Instance and also this value corresponds to the name of instance. |
 | `tsm_user_uid`                | `10001`                         | User Id for `tsm_user`.                                                                                                     |
-| `tsm_user_password`                | `""`                            | Password for `tsm_user`.                                                                                                    |
+| `tsm_user_password`                | `"Tsmuser@@123456789"`                            | Password for `tsm_user`.                                                                                                    |
 | `admin_name`                | `"tsmuser1"`                    | Initial system level administrator.                                                                                         |
 | `admin_password`                | `"tsmuser1@@123456789"`                            | Password for Initial system level administrator.                                                                            |
 | `sp_server_active_log_size`                | `17000`                         | Specifies the active log size for SP Server.                                                                                |
 | `server_blueprint`                | `false`                         | Specifies whether to configure server according to blueprint configurations.                                                |
 
 ### Offerings dictionary can be used to install only required components. 
-#### By default role install all the offerings. Override the below dictionary in your playbook to install only required components.
+#### By default role install all the offerings. Override the below dictionary in your playbook/vars file to install only required components.
 ```
 offerings:
   server: true
@@ -95,7 +94,7 @@ max_sessions:
   medium: 500
   large: 1000
 ```
-## Server Blueprint Implementation:
+## Server Blueprint Implementation Workflow:
 1. To implement the server blueprint, set the `server_blueprint` directive to true.
 2. Based on the value of `server_size`, role will configure the server with parameters as specified in the blueprint document.
 3. Role also creates required policy domains, schedules, management classes and db backup related schedules. Refer the blueprint document for detailed information.
@@ -104,33 +103,56 @@ max_sessions:
 6. Schedules related to other clients will be added in next releases.
 
 ## Example Playbooks
-Example playbooks are available under the playbooks directory of [ibm-storage-protect](https://github.com/IBM/ansible-storage-protect/tree/main/playbooks/sp_server_install) github repo.
+- Example playbooks are available under the playbooks directory of [IBM/ansible-storage-protect](https://github.com/IBM/ansible-storage-protect/tree/main/playbooks/) github repo.
+- The `target_hosts` variable allows you to dynamically specify the target hosts or host group at runtime.
+- If `target_hosts` is not provided, the playbook defaults to using "all" hosts from your inventory.
+Make sure the specified target_hosts exist in your inventory file (INI, YAML, or dynamic inventory).
 
 To install SP Server:
 ```bash
-ansible-playbook -i inventory.ini playbooks/sp_server_install.yml --extra-vars '{"sp_server_bin_repo":"/path/to/repo/on/controlNode", "sp_server_state": "present", "sp_server_version": "8.1.23", "ssl_password": "YourPassword@123"}'
+ansible-playbook -i inventory.ini ibm.storage_protect.sp_server_install_playbook.yml --extra-vars '{"sp_server_bin_repo":"/path/to/repo/on/controlNode", "sp_server_state": "present", "sp_server_version": "8.1.23", "ssl_password": "YourPassword@123"}'
 ```
 
 To upgrade SP Server:
 ```bash
-ansible-playbook -i inventory.ini playbooks/sp_server_install.yml --extra-vars '{"sp_server_bin_repo":"/path/to/repo/on/controlNode", "sp_server_state": "upgrade", "sp_server_version": "8.1.24", "ssl_password": "YourPassword@123"}'
+ansible-playbook -i inventory.ini ibm.storage_protect.sp_server_install_playbook.yml --extra-vars '{"sp_server_bin_repo":"/path/to/repo/on/controlNode", "sp_server_state": "upgrade", "sp_server_version": "8.1.24", "ssl_password": "YourPassword@123"}'
 ```
 
-To configure SP Server:
+To configure SP Server with default values:
 ```bash
-ansible-playbook -i inventory.ini playbooks/sp_server_configure.yml
+ansible-playbook -i inventory.ini ibm.storage_protect.sp_server_configure_playbook.yml
 ```
-
 To uninstall SP Server:
 ```bash
-ansible-playbook -i inventory.ini playbooks/sp_server_uninstall.yml --extra-vars '{"sp_server_state": "absent"}'
+ansible-playbook -i inventory.ini ibm.storage_protect.sp_server_uninstall_playbook.yml
 ```
 
-#### Example playbook for server blueprint implementation is available on the github repo of [IBM/ansible-storage-protect](https://github.com/IBM/ansible-storage-protect/tree/main/playbooks/sp_server_blueprint). 
+## Server Blueprint Implementation
+- Example playbook for server blueprint is available in playbooks directory of collection.
+- This playbook performs installation,storage preparation and configuration as mentioned in blueprint document.
+- Predefined vars files are created for server blueprint implementation, which can be directly used to execute the playbook using below command.
+```bash
+ansible-playbook -i inventory.ini ibm.storage_protect.sp_server_blueprint_playbook.yml -e @vars/xsmall_server_vars.yml 
+```
+- Following vars file can be used with the above command
+  - @vars/xsmall_server_vars.yml
+  - @vars/small_server_vars.yml
+  - @vars/meidum_server_vars.yml
+  - @vars/large_server_vars.yml
+
+## Note:
+- Vars file contains the default values as mentioned in role variables section above.
+- It is recommended:-
+  - Create a seperate vars file in working directory.
+  - Copy and paste the content of vars file available on github repo in the newly created file.
+  - Change the password related variables and encrypt vars file using Ansible Vault.
+  - Execute below command in working directory.
+  ```bash
+    ansible-playbook -i inventory.ini ibm.storage_protect.sp_server_blueprint_playbook.yml -e @encrypted_file.yml
 
 ## Requirements
 - **Operating System**: Linux (x86_64 architecture).
-- **Disk Space**: Minimum 40000 MB free on the remote machine. Additional Memory will be required based on the value of `sp_server_active_log_size`.
+- **Disk Space**: Ensure you satisfy the system requirements for blueprint implementation/installation of server.
 - The playbook should be executed with `become: true`.
 - Install the following collections from ansible galaxy on control node.
 ```bash

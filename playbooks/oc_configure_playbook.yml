@@ -3,5 +3,5 @@
   hosts: "{{ target_hosts | default('all') }}"
   become: true
   roles:
-    - oc_configure
+    - ibm.storage_protect.oc_configure
 ...
