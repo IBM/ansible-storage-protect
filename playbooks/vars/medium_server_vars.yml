@@ -1,0 +1,17 @@
+# Note: Use Ansible-Vault to encrypt secrets
+
+# Required for installation
+sp_server_version: "8.1.24.0"
+ssl_password: "YourSSLPass@12345"
+sp_server_state: "present"
+sp_server_bin_repo: "/path/to/local/bin/repo"
+
+# Required for configuration
+server_blueprint: true
+server_size: "medium"
+storage_prepare_size: "medium"
+dbbk_password: "YourDBBkpass@12345"
+server_name: "Server1"
+server_password: "YourServerPass@12345"
+admin_password: "MyPassword@12345"
+...

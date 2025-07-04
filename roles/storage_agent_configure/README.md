@@ -51,8 +51,10 @@ The following variables can be configured:
 
 ## Example Playbook
 
-For full, working examples of how to consume this role, see the **Playbooks** section:
-
+- Example playbooks are available under the playbooks directory of [IBM/ansible-storage-protect](https://github.com/IBM/ansible-storage-protect/tree/main/playbooks/) github repo.
+- The `target_hosts` variable allows you to dynamically specify the target hosts or host group at runtime.
+- If `target_hosts` is not provided, the playbook defaults to using "all" hosts from your inventory.
+Make sure the specified target_hosts exist in your inventory file (INI, YAML, or dynamic inventory).
 [View Example Playbooks](https://galaxy.ansible.com/ui/repo/published/ibm/storage_protect/content/playbook/storage_agent_configure.yml/)
 
 Below is a minimal inline example:
@@ -72,7 +74,7 @@ Below is a minimal inline example:
         stg_agent_password: "STGAGENT@123456789"
         stg_agent_server_name: "server2"
         stg_agent_hl_add: "client_address"
-        ... other parameters ...
+#        ... other parameters ...
 
     - name: Validate lanfree
       ibm.storage_protect.storage_agent_config:
@@ -80,3 +82,10 @@ Below is a minimal inline example:
         node_name: "lanfreeclient"
         stg_agent_name: "stgagent8"
         max_attempts: 4
+
+```
+- Create a vars file, include all the variables and encrypt the file using Ansible Vault.
+- Example playbook is included in the collection and can be directly executed using below command.
+```bash
+ansible-playbook -i inventory.ini ibm.storage_protect.storage_agent_configure_playbook.yml -e @your_encrypted_file.yml
+```

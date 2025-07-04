@@ -65,18 +65,22 @@ The following variables can be configured in the `defaults.yml` file:
 - Rolls back to the previous version if the uninstall fails
 
 ## Example Playbooks
-- The example playbooks are available in the playbooks directory of this collection.
-- For installation of BA Client execute the 'ba_client_install.yml' playbook and pass the above mentioned variables as extra vars or define them in your inventory.
+- Example playbooks are available under the playbooks directory of [IBM/ansible-storage-protect](https://github.com/IBM/ansible-storage-protect/tree/main/playbooks/) github repo.
+- The `target_hosts` variable allows you to dynamically specify the target hosts or host group at runtime.
+- If `target_hosts` is not provided, the playbook defaults to using "all" hosts from your inventory.
+Make sure the specified target_hosts exist in your inventory file (INI, YAML, or dynamic inventory).
+- For installation of BA Client execute the 'ba_client_install_playbook.yml' included with the collection and pass the above mentioned variables as extra vars or create a seperate vars file in working directory.
+- Execute the below command in working directory once ibm.storage_protect collection is installed.
 ```bash
- anisble-playbook -i inventory.ini playbooks/ba_client/ba_client_install.yml --extra-vars '{"target_hosts": "group1", "ba_client_state": "present", "ba_client_version": "8.1.24.0", "ba_client_tar_repo": "/path/to/repo"}'
+ anisble-playbook -i inventory.ini ibm.storage_protect.ba_client_install_playbook.yml -e @your_vars_file.yml'
 ```
-- For uninstallation of BA Client execute the 'ba_client_uninstall.yml' playbook.
+- For uninstallation of BA Client execute the 'ba_client_uninstall_playbook.yml' playbook.
 ```bash
- anisble-playbook -i inventory.ini playbooks/ba_client/ba_client_uninstall.yml --extra-vars '{"target_hosts": "group1"}'
+ anisble-playbook -i inventory.ini ibm.storage_protect.ba_client_uninstall.yml'
 ```
-- For upgrade of BA Client execute the 'ba_client_install.yml' playbook and make sure the greater version is passed as compared to already installed version.
+- For upgrade of BA Client execute the 'ba_client_install_playbook.yml' playbook and make sure the greater version is passed as compared to already installed version.
 ```bash
- anisble-playbook -i inventory.ini playbooks/ba_client/ba_client_install.yml --extra-vars '{"target_hosts": "group1", "ba_client_state": "present", "ba_client_version": "8.1.25.0", "ba_client_tar_repo": "/path/to/repo"}'
+ anisble-playbook -i inventory.ini ibm.storage_protect.ba_client_install.yml -e @your_vars_file.yml'
 ```
 - Note: The role also performs patching. The installation playbook is capable of applying patches—just pass the desired version, and the role will handle it. For example, if version 8.1.15.0 is already installed, passing 8.1.15.1 to the installation playbook will upgrade the BA Client to the patched version.
 ## Requirements

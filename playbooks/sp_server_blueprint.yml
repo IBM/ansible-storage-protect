@@ -1,0 +1,8 @@
+---
+# Prepares storage and configures the server as specified in blueprint
+# installs the server
+- import_playbook: ibm.storage_protect.sp_server_install_playbook.yml
+# prepare storage for server blueprint implementation
+- import_playbook: ibm.storage_protect.storage_prepare_playbook.yml
+# configures server as specified in blueprint
+- import_playbook: ibm.storage_protect.sp_server_install_playbook.yml

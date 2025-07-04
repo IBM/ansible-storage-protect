@@ -22,36 +22,21 @@ export STORAGE_PROTECT_PASSWORD="your_password"
 | `action`     | restart | Action to perform (configure, restart, stop)         |
 
 ## Example Playbook
-
-```yaml
----
-- name: Configure OC
-  hosts: localhost
-  become: yes
-  roles:
-    - role: oc_configure
-      vars:
-        admin_name: tsmadmin
-        action: configure
-
-- name: Stop OC
-  hosts: localhost
-  become: yes
-  roles:
-    - role: oc_configure
-      vars:
-        action: stop
-
-- name: Configure OC
-  hosts: localhost
-  become: yes
-  roles:
-    - role: oc_configure
-      vars:
-        action: restart
-```
-
-# Sample playbook is available in playbooks directory of ibm/storage_protect github repo
+- Example playbooks are available under the playbooks directory of [IBM/ansible-storage-protect](https://github.com/IBM/ansible-storage-protect/tree/main/playbooks/) github repo.
+- The `target_hosts` variable allows you to dynamically specify the target hosts or host group at runtime.
+- If `target_hosts` is not provided, the playbook defaults to using "all" hosts from your inventory.
+Make sure the specified target_hosts exist in your inventory file (INI, YAML, or dynamic inventory).
+- To configure oc, execute the `oc_configure_playbook.yml` included with the collection.
+- Create a seperate vars file in working directory and provide the required variables.
+- Execute the playbook using below command.
 ```bash
-ansible-playbook playbooks/oc_configure/oc_configure.yml -e "target_hosts=host_group action=configure admin_name=tsmuser1"
+ansible-playbook -i inventory.ini ibm.storage_protect.oc_configure_playbook.yml -e @your_vars_file.yml
+```
+- To stop the OC, execute the playbook using below command.
+```
+ansible-playbook -i inventory.ini ibm.storage_protect.oc_configure_playbook.yml -e 'action=stop'
+```
+- To restart the OC, execute the playbook using below command.
+```
+ansible-playbook -i inventory.ini ibm.storage_protect.oc_configure_playbook.yml -e 'action=restart'
 ```

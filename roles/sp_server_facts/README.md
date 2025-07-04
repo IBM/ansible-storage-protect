@@ -38,15 +38,18 @@ You can control which facts to collect using the `sp_server_facts_flags` variabl
 | `q_stgpool`        | Collect storage pool information      | `false`  |
 
 ### Example Playbooks
-- The example playbooks are available in the playbooks directory of this collection.
-- To fetch the facts using 'sp_server_facts' module, execute the 'sp_server_facts' playbook from the playbooks directory and define variables mentioned above in your inventory or pass them as extra vars.
+- Example playbooks are available under the playbooks directory of [IBM/ansible-storage-protect](https://github.com/IBM/ansible-storage-protect/tree/main/playbooks/) github repo.
+- The `target_hosts` variable allows you to dynamically specify the target hosts or host group at runtime.
+- If `target_hosts` is not provided, the playbook defaults to using "all" hosts from your inventory.
+Make sure the specified target_hosts exist in your inventory file (INI, YAML, or dynamic inventory).
+- To fetch the facts execute 'sp_server_facts_playbook' included with the collection.
+- Create a vars file in working directory and execute below command.
 ```bash
- ansible-playbook -i inventory.ini playbooks/sp_server_facts/sp_server_facts.yml --extra-vars 'target_hosts=group1 sp_server_facts_flags={"q_status": true}' 
+ ansible-playbook -i inventory.ini ibm.storage_protect.sp_server_facts_playbook.yml -e @your_vars_file.yml
 ```
-- If the number of variables is large, create a separate vars file and pass the vars file as --extra-vars to the command.
+#### Example vars file
 ```bash
 # vars.yml
-target_hosts: group1
 sp_server_facts_flags:
   q_status: true
   q_monitorsettings: true
@@ -59,8 +62,4 @@ sp_server_facts_flags:
   q_devclass: true
   q_mgmtclass: true
   q_stgpool: true
-```
-
-```bash
-ansible-playbook -i inventory.ini playbooks/sp_server_facts/sp_server_facts.yml --extra-vars "@vars.yml"
 ```

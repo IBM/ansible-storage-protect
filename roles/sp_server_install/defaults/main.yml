@@ -4,7 +4,7 @@ sp_server_state: "present"
 profile_id: "IBM Storage Protect"
 install_location: "/opt/IBM/InstallationManager/eclipse"
 secure_port: "9443"
-ssl_password: ""
+ssl_password: "YourSSLPassword"
 ssl_password_confirm: "{{ ssl_password }}"
 license_value: "tsm"
 license_option: "A"
@@ -22,7 +22,7 @@ tsm_group: "tsmusers"
 tsm_group_gid: "10001"
 tsm_user: "tsminst1"
 tsm_user_uid: "10001"
-tsm_user_password: ""
+tsm_user_password: "Tsmuser@@123456789"
 sp_server_active_log_size: 17000
 sp_server_action: "install"
 offerings:
@@ -35,17 +35,52 @@ offerings:
 
 # === configuration vars ======
 #disk_device: /dev/sdb
-root_dir: /tsmroot
+#root_dir: /tsmroot
+#directories:
+#  - tsminst1
+#  - tsmdb001
+#  - tsmdb002
+#  - tsmdb003
+#  - tsmdb004
+#  - tsmlog
+#  - tsmarchlog
+#  - tsmlogmirror
+#  - tsmarchlogfailover
+
 directories:
-  - tsminst1
-  - tsmdb001
-  - tsmdb002
-  - tsmdb003
-  - tsmdb004
-  - tsmlog
-  - tsmarchlog
-  - tsmlogmirror
-  - tsmarchlogfailover
+  - TSMdbspace01
+  - TSMdbspace02
+  - TSMdbspace03
+  - TSMdbspace04
+  - TSMalog
+  - TSMarchlog
 
 sp_server_compatible_architectures:
   - x86_64
+
+server_size: 'xsmall'
+act_log_size:
+  xsmall: 24576
+  small: 131072
+  medium: 131072
+  large: 524032
+
+max_sessions:
+  xsmall: 75
+  small: 250
+  medium: 500
+  large: 1000
+
+backup_start_time: "12:00"
+backup_start_time_string: "12PM"
+backup_start_plus_fourteen: "14:00"
+maxcap: "100G"
+dbbk_streams: "4"
+dbbk_compress: "YES"
+dbbk_password: "YourDBkPassword@@123456789"
+backup_start_plus_ten: "10:00"
+server_name: "Server1"
+server_password: "IBMSPServer@@123456789"
+server_blueprint: false
+admin_name: "tsmuser1"
+admin_password: "tsmuser1@@123456789"

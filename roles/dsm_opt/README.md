@@ -22,15 +22,18 @@ This Ansible role generates a `dsm.opt` configuration file for IBM Storage Prote
 ## Usage
 
 ### Example Playbooks
-- The example playbooks are available in the playbooks directory of this collection.
-- To configure a dsm_opt file, execute the 'dsm_opt' playbook from the playbooks directory and define variables mentioned above in your inventory or pass them as extra vars.
+- Example playbooks are available under the playbooks directory of [IBM/ansible-storage-protect](https://github.com/IBM/ansible-storage-protect/tree/main/playbooks/) github repo.
+- The `target_hosts` variable allows you to dynamically specify the target hosts or host group at runtime.
+- If `target_hosts` is not provided, the playbook defaults to using "all" hosts from your inventory.
+Make sure the specified target_hosts exist in your inventory file (INI, YAML, or dynamic inventory).
+- To configure a dsm.opt file, execute the 'dsm_opt_playbook' included with the collection and define variables mentioned above.
+- Create a seperate vars file in working directory and execute the below command.
 ```bash
- ansible-playbook -i inventory.ini playbooks/dsm_opt/dsm_opt.yml --extra-vars 'target_hosts=group1 dsm_opt_parameters={"dsm_opt_servername": "NewServer", "dsm_opt_nodename": "NewClient"}' 
+ ansible-playbook -i inventory.ini ibm.storage_protect.dsm_opt_playbook.yml -e @your_vars_file.yml
 ```
-- If the number of variables is large, create a separate vars file and pass the vars file as --extra-vars to the command.
+- Example vars file
 ```bash
 # vars.yml
-target_hosts: group1
 dsm_opt_parameters:
   dsm_opt_servername: "NewServer"
   dsm_opt_nodename: "NewClient"
@@ -38,11 +41,8 @@ dsm_opt_parameters:
   dsm_opt_password: "mypassword"
  
 ```
-```bash
-ansible-playbook -i inventory.ini playbooks/dsm_opt/dsm_opt.yml --extra-vars "@vars.yml"
-```
 - To remove a existing opt file execute playbook using the below command.
 
 ```bash
- ansible-playbook -i inventory.ini playbooks/dsm_opt/dsm_opt.yml --extra-vars 'target_hosts=group1 dsm_opt_state=absent' 
+ ansible-playbook -i inventory.ini ibm.storage_protect.dsm_opt_playbook.yml --extra-vars 'dsm_opt_state=absent' 
 ```
