@@ -1,0 +1,135 @@
+---
+# Check if BA Client is already installed
+- name: Check if SP ERP HANA is already installed
+  ansible.builtin.command: ls /opt/tivoli/tsm/tdp_hana/swidtag
+  register: erp_check
+  ignore_errors: true
+  changed_when: false
+
+# Displaying the installation status ( if sp erp is installed and still users passes the erp_install as install, playbook will terminate )
+- name: Display ERP status
+  ansible.builtin.debug:
+    msg: "SP ERP is already installed. Skipping installation. Installed Version -> {{ erp_check.stdout }}"
+  when: erp_check is defined and erp_check.rc == 0 and erp_action == "install"
+
+
+# Skipping the installation if ERP is already installed.
+#        "Disk Space Information (for Installation Target + ERP version)  ",
+#        "SUSE ppc64le : 8.1.11.1-0 :     210.97 MegaBytes",
+- name: Fail or Skip Installation
+  ansible.builtin.meta: end_play
+  when: erp_check is defined and erp_check.rc == 0 and erp_action == "install"
+# ====================== Transferring packages on remote vm's ======================
+
+
+- name: Gather system info for sp erp compatibility
+  ansible.builtin.include_role:
+    name: system_info
+  when: erp_check is defined and erp_check.rc == 0 and erp_action == "install"
+
+
+# System Compatibility checks for installing the ba client ( Pre-checks )
+- name: Checking architecture compatibility
+  ansible.builtin.set_fact:
+    architecture_compatible: "{{ (system_info.Architecture | first) in sp_erp_hana_compatible_architectures }}"
+
+- name: Checking available disk space
+  ansible.builtin.set_fact:
+    avail_disk_space: "{{ disk_space.available_mb | int > 420 }}"
+
+- name: Compatibility results
+  ansible.builtin.debug:
+    msg: |
+      Architecture check: {{ architecture_compatible }}
+      Disk Space: {{ avail_disk_space }}
+
+- name: Compatibility check result
+  ansible.builtin.debug:
+    msg: "System is compatible"
+  when: architecture_compatible and avail_disk_space
+
+- name: Compatibility check result
+  ansible.builtin.debug:
+    msg: "System is incompatible"
+  when: not (architecture_compatible and avail_disk_space)
+
+# Skipping the installation if disk space is less than required.
+#        "Disk Space Information (for Installation Targeti + ERP version)  ",
+#        "SUSE ppc64le : 8.1.11.1-0 :     210.97 MegaBytes", ansible configuration is set to 420 just to be safe
+- name: Fail if system is incompatible
+  ansible.builtin.fail:
+    msg: >
+      System compatibility checks failed. Please ensure the following
+      requirements are met: - Compatible architecture: ppc64le, Minimum space is 420 MB
+      Sufficient disk space: > 420 MB Architecture check: {{
+      architecture_compatible }} Disk
+      Space: {{ avail_disk_space }}
+  when: not (architecture_compatible and avail_disk_space)
+
+- name: Set all_utilities_found dynamically based on checks
+  ansible.builtin.include_tasks: erp_utility_existence.yml
+
+- name: Fail if system is not properly set up
+  ansible.builtin.fail:
+    msg: "All utilities were not found in system"
+  when: not all_utilities_found
+
+# transfer files to the remote machines
+- name: Transferring the packages on the remote host
+  ansible.posix.synchronize:
+    src: "{{ tar_file_path }}"
+    dest: "{{ erp_temp_dest }}"
+  when: erp_check.rc != 0 
+  register: copy_result
+
+# Validate file transfer and show error details
+- name: Validating file transfer
+  ansible.builtin.fail:
+    msg: >
+      Package transfer to the remote host failed.
+      Error details: {{ copy_result.stderr | default('No error details available.') }}
+  when: copy_result is not defined or copy_result.rc != 0
+
+# Running the installer
+- name: Running SP ERP installer
+  ansible.builtin.shell:
+      cmd: "{{ erp_temp_dest }}/{{ tar_file_basename }}"
+      stdin: "{{ sperp_language }}\n\n1\n\n"
+  when: copy_result is defined and copy_result.rc == 0
+  register: sperp_installation
+  timeout: 60
+
+# Post checking the installation logs
+# Validate file transfer and show error details
+# Note: We cannot rely on the keyword "Success" as different languages give different result
+- name: Validating installation 
+  ansible.builtin.fail:
+    msg: >
+      Installation has failed. Check logs
+      Error details: {{ sperp_installation.stderr | default('No error details available.') }}
+  when: sperp_installation is not defined or sperp_installation.rc != 0
+
+- name: Check if hdbbackint is available
+  ansible.builtin.stat:
+    path: "/opt/tivoli/tsm/tdp_hana/hdbbackint"
+  register: hdbbackint_exists_result
+
+- name: Validating installation of hdbbackint
+  ansible.builtin.fail:
+    msg: >
+       hdbbackint binary was not found in /opt/tivoli/tsm/tdp_hana/hdbbackint
+  when: hdbbackint_exists_result.stat.exists == False
+
+- name: Check if setup.sh is available
+  ansible.builtin.stat:
+    path: "/opt/tivoli/tsm/tdp_hana/setup.sh"
+  register: setupsh_exists_result
+
+- name: Validating installation of setup.sh
+  ansible.builtin.fail:
+    msg: >
+       setup.sh script was not found in /opt/tivoli/tsm/tdp_hana/setup.sh
+  when: setupsh_exists_result.stat.exists == False
+
+
+...

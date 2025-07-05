@@ -1,0 +1,15 @@
+# Defaults for the role
+
+#        "    1- Deutsch",
+#        "  ->2- English",
+#        "    3- Español",
+#        "    4- Français",
+#        "    5- Italiano",
+#        "    6- Português  (Brasil)",
+sperp_language: "2"
+hana_sid: FR2
+hana_instance_number: "00" # Customers may have a different instance number
+hana_db_role: SYSTEM # Customer may want to congure hana with other user roles available while doing setup
+erp_temp_dest: "/tmp/"
+erp_bin_repo: "{{ lookup('env', 'ERP_INSTALLER_REPO_PATH') | default('', true) }}"  # Directory containing .bin file
+...
