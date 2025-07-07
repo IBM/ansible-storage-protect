@@ -1,4 +1,3 @@
----
 # Ensure DB2 instance profile exists
 - name: Check if DB2 instance profile exists
   ansible.builtin.stat:
@@ -13,17 +12,26 @@
 # Construct the DB2 query command using db2adutl
 - name: Construct DB2 query command using db2adutl
   ansible.builtin.set_fact:
-    db2_query_cmd: >
-      db2adutl {{ db2_query_command | default('QUERY') }}
-      {% if db2_query_database %} DATABASE {{ db2_query_database }}{% endif %}
-      {% if db2_query_dbpartitionnum %} DBPARTITIONNUM {{ db2_query_dbpartitionnum }}{% endif %}
-      {% if db2_query_nodename %} NODENAME {{ db2_query_nodename }}{% endif %}
-      {% if db2_query_owner %} OWNER {{ db2_query_owner }}{% endif %}
-      {% if db2_query_options_param %} OPTIONS "{{ db2_query_options_param }}"{% endif %}
-      {% if db2_query_password %} PASSWORD "{{ db2_query_password }}"{% endif %}
-      {% if db2_query_verbose %} VERBOSE{% endif %}
-      {% if db2_query_without_prompting %} WITHOUT PROMPTING{% endif %}
-      {{ db2_query_options | default('') }}
+    db2_query_cmd: >-
+      {{ [
+        'db2adutl query',
+        (db2_query_type in ['tablespace', 'full']) | ternary(db2_query_type, ''),
+        (db2_query_backup_level in ['nonincremental', 'incremental', 'delta']) | ternary(db2_query_backup_level, ''),
+        (db2_query_show_inactive | default(false)) | ternary('show inactive', ''),
+        (db2_query_type == 'logs' and db2_query_logs_between_start | default('') != '' and db2_query_logs_between_end | default('') != '') | ternary('logs between ' + db2_query_logs_between_start + ' and ' + db2_query_logs_between_end, ''),
+        (db2_query_chain | default('') != '') | ternary('chain ' + db2_query_chain | string, ''),
+        (db2_query_verbose | default(false)) | ternary('verbose', ''),
+        (db2_query_dbname | default('') != '') | ternary('db ' + db2_query_dbname, ''),
+        (db2_query_additional_options | default('') != '') | ternary('options ' + db2_query_additional_options, ''),
+        (db2_query_password | default('') != '') | ternary("password '" + db2_query_password + "'", ''),
+        (db2_query_nodename | default('') != '') | ternary('nodename ' + db2_query_nodename, ''),
+        (db2_query_owner | default('') != '') | ternary('owner ' + db2_query_owner, ''),
+        (db2_query_without_prompting | default(false)) | ternary('without prompting', '')
+      ]
+      | select('string')
+      | reject('equalto', '')
+      | join(' ')
+      }}
 
 # Display constructed command
 - name: Display DB2 query command

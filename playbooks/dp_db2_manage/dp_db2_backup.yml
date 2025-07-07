@@ -1,18 +1,13 @@
-- name: Run DB2 Backup to TSM
+# This playbook manages DB2 backups using Storage Protect.
+- name: Run DB2 Query Backups from Storage protect
   hosts: "{{ target_hosts | default('all') }}"
   become: true
   vars:
-    db2_operation: "backup"
-    db2_database: ""
-    db2_instance: ""
-    db2_user: ""
-    db2_password: ""
-    db2_backup_type: ""           # full, incremental, delta
-    db2_backup_online: true            # true or false
-    db2_backup_include_logs: true     # include logs or not
-    db2_backup_tablespaces: []        # empty list means all tablespaces
-    db2_backup_compress: true         # compress backup or not
-    db2_backup_encrypt: false         # encrypt backup or not
-    db2_backup_parallelism: 4         # number of parallel threads (optional)
+    db2_operation: "query"      # Operation type: query
+    db2_instance: ""            # DB2 instance name (required for correct DB2 context)
+    db2_query_dbname: ""        # Database name (required for query)
+    db2_query_type: ""          # Type of query: backup, log, tablespace, loadcopy
+    db2_query_backup_level: ""  # Backup level for type=backup: full, incremental, delta, nonincremental
+    db2_query_verbose: false    # Whether to show verbose output
   roles:
     - dp_db2_manage

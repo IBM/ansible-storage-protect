@@ -4,15 +4,19 @@
 - name: Run DB2 database backup to TSM
   ansible.builtin.include_tasks: dp_db2_backup.yml
   when: db2_operation | lower == 'backup'
+  no_log: "{{ db2_operation | lower != 'backup' }}"
 
 - name: Run DB2 database restore from TSM
   ansible.builtin.include_tasks: dp_db2_restore.yml
   when: db2_operation | lower == 'restore'
+  no_log: "{{ db2_operation | lower != 'restore' }}"
 
 - name: Query DB2 database backups from TSM
   ansible.builtin.include_tasks: dp_db2_query.yml
   when: db2_operation | lower == 'query'
+  no_log: "{{ db2_operation | lower != 'query' }}"
 
 - name: Delete DB2 database backup from TSM
   ansible.builtin.include_tasks: dp_db2_delete.yml
   when: db2_operation | lower == 'delete'
+  no_log: "{{ db2_operation | lower != 'delete' }}"

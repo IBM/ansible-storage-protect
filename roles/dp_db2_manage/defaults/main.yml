@@ -23,6 +23,7 @@ db2_backup_options: ""       # Any extra options for backup command
 # Restore-specific vars
 db2_restore_options: ""           # Any extra options for restore command
 db2_restore_into: ""              # New database name for INTO (optional)
+db2_restore_taken_at: ""          # Timestamp for TAKEN AT (optional)
 db2_restore_replace_existing: false # Whether to replace existing database
 db2_restore_without_rollforward: false # Whether to skip rollforward after restore
 db2_restore_tablespaces: []       # List of tablespaces to restore (empty for all)
@@ -32,18 +33,26 @@ db2_restore_encrypt: false        # Whether to decrypt the backup during restore
 db2_restore_encrlib: ''           # Encryption library for restore (optional)
 db2_restore_encrpwd: ''           # Encryption password for restore (optional)
 db2_restore_rollforward: true     # Whether to perform rollforward after restore
+db2_restore_target_path: ""        # Source path for restore (optional, used for FROM clause)
+db2_restore_logtarget: ""          # Log target directory for restore (optional, used for LOGTARGET clause)
+db2_restore_buffer: ""             # Buffer size for restore (optional, used for BUFFER clause)
 
 # Query-specific vars
-db2_query_command: ""             # db2adutl command (e.g., "list backup", "delete backup", etc.)
-db2_query_options: ""             # Any extra options for db2adutl query
-db2_query_database: ""            # Database name for db2adutl
-db2_query_dbpartitionnum: ""     # Partition number for db2adutl
-db2_query_nodename: ""            # TSM node name for db2adutl
-db2_query_owner: ""               # Owner for db2adutl
-db2_query_options_param: ""       # OPTIONS parameter for TSM
-db2_query_password: ""            # TSM password for db2adutl
-db2_query_without_prompting: false # Whether to suppress prompts in db2adutl query
-db2_query_verbose: false          # Whether to enable verbose output in db2adutl query
+db2_query_type: ""                       # Type: backup, log, tablespace, loadcopy
+db2_query_backup_level: ""               # Backup level (for type=backup): full, incremental, delta, nonincremental
+db2_query_show_inactive: false           # Show inactive backup images
+db2_query_logs_between_start: ""         # e.g. 00000123
+db2_query_logs_between_end: ""           # e.g. 00000456
+db2_query_chain: ""                      # Log chain number Integer (e.g., 1, 2, 3)
+db2_query_verbose: false                 # Whether to show verbose output
+db2_query_dbname: ""                     # Database name (required for query)
+db2_query_additional_options: ""         # e.g. "-ksprompt" or "complib libz.so"
+db2_query_password: ""                   # TSM password
+db2_query_nodename: ""                   # TSM node name
+db2_query_owner: ""                      # Owner ID for TSM
+db2_query_without_prompting: false       # Whether to disable prompting
+
+
 
 # Delete-specific vars
 db2_delete_type: ""               # Type of delete: FULL, INCREMENTAL, DELTA, TABLESPACE, etc.

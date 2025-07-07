@@ -55,12 +55,15 @@ This role provides a unified interface for managing DB2 database backups and res
 | db2_restore_without_rollforward | Skip rollforward after restore   | false     |
 | db2_restore_rollforward     | Perform rollforward after restore    | true      |
 
-### Query-specific Variables (examples)
-| Variable           | Description                               | Default   |
-|--------------------|-------------------------------------------|-----------|
-| db2_query_command  | db2adutl command (e.g., "LIST BACKUP")    | "QUERY"   |
-| db2_query_database | Database name for db2adutl                | ""        |
-| db2_query_verbose  | Enable verbose output                     | false     |
+### Query-specific Variables
+| Variable             | Description                                                 | Default   |
+|----------------------|-------------------------------------------------------------|-----------|
+| db2_query_command    | db2adutl command (e.g., "LIST BACKUP", "QUERY", "DETAILS")  | "QUERY"   |
+| db2_query_database   | Database name for db2adutl (if different from db2_database) | ""        |
+| db2_query_verbose    | Enable verbose output (true/false)                          | false     |
+| db2_query_object     | Object to query (e.g., backup, log, tablespace)             | ""        |
+| db2_query_tablespaces| List of tablespaces to query (empty = all)                  | []        |
+| db2_query_options    | Additional options for db2adutl query                       | ""        |
 
 ### Delete-specific Variables (examples)
 | Variable             | Description                                                | Default   |

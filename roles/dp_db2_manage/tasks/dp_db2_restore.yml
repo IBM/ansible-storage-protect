@@ -17,13 +17,15 @@
       RESTORE DATABASE {{ db2_database }}
       {% if db2_restore_into %} INTO {{ db2_restore_into }}{% endif %}
       {% if db2_user and db2_password %} USER '{{ db2_user }}' USING '{{ db2_password }}'{% endif %}
-      USE TSM
-      {% if db2_restore_replace_existing %} REPLACE EXISTING{% endif %}
       {% if db2_restore_tablespaces | length > 0 %} TABLESPACE {{ db2_restore_tablespaces | join(',') }}{% endif %}
       {% if db2_restore_dbpartitions %} ON {{ db2_restore_dbpartitions }}{% endif %}
+      INCREMENTAL
+      USE TSM
+      {% if db2_restore_taken_at %} TAKEN AT {{ db2_restore_taken_at }}{% endif %}
       {% if db2_restore_target_path %} FROM {{ db2_restore_target_path }}{% endif %}
       {% if db2_restore_logtarget %} LOGTARGET {{ db2_restore_logtarget }}{% endif %}
       {% if db2_restore_buffer %} BUFFER {{ db2_restore_buffer }}{% endif %}
+      {% if db2_restore_replace_existing %} REPLACE EXISTING{% endif %}
       {% if db2_restore_parallelism %} PARALLELISM {{ db2_restore_parallelism }}{% endif %}
       {% if db2_restore_encrypt %} ENCRYPT{% endif %}
       {% if db2_restore_encrlib %} ENCRLIB {{ db2_restore_encrlib }}{% endif %}
