@@ -23,10 +23,10 @@
         (db2_query_verbose | default(false)) | ternary('verbose', ''),
         (db2_database | default('') != '') | ternary('db ' + db2_database, ''),
         (db2_query_additional_options | default('') != '') | ternary('options ' + db2_query_additional_options, ''),
-        (db2_query_password | default('') != '') | ternary("password '" + db2_query_password + "'", ''),
-        (db2_query_nodename | default('') != '') | ternary('nodename ' + db2_query_nodename, ''),
-        (db2_query_owner | default('') != '') | ternary('owner ' + db2_query_owner, ''),
-        (db2_query_without_prompting | default(false)) | ternary('without prompting', '')
+        (db2_tsm_password | default('') != '') | ternary("password '" + db2_tsm_password + "'", ''),
+        (db2_tsm_nodename | default('') != '') | ternary('nodename ' + db2_tsm_nodename, ''),
+        (db2_tsm_owner | default('') != '') | ternary('owner ' + db2_tsm_owner, ''),
+        (db2_without_prompting | default(false)) | ternary('without prompting', '')
       ]
       | select('string')
       | reject('equalto', '')

@@ -11,7 +11,6 @@
   when: not db2profile_check.stat.exists
 
 
-# Construct DB2 partition ON clause
 - name: Construct DB2 partition ON clause
   ansible.builtin.set_fact:
     db2_partition_clause: >-
@@ -34,32 +33,30 @@
       {% else %}
       {% endif %}
 
-# Construct DB2 compress clause
 - name: Construct DB2 compress clause
   ansible.builtin.set_fact:
     db2_compress_clause: >-
-      {% if db2_backup_compress %}
+      {% if db2_compress %}
       COMPRESS
-      {% if db2_backup_comprlib %}
-        COMPRLIB {{ db2_backup_comprlib }}
+      {% if db2_comprlib %}
+        COMPRLIB {{ db2_comprlib }}
       {% endif %}
-      {% if db2_backup_compropts %}
-        COMPROPTS '{{ db2_backup_compropts }}'
+      {% if db2_compropts %}
+        COMPROPTS '{{ db2_compropts }}'
       {% endif %}
       {% else %}
       {% endif %}
 
-# Construct DB2 encrypt clause
 - name: Construct DB2 encrypt clause
   ansible.builtin.set_fact:
     db2_encrypt_clause: >-
-      {% if db2_backup_encrypt %}
+      {% if db2_encrypt %}
       ENCRYPT
-      {% if db2_backup_encrlib %}
-        ENCRLIB {{ db2_backup_encrlib }}
+      {% if db2_encrlib %}
+        ENCRLIB {{ db2_encrlib }}
       {% endif %}
-      {% if db2_backup_encropts %}
-        ENCROPTS '{{ db2_backup_encropts }}'
+      {% if db2_encropts %}
+        ENCROPTS '{{ db2_encropts }}'
       {% endif %}
       {% else %}
       {% endif %}
@@ -109,7 +106,7 @@
       {% elif db2_backup_exclude_logs %}
         EXCLUDE LOGS
       {% endif %}
-      {% if db2_backup_without_prompting %}
+      {% if db2_without_prompting %}
         WITHOUT PROMPTING
       {% endif %}
 

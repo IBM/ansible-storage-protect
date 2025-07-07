@@ -10,6 +10,6 @@
     db2_password: ""                      # DB2 password (optional)         
     db2_backup_online: false              # Set to true for online backup
     db2_backup_include_logs: false        # Set to true to include logs in backup
-    db2_backup_without_prompting: true    # Set to true to suppress prompts during backup
+    db2_without_prompting: true           # Set to true to suppress prompts during backup
   roles:
     - dp_db2_manage

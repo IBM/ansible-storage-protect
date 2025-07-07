@@ -1,17 +1,15 @@
-- name: Run DB2 Restore from TSM
+
+# This playbook restores a DB2 database from TSM (Tivoli Storage Manager) backups.
+- name: Run DB2 Restore from Storage Protect
   hosts: "{{ target_hosts | default('all') }}"
   become: true
   vars:
-    db2_operation: "restore"
-    db2_database: ""
-    db2_instance: ""
-    db2_user: ""
-    db2_password: ""
-    db2_restore_into: ""        # Optional: restore into different db name
-    db2_restore_replace_existing: true       # Replace existing db during restore
-    db2_restore_tablespaces: []               # Empty means all tablespaces
-    db2_restore_parallelism: 4                # Number of parallel threads
-    db2_restore_encrypt: false                 # Decrypt backup if encrypted
-    db2_restore_rollforward: true              # Rollforward after restore
+    db2_operation: "restore"               # Operation type: backup, delete, query, restore
+    db2_database: ""                       # Database name to restore
+    db2_instance: ""                       # DB2 instance name
+    db2_user: ""                           # DB2 user name
+    db2_password: ""                       # DB2 user password
+    db2_restore_replace_existing: true     # Replace existing database if it exists
+    db2_restore_taken_at: ""               # Timestamp of the backup to restore, format: YYYYMMDDHHMMSS
   roles:
     - dp_db2_manage
