@@ -1,51 +1,133 @@
 # Default variables
 # Operation to perform: backup, restore, query, delete
-# Example: db2_operation: "backup"
-db2_operation: "backup"
 
-# Common vars
+# Common vars ************************************************************************************
+
+db2_operation: ""            # e.g: backup, restore, query, delete
+db2_instance: ""             # Name of the DB2 instance to use (required for correct DB2 context)
 db2_database: ""             # Name of the DB2 database to operate on
 db2_user: ""                 # DB2 user for authentication (optional, required if using USER/PASSWORD in commands)
 db2_password: ""             # DB2 password for authentication (optional)
-db2_instance: ""             # Name of the DB2 instance to use (required for correct DB2 context)
 
-# Backup-specific vars
-db2_backup_type: ""          # Type of backup: full, incremental, delta
-db2_backup_online: false     # Whether to perform an online backup
-db2_backup_include_logs: false # Include logs in backup
-db2_backup_tablespaces: []   # List of tablespaces to backup (empty for all)
-db2_backup_dbpartitions: ""  # List of database partitions to backup (optional)
-db2_backup_compress: false   # Whether to compress the backup
-db2_backup_encrypt: false    # Whether to encrypt the backup
-db2_backup_parallelism: ""   # Number of parallel processes for backup (optional)
-db2_backup_options: ""       # Any extra options for backup command
+db2_partition: ""                  # Optional: dbpartitionnum value
+db2_logstream: ""                  # Optional: logstream number
+db2_options: ""                    # Optional: additional options for TSM
 
-# Restore-specific vars
-db2_restore_options: ""           # Any extra options for restore command
-db2_restore_into: ""              # New database name for INTO (optional)
-db2_restore_replace_existing: false # Whether to replace existing database
-db2_restore_without_rollforward: false # Whether to skip rollforward after restore
-db2_restore_tablespaces: []       # List of tablespaces to restore (empty for all)
-db2_restore_dbpartitions: ""      # List of database partitions to restore (optional)
-db2_restore_parallelism: 4        # Number of parallel processes for restore
-db2_restore_encrypt: false        # Whether to decrypt the backup during restore
-db2_restore_encrlib: ''           # Encryption library for restore (optional)
-db2_restore_encrpwd: ''           # Encryption password for restore (optional)
-db2_restore_rollforward: true     # Whether to perform rollforward after restore
+# Compression clause
+db2_compress: false
+db2_comprlib: ""                     # compression library name
+db2_compropts: ""                     # compression options string
 
-# Query-specific vars
-db2_query_command: ""             # db2adutl command (e.g., "list backup", "delete backup", etc.)
-db2_query_options: ""             # Any extra options for db2adutl query
-db2_query_database: ""            # Database name for db2adutl
-db2_query_dbpartitionnum: ""     # Partition number for db2adutl
-db2_query_nodename: ""            # TSM node name for db2adutl
-db2_query_owner: ""               # Owner for db2adutl
-db2_query_options_param: ""       # OPTIONS parameter for TSM
-db2_query_password: ""            # TSM password for db2adutl
-db2_query_without_prompting: false # Whether to suppress prompts in db2adutl query
-db2_query_verbose: false          # Whether to enable verbose output in db2adutl query
+# Encryption clause
+db2_encrypt: false
+db2_encrlib: ""                       # encryption library name
+db2_encropts: ""                      # encryption options string
 
-# Delete-specific vars
+
+# TSM-specific vars ******************************************************************************
+
+db2_tsm_password: ""                   # TSM password
+db2_tsm_nodename: ""                   # TSM node name
+db2_tsm_owner: ""                      # Owner ID for TSM
+db2_without_prompting: false           # Whether to disable prompting
+
+
+# Backup-specific vars ***************************************************************************
+
+# Partition (ON clause) variables
+db2_backup_partition_on_type: ""          # e.g. DBPARTITIONNUM or DBPARTITIONNUMS
+db2_backup_partition_on_all: false        # boolean, whether to use ALL keyword
+db2_backup_partition_on_range: ""         # e.g. "1 TO 4"
+db2_backup_partition_on_except: false     # boolean, whether to include EXCEPT clause
+db2_backup_partition_on_except_type: ""   # e.g. DBPARTITIONNUM or DBPARTITIONNUMS
+db2_backup_partition_on_except_range: ""  # e.g. "2 TO 3"
+
+# Tablespace variables
+db2_backup_tablespace: []                  # list of tablespaces
+db2_backup_no_tablespace: false            # boolean, if true, NO TABLESPACE will be used
+
+# Backup type and options
+db2_backup_online: false
+db2_backup_type: ""                        # e.g. INCREMENTAL, DELTA
+db2_backup_use_tsm: true
+db2_backup_open_sessions: 0                # integer number of sessions, 0 means not set
+db2_backup_options: ""                      # additional options string
+db2_backup_buffers: 0                       # number of buffers
+db2_backup_buffer_size: 0                   # size of each buffer
+db2_backup_parallelism: 0                   # parallelism value
+
+# Other options
+db2_backup_util_impact_priority: ""         # e.g. LOW, MEDIUM, HIGH
+db2_backup_include_logs: false
+db2_backup_exclude_logs: false
+
+
+# Restore-specific vars **************************************************************************
+
+# Tablespace clause options
+db2_restore_rebuild_all: ""                # Options: "DATABASE" or "IMAGE"
+db2_restore_rebuild_except: ""             # Tablespace name
+db2_restore_tablespace: ""                 # Specific tablespace
+db2_restore_schema: ""                     # Schema name
+db2_restore_online: false                  # true/false
+db2_restore_tablespace_online: false
+db2_restore_history_file_online: false
+db2_restore_compression_lib_online: false
+db2_restore_logs_online: false
+
+# Incremental
+db2_restore_incremental: ""               # Options: "INCREMENTAL", "AUTO", "AUTOMATIC", "ABORT"
+db2_restore_use_tsm: true
+db2_restore_open_sessions: ""
+db2_restore_options: ""
+
+db2_restore_taken_at: ""                  # Format: yyyymmddhhmmss
+db2_restore_to: ""
+db2_restore_dbpath: ""
+db2_restore_on_paths: []                  # List of paths
+
+# Transport clause
+db2_restore_transport: false
+db2_restore_stage_in: ""
+db2_restore_using_stogroup: ""
+
+# Log target clause
+db2_restore_into: ""
+db2_restore_logtarget: ""                 # Options: DEFAULT, EXCLUDE, INCLUDE
+db2_restore_logtarget_force: false        # true = add FORCE
+db2_restore_newlogpath: ""
+db2_restore_buffers: ""
+db2_restore_buffer_size: ""
+db2_restore_replace_history: false
+db2_restore_replace_existing: false
+db2_restore_redirect: false
+db2_restore_generate_script: ""
+db2_restore_parallelism: ""
+db2_restore_cipher: ""                    # AES, 3DES
+db2_restore_cipher_mode: ""               # CBC, etc.
+db2_restore_key_length: ""                # 128, 192, 256
+db2_restore_master_key_label: ""
+db2_restore_without_rolling_forward: false
+db2_restore_continue: false
+db2_restore_abort: false
+db2_restore_no_encrypt: false
+
+
+# Query-specific vars ****************************************************************************
+
+db2_query_type: ""                       # Type: backup, log, tablespace, loadcopy
+db2_query_backup_level: ""               # Backup level (for type=backup): full, incremental, delta, nonincremental
+db2_query_show_inactive: false           # Show inactive backup images
+db2_query_logs_between_start: ""         # e.g. 00000123
+db2_query_logs_between_end: ""           # e.g. 00000456
+db2_query_chain: ""                      # Optional: chain number for logs
+db2_query_verbose: false                 # Whether to show verbose output
+db2_query_additional_options: ""         # e.g. "-ksprompt" or "complib libz.so"
+
+
+
+# Delete-specific vars ***************************************************************************
+
 db2_delete_type: ""               # Type of delete: FULL, INCREMENTAL, DELTA, TABLESPACE, etc.
 db2_delete_tablespaces: []        # List of tablespaces to delete
 db2_delete_keep: ""               # KEEP n backups
@@ -54,3 +136,9 @@ db2_delete_taken_at: ""           # TAKEN AT timestamp
 db2_delete_logs_between: ""       # LOGS BETWEEN sn1 AND sn2
 db2_delete_chain: ""              # CHAIN n
 db2_delete_options: ""            # Any extra options for delete command
+db2_delete_chain: ""              # Optional: chain number for logs
+db2_delete_level: ""              # Optional: nonincremental, incremental, delta
+db2_delete_filter_type: ""        # Options: keep, older, older than, taken at
+db2_delete_filter_value: ""       # Value for the above filter
+db2_delete_logs_start: ""         # Used when db2_delete_type == "logs"
+db2_delete_logs_end: ""           # Used when db2_delete_type == "logs"

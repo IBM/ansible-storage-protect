@@ -4,5 +4,5 @@ __pycache__
 # Ignore specific Ansible files
 *.tar
 .idea
-.DS_Store
 .python-version
+.DS_Store

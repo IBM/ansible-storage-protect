@@ -1,0 +1,15 @@
+# This playbook manages DB2 backups using Storage Protect.
+- name: Run DB2 Backups from Storage protect
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  vars:
+    db2_operation: "backup"               # Operation type (should be "backup" for this playbook)
+    db2_database: ""                      # Name of the DB2 database to back up
+    db2_instance: ""                      # DB2 instance name
+    db2_user: ""                          # DB2 username (optional)
+    db2_password: ""                      # DB2 password (optional)         
+    db2_backup_online: false              # Set to true for online backup
+    db2_backup_include_logs: false        # Set to true to include logs in backup
+    db2_without_prompting: true           # Set to true to suppress prompts during backup
+  roles:
+    - ibm.storage_protect.dp_db2_manage

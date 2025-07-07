@@ -1,5 +1,4 @@
----
-# Ensure DB2 instance profile exists
+# 1. Ensure DB2 instance profile exists
 - name: Check if DB2 instance profile exists
   ansible.builtin.stat:
     path: "/home/{{ db2_instance }}/sqllib/db2profile"
@@ -10,65 +9,199 @@
     msg: "DB2 instance profile not found at /home/{{ db2_instance }}/sqllib/db2profile"
   when: not db2profile_check.stat.exists
 
-# Construct the DB2 restore command
-- name: Construct DB2 restore command
+# 2. Tablespace clause
+- name: Construct DB2 tablespace clause
   ansible.builtin.set_fact:
-    db2_restore_cmd: >
-      RESTORE DATABASE {{ db2_database }}
-      {% if db2_restore_into %} INTO {{ db2_restore_into }}{% endif %}
-      {% if db2_user and db2_password %} USER '{{ db2_user }}' USING '{{ db2_password }}'{% endif %}
-      USE TSM
-      {% if db2_restore_replace_existing %} REPLACE EXISTING{% endif %}
-      {% if db2_restore_tablespaces | length > 0 %} TABLESPACE {{ db2_restore_tablespaces | join(',') }}{% endif %}
-      {% if db2_restore_dbpartitions %} ON {{ db2_restore_dbpartitions }}{% endif %}
-      {% if db2_restore_target_path %} FROM {{ db2_restore_target_path }}{% endif %}
-      {% if db2_restore_logtarget %} LOGTARGET {{ db2_restore_logtarget }}{% endif %}
-      {% if db2_restore_buffer %} BUFFER {{ db2_restore_buffer }}{% endif %}
-      {% if db2_restore_parallelism %} PARALLELISM {{ db2_restore_parallelism }}{% endif %}
-      {% if db2_restore_encrypt %} ENCRYPT{% endif %}
-      {% if db2_restore_encrlib %} ENCRLIB {{ db2_restore_encrlib }}{% endif %}
-      {% if db2_restore_encrpwd %} ENCRPWD {{ db2_restore_encrpwd }}{% endif %}
-      {{ db2_restore_options | default('') }}
-      {% if db2_restore_without_rollforward %} WITHOUT ROLLING FORWARD{% endif %}
+    db2_tablespace_clause: >-
+      {% if db2_restore_rebuild_all %}
+        REBUILD WITH ALL TABLESPACES IN {{ db2_restore_rebuild_all }}
+        {% if db2_restore_rebuild_except %}
+          EXCEPT TABLESPACE {{ db2_restore_rebuild_except }}
+        {% endif %}
+      {% elif db2_restore_tablespace %}
+        TABLESPACE {{ db2_restore_tablespace }}
+        {% if db2_restore_schema %}
+          SCHEMA {{ db2_restore_schema }}
+        {% endif %}
+        {% if db2_restore_online %}
+          ONLINE
+        {% endif %}
+      {% elif db2_restore_tablespace_online %}
+        TABLESPACE ONLINE
+      {% elif db2_restore_history_file_online %}
+        HISTORY FILE ONLINE
+      {% elif db2_restore_compression_lib_online %}
+        COMPRESSION LIBRARY ONLINE
+      {% elif db2_restore_logs_online %}
+        LOGS ONLINE
+      {% endif %}
 
-# Display the constructed DB2 restore command
+# 3. Compression clause
+- name: Construct DB2 compression clause
+  ansible.builtin.set_fact:
+    db2_compress_clause: >-
+      {% if db2_compress %}
+      COMPRESS
+      {% if db2_comprlib %}
+        COMPRLIB {{ db2_comprlib }}
+      {% endif %}
+      {% if db2_compropts %}
+        COMPROPTS '{{ db2_compropts }}'
+      {% endif %}
+      {% else %}
+      {% endif %}
+
+# 4. Encryption clause
+- name: Construct DB2 encryption clause
+  ansible.builtin.set_fact:
+    db2_encrypt_clause: >-
+      {% if db2_restore_no_encrypt %}
+        NO ENCRYPT
+      {% elif db2_encrypt %}
+        ENCRYPT
+        {% if db2_restore_cipher %}
+          CIPHER {{ db2_restore_cipher }}
+        {% endif %}
+        {% if db2_restore_cipher_mode %}
+          MODE {{ db2_restore_cipher_mode }}
+        {% endif %}
+        {% if db2_restore_key_length %}
+          KEY LENGTH {{ db2_restore_key_length }}
+        {% endif %}
+      {% endif %}
+      {% if db2_encrlib %}
+        ENCRLIB {{ db2_encrlib }}
+      {% endif %}
+      {% if db2_encropts %}
+        ENCROPTS '{{ db2_encropts }}'
+      {% endif %}
+
+# 5. Transport clause
+- name: Construct DB2 transport clause
+  ansible.builtin.set_fact:
+    db2_transport_clause: >-
+      {% if db2_restore_transport %}
+        TRANSPORT
+        {% if db2_restore_stage_in %}
+          STAGE IN {{ db2_restore_stage_in }}
+        {% endif %}
+        {% if db2_restore_using_stogroup %}
+          USING STOGROUP {{ db2_restore_using_stogroup }}
+        {% endif %}
+      {% endif %}
+
+# 6. Logtarget clause
+- name: Construct DB2 logtarget clause
+  ansible.builtin.set_fact:
+    db2_logtarget_clause: >-
+      {% if db2_restore_logtarget %}
+        LOGTARGET {{ db2_restore_logtarget }}
+        {% if db2_restore_logtarget_force %}
+          FORCE
+        {% endif %}
+      {% endif %}
+
+# 7. Buffer and newlogpath clause
+- name: Construct DB2 buffer clause
+  ansible.builtin.set_fact:
+    db2_buffer_clause: >-
+      {% if db2_restore_newlogpath %}
+        NEWLOGPATH {{ db2_restore_newlogpath }}
+      {% endif %}
+      {% if db2_restore_buffers %}
+        WITH {{ db2_restore_buffers }} BUFFERS
+      {% endif %}
+      {% if db2_restore_buffer_size %}
+        BUFFER {{ db2_restore_buffer_size }}
+      {% endif %}
+
+# 8. Final DB2 restore command
+- name: Construct final DB2 restore command
+  ansible.builtin.set_fact:
+    db2_restore_cmd: >-
+      RESTORE DATABASE {{ db2_database }}
+      {% if db2_user and db2_password %}
+        USER '{{ db2_user }}' USING '{{ db2_password }}'
+      {% endif %}
+
+      {{ db2_tablespace_clause | default('') }}
+      {% if db2_restore_incremental %}
+        INCREMENTAL {{ db2_restore_incremental }}
+      {% endif %}
+      {% if db2_restore_use_tsm %}
+        USE TSM
+        {% if db2_restore_open_sessions %}
+          OPEN {{ db2_restore_open_sessions }} SESSIONS
+        {% endif %}
+        {% if db2_restore_options %}
+          OPTIONS {{ db2_restore_options }}
+        {% endif %}
+      {% endif %}
+      {% if db2_restore_taken_at %}
+        TAKEN AT {{ db2_restore_taken_at }}
+      {% endif %}
+      {% if db2_restore_to %}
+        TO '{{ db2_restore_to }}'
+      {% endif %}
+      {% if db2_restore_dbpath %}
+        DBPATH ON '{{ db2_restore_dbpath }}'
+      {% endif %}
+      {% if db2_restore_on_paths %}
+        ON {{ db2_restore_on_paths | join(',') }}
+      {% endif %}
+      {{ db2_transport_clause | default('') }}
+      {% if db2_restore_into %}
+        INTO {{ db2_restore_into }}
+      {% endif %}
+      {{ db2_logtarget_clause | default('') }}
+      {{ db2_buffer_clause | default('') }}
+      {% if db2_restore_replace_history %}
+        REPLACE HISTORY FILE
+      {% endif %}
+      {% if db2_restore_replace_existing %}
+        REPLACE EXISTING
+      {% endif %}
+      {% if db2_restore_redirect %}
+        REDIRECT
+        {% if db2_restore_generate_script %}
+          GENERATE SCRIPT {{ db2_restore_generate_script }}
+        {% endif %}
+      {% endif %}
+      {% if db2_restore_parallelism %}
+        PARALLELISM {{ db2_restore_parallelism }}
+      {% endif %}
+      {{ db2_compress_clause | default('') }}
+      {{ db2_encrypt_clause | default('') }}
+      {% if db2_restore_master_key_label %}
+        MASTER KEY LABEL {{ db2_restore_master_key_label }}
+      {% endif %}
+      {% if db2_restore_without_rolling_forward %}
+        WITHOUT ROLLING FORWARD
+      {% endif %}
+      {% if db2_without_prompting %}
+        WITHOUT PROMPTING
+      {% endif %}
+      {% if db2_restore_continue %}
+        CONTINUE
+      {% elif db2_restore_abort %}
+        ABORT
+      {% endif %}
+
+# 9. Debug: Show constructed command
 - name: Show DB2 restore command
   ansible.builtin.debug:
-    msg: "DB2 restore command: {{ db2_restore_cmd }}"
+    msg: "{{ db2_restore_cmd | trim | replace('\n', ' ') | regex_replace(' +', ' ') }}"
 
-# Execute the restore command with environment sourced
+# 10. Execute restore command
 - name: Execute DB2 restore command
   ansible.builtin.shell: |
     source /home/{{ db2_instance }}/sqllib/db2profile
-    db2 "{{ db2_restore_cmd }}"
+    db2 "{{ db2_restore_cmd | trim | replace('\n', ' ') | regex_replace(' +', ' ') }}"
   args:
     executable: /bin/bash
   register: restore_result
   changed_when: "'SQL' in restore_result.stdout or 'SQL' in restore_result.stderr"
 
-# Show output of the restore command
-- name: Show DB2 restore output
+- name: Show restore output
   ansible.builtin.debug:
     var: restore_result.stdout_lines
-
-# Show errors from restore if any
-- name: Show DB2 restore errors if any
-  ansible.builtin.debug:
-    var: restore_result.stderr_lines
-  when: restore_result.rc != 0
-
-# Optionally perform rollforward
-- name: Rollforward database if required
-  ansible.builtin.shell: |
-    source /home/{{ db2_instance }}/sqllib/db2profile
-    db2 "ROLLFORWARD DATABASE {{ db2_restore_into | default(db2_database) }} TO END OF LOGS AND STOP"
-  args:
-    executable: /bin/bash
-  register: rollforward_result
-  when: db2_restore_rollforward
-
-# Show rollforward output
-- name: Show rollforward output
-  ansible.builtin.debug:
-    var: rollforward_result.stdout_lines
-  when: db2_restore_rollforward

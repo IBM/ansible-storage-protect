@@ -1,0 +1,13 @@
+# 
+- name: Run DB2 Delete Backup from TSM
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  vars:
+    db2_operation: "delete"        # Operation type: backup, delete, query, restore
+    db2_database: ""               # Database name to delete backups from
+    db2_instance: ""               # DB2 instance name
+    db2_delete_type: ""            # Type of delete operation: full, incremental, or log
+    db2_delete_filter_type: ""     # Type of filter for delete operation: taken at, backup level, or tablespace
+    db2_delete_filter_value: ""    # Value for the filter, e.g., timestamp for taken at, or backup level for backup level
+  roles:
+    - ibm.storage_protect.dp_db2_manage

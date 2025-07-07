@@ -10,51 +10,116 @@
     msg: "DB2 instance profile not found at /home/{{ db2_instance }}/sqllib/db2profile"
   when: not db2profile_check.stat.exists
 
+
+- name: Construct DB2 partition ON clause
+  ansible.builtin.set_fact:
+    db2_partition_clause: >-
+      {% if db2_backup_partition_on_type %}
+      ON
+      {% if db2_backup_partition_on_all %}
+        ALL
+      {% endif %}
+      {{ db2_backup_partition_on_type }}
+      {% if db2_backup_partition_on_range %}
+        {{ db2_backup_partition_on_range }}
+      {% endif %}
+      {% if db2_backup_partition_on_except %}
+        EXCEPT
+        {{ db2_backup_partition_on_except_type }}
+        {% if db2_backup_partition_on_except_range %}
+          {{ db2_backup_partition_on_except_range }}
+        {% endif %}
+      {% endif %}
+      {% else %}
+      {% endif %}
+
+- name: Construct DB2 compress clause
+  ansible.builtin.set_fact:
+    db2_compress_clause: >-
+      {% if db2_compress %}
+      COMPRESS
+      {% if db2_comprlib %}
+        COMPRLIB {{ db2_comprlib }}
+      {% endif %}
+      {% if db2_compropts %}
+        COMPROPTS '{{ db2_compropts }}'
+      {% endif %}
+      {% else %}
+      {% endif %}
+
+- name: Construct DB2 encrypt clause
+  ansible.builtin.set_fact:
+    db2_encrypt_clause: >-
+      {% if db2_encrypt %}
+      ENCRYPT
+      {% if db2_encrlib %}
+        ENCRLIB {{ db2_encrlib }}
+      {% endif %}
+      {% if db2_encropts %}
+        ENCROPTS '{{ db2_encropts }}'
+      {% endif %}
+      {% else %}
+      {% endif %}
+
 # Construct the DB2 backup command from variables
 - name: Construct DB2 backup command
   ansible.builtin.set_fact:
-    db2_backup_cmd: >
+    db2_backup_cmd: >-
       BACKUP DATABASE {{ db2_database }}
       {% if db2_user and db2_password %}
-        USER '{{ db2_user }}' USING '{{ db2_password }}'
+        USER '{{ db2_user | replace("'", "\\'") }}' USING '{{ db2_password | replace("'", "\\'") }}'
+      {% endif %}
+      {{ db2_partition_clause | default('') }}
+      {% if db2_backup_tablespace | length > 0 %}
+        TABLESPACE {{ db2_backup_tablespace | join(',') }}
+      {% elif db2_backup_no_tablespace %}
+        NO TABLESPACE
+      {% endif %}
+      {% if db2_backup_online %}
+        ONLINE
       {% endif %}
       {% if db2_backup_type %}
         {{ db2_backup_type | upper }}
       {% endif %}
-      USE TSM
-      {% if db2_backup_online %}
-        ONLINE
+      {% if db2_backup_use_tsm %}
+        USE TSM
       {% endif %}
-      {% if db2_backup_include_logs %}
-        INCLUDE LOGS
+      {% if db2_backup_open_sessions %}
+        OPEN {{ db2_backup_open_sessions }} SESSIONS
       {% endif %}
-      {% if db2_backup_tablespaces | length > 0 %}
-        TABLESPACE {{ db2_backup_tablespaces | join(',') }}
+      {% if db2_backup_options %}
+        OPTIONS {{ db2_backup_options }}
       {% endif %}
-      {% if db2_backup_dbpartitions %}
-        ON {{ db2_backup_dbpartitions }}
-      {% endif %}
-      {% if db2_backup_compress %}
-        COMPRESS
-      {% endif %}
-      {% if db2_backup_encrypt %}
-        ENCRYPT
+      {% if db2_backup_buffers and db2_backup_buffer_size %}
+        WITH {{ db2_backup_buffers }} BUFFERS BUFFER {{ db2_backup_buffer_size }}
       {% endif %}
       {% if db2_backup_parallelism %}
         PARALLELISM {{ db2_backup_parallelism }}
       {% endif %}
-      {{ db2_backup_options | default('') }}
+      {{ db2_compress_clause | default('') }}
+      {{ db2_encrypt_clause | default('') }}
+      {% if db2_backup_util_impact_priority %}
+        UTIL_IMPACT_PRIORITY {{ db2_backup_util_impact_priority }}
+      {% endif %}
+      {% if db2_backup_include_logs %}
+        INCLUDE LOGS
+      {% elif db2_backup_exclude_logs %}
+        EXCLUDE LOGS
+      {% endif %}
+      {% if db2_without_prompting %}
+        WITHOUT PROMPTING
+      {% endif %}
 
 # Display the constructed DB2 backup command
 - name: Show constructed DB2 backup command
   ansible.builtin.debug:
-    msg: "DB2 backup command: {{ db2_backup_cmd }}"
+    msg: "DB2 backup command: {{ db2_backup_cmd | trim | replace('\n', ' ') | regex_replace(' +', ' ') }}"
 
 # Execute the DB2 backup command with profile sourced
 - name: Execute DB2 backup command with environment sourced
   ansible.builtin.shell: |
     source /home/{{ db2_instance }}/sqllib/db2profile
-    db2 "{{ db2_backup_cmd }}"
+    db2 "{{ db2_backup_cmd | trim | replace('\n', ' ') | regex_replace(' +', ' ') }}"
   args:
     executable: /bin/bash
   register: backup_result
