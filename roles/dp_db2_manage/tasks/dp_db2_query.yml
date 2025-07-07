@@ -21,7 +21,7 @@
         (db2_query_type == 'logs' and db2_query_logs_between_start | default('') != '' and db2_query_logs_between_end | default('') != '') | ternary('logs between ' + db2_query_logs_between_start + ' and ' + db2_query_logs_between_end, ''),
         (db2_query_chain | default('') != '') | ternary('chain ' + db2_query_chain | string, ''),
         (db2_query_verbose | default(false)) | ternary('verbose', ''),
-        (db2_query_dbname | default('') != '') | ternary('db ' + db2_query_dbname, ''),
+        (db2_database | default('') != '') | ternary('db ' + db2_database, ''),
         (db2_query_additional_options | default('') != '') | ternary('options ' + db2_query_additional_options, ''),
         (db2_query_password | default('') != '') | ternary("password '" + db2_query_password + "'", ''),
         (db2_query_nodename | default('') != '') | ternary('nodename ' + db2_query_nodename, ''),
