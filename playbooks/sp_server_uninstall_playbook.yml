@@ -1,6 +1,6 @@
 ---
 - name: Uninstall Sp server
-  hosts: all
+  hosts: "{{ target_hosts | default('all') }}"
   become: true
   roles:
     - ibm.storage_protect.sp_server_install
