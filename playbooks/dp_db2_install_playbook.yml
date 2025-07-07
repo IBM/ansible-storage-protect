@@ -3,7 +3,7 @@
   hosts: storage_protect_client
   become: true 
   vars_files:
-    - client_vars.yml
+    - vars/dp_db2_client_vars.yml
   tasks:
     # Run the prerequisites for DP for DB2
     - name: Run dp_db2_precheck role
@@ -50,7 +50,7 @@
   hosts: storage_protect_server
   become: true 
   vars_files:
-    - server_vars.yml
+    - vars/dp_db2_server_vars.yml
   pre_tasks:
     - name: Create dsm.sys
       ibm.storage_protect.dsm_sysfile:
@@ -64,6 +64,6 @@
   hosts: storage_protect_client
   become: true 
   vars_files:
-    - client_vars.yml
+    - vars/dp_db2_client_vars.yml
   roles:
     - ibm.storage_protect.dp_db2_postcheck

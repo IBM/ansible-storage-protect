@@ -12,4 +12,4 @@
     db2_backup_include_logs: false        # Set to true to include logs in backup
     db2_without_prompting: true           # Set to true to suppress prompts during backup
   roles:
-    - dp_db2_manage
+    - ibm.storage_protect.dp_db2_manage

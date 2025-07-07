@@ -10,4 +10,4 @@
     db2_delete_filter_type: ""     # Type of filter for delete operation: taken at, backup level, or tablespace
     db2_delete_filter_value: ""    # Value for the filter, e.g., timestamp for taken at, or backup level for backup level
   roles:
-    - dp_db2_manage
+    - ibm.storage_protect.dp_db2_manage

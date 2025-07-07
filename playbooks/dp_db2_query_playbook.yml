@@ -10,4 +10,4 @@
     db2_query_backup_level: ""     # Backup level for type: incremental, delta, nonincremental
     db2_query_verbose: true        # Whether to show verbose output
   roles:
-    - dp_db2_manage
+    - ibm.storage_protect.dp_db2_manage

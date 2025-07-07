@@ -12,4 +12,4 @@
     db2_restore_replace_existing: true     # Replace existing database if it exists
     db2_restore_taken_at: ""               # Timestamp of the backup to restore, format: YYYYMMDDHHMMSS
   roles:
-    - dp_db2_manage
+    - ibm.storage_protect.dp_db2_manage
