@@ -25,27 +25,37 @@
       block:
         - name: Create temp directory
           win_file:
-            path: C:\Temp
+            path: "{{ ansible_env.TEMP }}"
             state: directory
+
+        - name: Check if Python 3.9 is already installed
+          win_stat:
+            path: "C:\\Program Files\\Python{{ python_major_minor | replace('.', '') }}\\python.exe"
+          register: python_installed
 
         - name: Download Python installer
           win_get_url:
             url: "https://www.python.org/ftp/python/{{ python_version }}/python-{{ python_version }}-amd64.exe"
-            dest: "C:\\Temp\\python-{{ python_version }}.exe"
+            dest: "{{ ansible_env.TEMP }}\\python-{{ python_version }}.exe"
+          when: not python_installed.stat.exists
 
         - name: Install Python silently
           win_package:
-            path: "C:\\Temp\\python-{{ python_version }}.exe"
+            path: "{{ ansible_env.TEMP }}\\python-{{ python_version }}.exe"
             arguments: /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
             product_id: "Python {{ python_version }}"
+          when: not python_installed.stat.exists
 
         - name: Verify Python install
           win_command: "C:\\Program Files\\Python{{ python_major_minor | replace('.', '') }}\\python.exe --version"
           register: win_python_check
+          when: python_installed.stat.exists
 
         - name: Show installed Python version (Windows)
           debug:
             var: win_python_check.stdout
+          when: python_installed.stat.exists
+
       when: is_windows
 
     ####################################################################
