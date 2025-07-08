@@ -1,0 +1,13 @@
+# This playbook is used to query DB2 backups from Storage Protect
+- name: Run DB2 Query from Storage Protect
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  vars:
+    db2_operation: "query"         # Operation type set to 'query'
+    db2_instance: ""               # DB2 instance name (e.g., db2inst1)
+    db2_database: ""               # Database name to query (required)
+    db2_query_type: ""             # Type of query: full, log, tablespace, loadcopy
+    db2_query_backup_level: ""     # Backup level for type: incremental, delta, nonincremental
+    db2_query_verbose: true        # Whether to show verbose output
+  roles:
+    - ibm.storage_protect.dp_db2_manage

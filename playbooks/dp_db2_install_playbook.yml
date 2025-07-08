@@ -1,0 +1,69 @@
+---
+- name: Precheck for DP for DB2 with IBM Storage Protect
+  hosts: storage_protect_client
+  become: true 
+  vars_files:
+    - vars/dp_db2_client_vars.yml
+  tasks:
+    # Run the prerequisites for DP for DB2
+    - name: Run dp_db2_precheck role
+      include_role:
+        name: ibm.storage_protect.dp_db2_precheck
+      register: precheck_result
+
+    # Query the API version to check if installed
+    - name: Query the API installed version
+      ansible.builtin.command: rpm -q TIVsm-API64
+      register: installed_version_check
+      ignore_errors: true
+      changed_when: false
+      when: precheck_result is succeeded
+
+    # Install the BA Client packages if precheck succeeds
+    - name: Run ba_client_install role if dp_db2_precheck succeeds
+      include_role:
+        name: ibm.storage_protect.ba_client_install
+      when: installed_version_check.rc != 0
+      register: ba_client_result
+
+    # Configure dsm.opt file after installation
+    - name: Run dsm_opt role if ba_client_install succeeds
+      include_role:
+        name: ibm.storage_protect.dsm_opt
+      vars:
+        dsm_opt_optfile_path: "/opt/tivoli/tsm/client/api/bin64/dsm.opt"
+        dsm_opt_state: "present"
+      when: ba_client_result is succeeded or installed_version_check.rc == 0
+      register: dsm_opt_result
+
+    # Configure dsm.sys file after installation
+    - name: Create dsm.sys file if dsm_opt succeeds
+      ibm.storage_protect.dsm_sysfile:
+        server_name: "{{ storage_protect_server_name }}"
+        tcp_server_address: "{{ storage_protect_server_ip }}"
+        sysfile_path: "/opt/tivoli/tsm/client/api/bin64/dsm.sys"
+      when: dsm_opt_result is succeeded
+      register: dsm_sysfile_result
+
+# Register the client node in IBM Storage Protect Server
+- name: Register client node in IBM Storage Protect Server
+  hosts: storage_protect_server
+  become: true 
+  vars_files:
+    - vars/dp_db2_server_vars.yml
+  pre_tasks:
+    - name: Create dsm.sys
+      ibm.storage_protect.dsm_sysfile:
+        server_name: "{{ storage_protect_server_name }}"
+        tcp_server_address: "{{ ansible_host }}"
+  roles:
+    - ibm.storage_protect.nodes
+
+# Perform postchecks for DP for DB2
+- name: Perform postchecks for DP for DB2 configuration
+  hosts: storage_protect_client
+  become: true 
+  vars_files:
+    - vars/dp_db2_client_vars.yml
+  roles:
+    - ibm.storage_protect.dp_db2_postcheck

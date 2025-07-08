@@ -1,0 +1,9 @@
+---
+galaxy_info:
+  role_name: dp_db2_postcheck
+  author: Kartik Kamepalli
+  description: "This Ansible role performs postchecks and configuration for DB2 integration with IBM Storage Protect."
+  license: MIT
+  min_ansible_version: 2.15.0
+dependencies: []
+...

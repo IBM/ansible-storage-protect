@@ -1,0 +1,41 @@
+- name: Run DB2 Backups from Storage protect
+  hosts: all
+  become: true
+  vars:
+    db2_operation: "backup"               # Operation type (should be "backup" for this playbook)
+    db2_database: ""                      # Name of the DB2 database to back up
+    db2_instance: ""                      # DB2 instance name
+    db2_user: ""                          # DB2 username (optional)
+    db2_password: ""                      # DB2 password (optional)         
+    db2_backup_online: false              # Set to true for online backup
+    db2_backup_include_logs: false        # Set to true to include logs in backup
+    db2_without_prompting: true           # Set to true to suppress prompts during backup
+  roles:
+    - ibm.storage_protect.dp_db2_manage
+
+- name: Run DB2 Queries from Storage Protect
+  hosts: all
+  become: true
+  vars:
+    db2_operation: "query"         # Operation type set to 'query'
+    db2_instance: ""               # DB2 instance name (e.g., db2inst1)
+    db2_database: ""               # Database name to query (required)
+    db2_query_type: "full"         # Type of query: full, log, tablespace, loadcopy
+    db2_query_backup_level: "nonincremental"     # Backup level for type=full: incremental, delta, nonincremental
+    db2_query_verbose: true        # Whether to show verbose output
+  roles:
+    - ibm.storage_protect.dp_db2_manage
+
+- name: Run DB2 Restore from Storage Protect
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  vars:
+    db2_operation: "restore"               # Operation type: backup, delete, query, restore
+    db2_database: ""                       # Database name to restore
+    db2_instance: ""                       # DB2 instance name
+    db2_user: ""                           # DB2 user name
+    db2_password: ""                       # DB2 user password
+    db2_restore_replace_existing: true     # Replace existing database if it exists
+    db2_restore_taken_at: ""               # Timestamp of the backup to restore, format: YYYYMMDDHHMMSS
+  roles:
+    - ibm.storage_protect.dp_db2_manage

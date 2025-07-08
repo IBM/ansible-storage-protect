@@ -1,0 +1,19 @@
+- name: Set utility check flag
+  ansible.builtin.set_fact:
+    all_utilities_found: True
+
+- name: Check if file exists
+  ansible.builtin.stat:
+    path: "/usr/sap/{{ hana_sid  }}/HDB{{ hana_instance_number }}/exe/{{ item }}"
+  loop: "{{ sp_erp_hana_required_utilities }}"
+  register: sp_erp_hana_required_file_stats
+
+- name: update file existence status flag
+  ansible.builtin.set_fact:
+    all_utilities_found: False
+  loop: "{{ sp_erp_hana_required_file_stats.results }}"
+  when: item.stat.exists == False
+
+- name: Show result of utility check
+  debug:
+    msg: "All utilites found check: {{ all_utilities_found }}"

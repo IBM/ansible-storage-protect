@@ -9,4 +9,4 @@ sp_server_compatible_architectures:
   - x86_64
   - s390x
   - chrp
-...
+  - ppc64le

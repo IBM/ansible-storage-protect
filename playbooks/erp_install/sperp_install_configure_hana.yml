@@ -1,7 +1,7 @@
 ---
-- name: Perform OC operation
+- name: SAP HANA erp installation
   hosts: "{{ target_hosts | default('all') }}"
   become: true
   roles:
-    - oc_configure
+    - role: ibm.storage_protect.erp_install
 ...

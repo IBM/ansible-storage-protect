@@ -1,0 +1,25 @@
+# dp_db2_precheck role variables
+db2_instance_owner: ""  # DB2 instance owner
+
+# ba_client_install role variables
+ba_client_state: "present"  # Can be 'present' or 'absent'
+ba_client_version: ""  # BA Client version
+tar_file_path: ""  # Path to BA Client tar file
+ba_client_tar_repo: ""  # Directory containing tar files
+ba_client_extract_dest: ""  # Destination for extracted BA Client files
+ba_client_temp_dest: "/tmp/"  # Temporary directory for installation
+
+# dsm_opt parameters role variables
+dsm_opt_parameters:
+  dsm_opt_servername: ""  # IBM Storage Protect server name
+  dsm_opt_nodename: ""  # Node name for DB2 client
+  dsm_opt_passwordaccess: ""  # Password access type
+  dsm_opt_password: ""  # Node password
+
+#node role variables
+storage_protect_server_name: "" # IBM Storage Protect server name
+storage_protect_server_ip: "" 
+
+#dp_db2_postcheck role variables
+node_current_password: "" # Current TSM password
+node_new_password: "" # New TSM password

@@ -1,0 +1,26 @@
+---
+- name: Query the installed version of SP ERP
+  ansible.builtin.command: rpm -qa TIV-TSMERP-HANA
+  register: erp_version_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Determining action based on conditions
+  ansible.builtin.set_fact:
+    erp_action: >-
+      {{
+        "configure" if
+        (erp_version_check.stdout | length > 0)
+        else
+        "install" if
+        (erp_version_check.stdout == '')
+        else
+        "none"
+      }}
+
+- name: Fail if no erp_action can be determined
+  ansible.builtin.fail:
+    msg: >-
+      Unable to determine erp_action. Either:
+      - Specified version {{ erp_version_check }} is not available locally, or
+  when: erp_action == 'none'
