@@ -44,6 +44,8 @@ ansible-vault create vars/vault.yml
 
 Add variables like:
 
+Sample vault.yml (before encryption)
+
 ```yaml
 storage_protect_username: root
 storage_protect_password: adminPass
@@ -61,7 +63,20 @@ Encrypt the file:
 ```bash
 ansible-vault encrypt vars/vault.yml
 ```
+Sample Encrypted vault.yml
 
+```
+$ANSIBLE_VAULT;1.1;AES256\36673963393338653533616635343438386437303032626335386538373831323630633665653832
+3362646238356233303763373064333336613839356331640a3537343233343831373063623531656433613761313663383065613763
+```
+
+### View/Edit/Decrypt
+
+```
+ansible-vault view vars/vault.yml
+ansible-vault edit vars/vault.yml
+ansible-vault decrypt vars/vault.yml
+```
 ### 4. Create `vault_pass.txt` File
 
 This file holds the vault password and is used in automation (DO NOT COMMIT):
@@ -69,45 +84,6 @@ This file holds the vault password and is used in automation (DO NOT COMMIT):
 ```bash
 echo "your-vault-password" > vault_pass.txt
 ```
-
-### Using Ansible Vault
-
-Encrypt a File
-```
-ansible-vault encrypt vars/vault.yml
-
-View/Edit/Decrypt
-
-ansible-vault view vars/vault.yml
-ansible-vault edit vars/vault.yml
-ansible-vault decrypt vars/vault.yml
-```
-
-Sample vault.yml (before encryption)
-
-```storage_protect_username: root
-storage_protect_password: adminPass
-CLIENT_NAME: abc.storage.tucson.ibm.com
-CLIENT_PASSWORD: torug
-CLIENT_POLICY_DOMAIN: MY_DOMAIN
-CLIENT_HOST: 9.11.61.55
-STORAGE_PROTECT_REQUEST_TIMEOUT: 10
-ba_client_version: "8.1.27.0"
-BA_CLIENT_TAR_REPO_PATH: "/home/githubrunner/tars"
-SP_SERVER_PASSWORD: Ro
-SP_SERVER_USERNAME: root
-SP_SERVER_NAME: abcd.storage.tucson.ibm.com
-SP_SERVER_IP: 9.11.61.54
-```
-
-Sample Encrypted vault.yml
-```
-$ANSIBLE_VAULT;1.1;AES256\36673963393338653533616635343438386437303032626335386538373831323630633665653832
-3362646238356233303763373064333336613839356331640a3537343233343831373063623531656433613761313663383065613763
-```
-
-Never commit vault_pass.txt to version control.
----
 
 ## Using Vault in Playbooks
 
