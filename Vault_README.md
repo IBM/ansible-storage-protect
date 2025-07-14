@@ -1,6 +1,6 @@
 # Ansible Vault Integration for IBM Storage Protect
 
-This repository uses **Ansible** to automate the deployment and management of the IBM Spectrum Protect BA Client. It leverages **Ansible Vault** to securely store sensitive data such as credentials and file paths.
+This repository uses **Ansible** to automate the deployment and management of the IBM Spectrum Protect Components. It leverages **Ansible Vault** to securely store sensitive data such as credentials and file paths.
 
 ---
 
@@ -63,6 +63,9 @@ Encrypt the file:
 ```bash
 ansible-vault encrypt vars/vault.yml
 ```
+
+It does asks for ansible encryption password, which you can store in git secret and use it later in the automation. 
+
 Sample Encrypted vault.yml
 
 ```
@@ -79,7 +82,7 @@ ansible-vault decrypt vars/vault.yml
 ```
 ### 4. Create `vault_pass.txt` File
 
-This file holds the vault password and is used in automation (DO NOT COMMIT):
+This file holds the vault password (which is created in above step) and is used in automation (DO NOT COMMIT):
 
 ```bash
 echo "your-vault-password" > vault_pass.txt
