@@ -1,0 +1,106 @@
+
+- name: Check if dsm.opt file exists
+  win_stat:
+    path: "{{ dsm_opt_optfile_path }}"
+  register: dsm_opt_status
+
+- name: Remove dsm.opt file
+  win_file:
+    path: "{{ dsm_opt_optfile_path }}"
+    state: absent
+  when: dsm_opt_status.stat.exists and dsm_opt_state == 'absent'
+
+- name: Check if dsm.opt file still exists after removal
+  win_stat:
+    path: "{{ dsm_opt_optfile_path }}"
+  register: post_removal_status
+  when: dsm_opt_state == 'absent'
+
+- name: Debug the status of dsm.opt file removal
+  debug:
+    msg: "dsm.opt file removed successfully"
+  when:
+    - dsm_opt_state == 'absent'
+    - not post_removal_status.stat.exists
+
+- name: Stop execution of playbook when file is removed
+  meta: end_play
+  when:
+    - dsm_opt_state == 'absent'
+    - not post_removal_status.stat.exists
+
+# ----------------------------- Python Dict Conversion Tasks -----------------------------
+
+- name: Ensure Temp directory exists
+  ansible.windows.win_file:
+    path: C:\Temp
+    state: directory
+
+
+- name: Convert dsm.opt file content into a dictionary (Python inline)
+  win_shell: |
+    $filePath = "{{ dsm_opt_optfile_path }}"
+    $outputPath = "C:\Temp\dsm_opt_dict.json"
+    $dict = @{}
+
+    if (Test-Path $filePath) {
+        Get-Content $filePath | ForEach-Object {
+            if ($_ -match '^\s*(\S+)\s+(.+)$') {
+                $dict[$matches[1]] = $matches[2]
+            }
+        }
+        $json = $dict | ConvertTo-Json
+        $json | Out-File -FilePath $outputPath -Encoding UTF8
+    }
+  when: dsm_opt_status.stat.exists
+  changed_when: false
+
+- name: Read JSON content from dsm.opt dictionary file
+  win_shell: |
+    $jsonPath = "C:\Temp\dsm_opt_dict.json"
+    if (Test-Path $jsonPath) {
+        Get-Content $jsonPath -Raw
+    }
+  register: existing_dict_raw
+  when: dsm_opt_status.stat.exists
+  changed_when: false
+
+- name: Convert the raw JSON string to a dictionary
+  set_fact:
+    existing_dsm_dict: "{{ existing_dict_raw.stdout | from_json }}"
+  when: dsm_opt_status.stat.exists
+
+- name: Initialize empty dictionary if dsm.opt does not exist
+  set_fact:
+    existing_dsm_dict: {}
+  when: not dsm_opt_status.stat.exists
+
+# ----------------------------- Merge and Transform -----------------------------
+
+- name: Initialize transformed parameters dictionary
+  set_fact:
+    transformed_dsm_parameters: {}
+
+- name: Transform snake_case keys to uppercase iteratively
+  set_fact:
+    transformed_dsm_parameters: >-
+      {{
+        transformed_dsm_parameters | combine({
+          (item.key.split('_', 2)[-1] | upper): item.value
+        })
+      }}
+  with_dict: "{{ dsm_opt_parameters }}"
+
+- name: Merge transformed parameters with existing content
+  set_fact:
+    merged_dsm_dict: >-
+      {{
+        existing_dsm_dict | default({}) | combine(transformed_dsm_parameters, recursive=true)
+      }}
+
+# ----------------------------- Write Back the File -----------------------------
+
+- name: Write the updated dsm.opt file
+  win_template:
+    src: dsm.opt.j2
+    dest: "{{ dsm_opt_optfile_path }}"
