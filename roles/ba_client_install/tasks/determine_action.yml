@@ -1,22 +1,49 @@
 ---
-- name: Query the installed version of TIVsm-BA
+# =========================
+# Linux: Check installed version
+# =========================
+- name: Query installed version on Linux
   ansible.builtin.command: rpm -q TIVsm-BA
-  register: installed_version_check
+  register: installed_version_check_linux
   ignore_errors: true
   changed_when: false
+  when: ansible_os_family != "Windows"
 
-- name: Extract installed version
+- name: Extract installed version on Linux
   ansible.builtin.set_fact:
     installed_version: >-
       {{
-        installed_version_check.stdout.split('-')[2] ~ '.' ~
-        installed_version_check.stdout.split('-')[3].split('.')[0]
+        installed_version_check_linux.stdout.split('-')[2] ~ '.' ~
+        installed_version_check_linux.stdout.split('-')[3].split('.')[0]
       }}
-  when: installed_version_check.rc == 0
+  when: 
+    - ansible_os_family != "Windows"
+    - installed_version_check_linux.rc == 0
 
+# =========================
+# Windows: Check installed version
+# =========================
+- name: Query installed BA Client on Windows (registry)
+  ansible.windows.win_reg_stat:
+    path: HKLM:\SOFTWARE\IBM\ADSM\CurrentVersion
+    name: Version
+  register: installed_version_check_windows
+  when: ansible_os_family == "Windows"
+
+- name: Set installed version fact (Windows)
+  ansible.builtin.set_fact:
+    installed_version: "{{ installed_version_check_windows.value }}"
+  when:
+    - ansible_os_family == "Windows"
+    - installed_version_check_windows.exists
+
+# =========================
+# Common Logic
+# =========================
 - name: Debug the installed version
   ansible.builtin.debug:
     var: installed_version
+  when: installed_version is defined
 
 - name: Normalize the user version and installed version
   ansible.builtin.set_fact:
@@ -60,5 +87,5 @@
   when: ba_client_action == 'none'
 
 # - name: Debug ba_client_action
-#  debug:
-#    msg: "Determined action: {{ ba_client_action }}"
+#   ansible.builtin.debug:
+#     msg: "Determined action: {{ ba_client_action }}"
