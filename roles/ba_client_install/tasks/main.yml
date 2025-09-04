@@ -27,9 +27,25 @@
     name: system_info
   when: ba_client_action is defined and ba_client_state == "present"
 
-- name: Run install tasks
+# - name: Run install tasks
+#   ansible.builtin.include_tasks: ba_client_install_linux.yml
+#   when: ba_client_action is defined and ba_client_action == "install" and ba_client_state == "present"
+
+- name: Run install tasks for Linux
   ansible.builtin.include_tasks: ba_client_install_linux.yml
-  when: ba_client_action is defined and ba_client_action == "install" and ba_client_state == "present"
+  when:
+    - ba_client_action is defined
+    - ba_client_action == "install"
+    - ba_client_state == "present"
+    - ansible_os_family != "Windows"
+
+- name: Run install tasks for Windows
+  ansible.builtin.include_tasks: ba_client_install_windows.yml
+  when:
+    - ba_client_action is defined
+    - ba_client_action == "install"
+    - ba_client_state == "present"
+    - ansible_os_family == "Windows"
 
 - name: Run upgrade tasks
   ansible.builtin.include_tasks: ba_client_upgrade_linux.yml

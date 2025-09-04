@@ -1,92 +1,128 @@
 ---
-- name: Get Memory Information using free -m
-  ansible.builtin.command: free -m
-  register: memory_info
-  ignore_errors: true
-  changed_when: false
+########################
+# Linux System Info
+########################
+- block:
+    - name: Get Memory Information using free -m
+      ansible.builtin.command: free -m
+      register: memory_info
+      ignore_errors: true
+      changed_when: false
 
-- name: Show Memory Information
-  ansible.builtin.debug:
-    var: memory_info.stdout
-  when: memory_info is defined
+    - name: Show Memory Information
+      ansible.builtin.debug:
+        var: memory_info.stdout
+      when: memory_info is defined
 
-- name: Collect Architecture Information
-  ansible.builtin.command: lscpu
-  register: lscpu_output
-  changed_when: false
-  ignore_errors: true
+    - name: Collect Architecture Information
+      ansible.builtin.command: lscpu
+      register: lscpu_output
+      changed_when: false
+      ignore_errors: true
 
-- name: Extract Architecture Info
-  ansible.builtin.set_fact:
-    architecture: "{{ lscpu_output.stdout | regex_search('Architecture:\\s+(\\S+)', '\\1') }}"
-  when: lscpu_output.rc == 0
+    - name: Extract Architecture Info
+      ansible.builtin.set_fact:
+        architecture: "{{ lscpu_output.stdout | regex_search('Architecture:\\s+(\\S+)', '\\1') }}"
+      when: lscpu_output.rc == 0
 
-- name: Collect OS Information using ansible setup module
-  ansible.builtin.set_fact:
-    os_name: "{{ ansible_facts['os_family'] }}"
-    os_version: "{{ ansible_facts['distribution_version'] }}"
+    - name: Collect OS Information using ansible setup module
+      ansible.builtin.set_fact:
+        os_name: "{{ ansible_facts['os_family'] }}"
+        os_version: "{{ ansible_facts['distribution_version'] }}"
 
-# - name: Extract Disk Space Info (from free -m output)
-#  set_fact:
-#    disk_space:
-#      total_memory: "{{ memory_info.stdout.splitlines()[1].split()[1] }}"  # Total memory
-#      used_memory: "{{ memory_info.stdout.splitlines()[1].split()[2] }}"  # Used memory
-#      free_memory: "{{ memory_info.stdout.splitlines()[1].split()[3] }}"  # Free memory
-#      swap_total: "{{ memory_info.stdout.splitlines()[2].split()[1] }}"  # Swap total
-#      swap_used: "{{ memory_info.stdout.splitlines()[2].split()[2] }}"  # Swap used
-#      swap_free: "{{ memory_info.stdout.splitlines()[2].split()[3] }}"  # Swap free
-#  when: memory_info is defined
-#  ignore_errors: true
+    - name: Collect Java Version Information
+      ansible.builtin.command: java -version 2>&1
+      register: java_version_output
+      changed_when: false
+      ignore_errors: true
 
-- name: Collect Java Version Information
-  ansible.builtin.command: java -version 2>&1
-  register: java_version_output
-  changed_when: false
-  ignore_errors: true
+    - name: Extract Java Version
+      ansible.builtin.set_fact:
+        java_version: "{{ java_version_output.stderr.splitlines()[0] }}"
+      when: java_version_output.rc == 0
 
-- name: Extract Java Version
-  ansible.builtin.set_fact:
-    java_version: "{{ java_version_output.stderr.splitlines()[0] }}"
-  when: java_version_output.rc == 0
+    - name: Handle Java Version Error
+      ansible.builtin.set_fact:
+        java_version: "Java is not installed on the system."
+      when: java_version_output.rc != 0
 
-- name: Handle Java Version Error
-  ansible.builtin.set_fact:
-    java_version: "Java is not installed on the system."
-  when: java_version_output.rc != 0
+    - name: Collect Disk Space Information for /opt
+      ansible.builtin.command: df -BM /opt
+      register: disk_info
+      changed_when: false
+      ignore_errors: true
 
-- name: Collect Disk Space Information for /opt
-  ansible.builtin.command: df -BM /opt  # Output in megabytes
-  register: disk_info
-  changed_when: false
-  ignore_errors: true
+    - name: Parse Disk Space Information for /opt
+      ansible.builtin.set_fact:
+        disk_space:
+          filesystem: "{{ disk_info.stdout.splitlines()[1].split()[0] }}"
+          size_mb: "{{ disk_info.stdout.splitlines()[1].split()[1] | regex_replace('M', '') | int }}"
+          used_mb: "{{ disk_info.stdout.splitlines()[1].split()[2] | regex_replace('M', '') | int }}"
+          available_mb: "{{ disk_info.stdout.splitlines()[1].split()[3] | regex_replace('M', '') | int }}"
+          use_percent: "{{ disk_info.stdout.splitlines()[1].split()[4] }}"
+          mount_point: "{{ disk_info.stdout.splitlines()[1].split()[5] }}"
+      when: disk_info.rc == 0
 
-- name: Parse Disk Space Information for /opt
-  ansible.builtin.set_fact:
-    disk_space:
-      filesystem: "{{ disk_info.stdout.splitlines()[1].split()[0] }}"
-      size_mb: "{{ disk_info.stdout.splitlines()[1].split()[1] | regex_replace('M', '') | int }}"
-      used_mb: "{{ disk_info.stdout.splitlines()[1].split()[2] | regex_replace('M', '') | int }}"
-      available_mb: "{{ disk_info.stdout.splitlines()[1].split()[3] | regex_replace('M', '') | int }}"
-      use_percent: "{{ disk_info.stdout.splitlines()[1].split()[4] }}"
-      mount_point: "{{ disk_info.stdout.splitlines()[1].split()[5] }}"
-  when: disk_info.rc == 0
+    - name: Collect All System Information
+      ansible.builtin.set_fact:
+        system_info:
+          Architecture: "{{ architecture }}"
+          OS Name: "{{ os_name }}"
+          OS Version: "{{ os_version }}"
+          Filesystem Disk Space:
+            - Free Memory: "{{ disk_space.available_mb }} MB"
+          Java Version: "{{ java_version }}"
+          Memory Info: "{{ memory_info.stdout }}"
 
-- name: Collect All System Information
-  ansible.builtin.set_fact:
-    system_info:
-      Architecture: "{{ architecture }}"
-      OS Name: "{{ os_name }}"
-      OS Version: "{{ os_version }}"
-      Filesystem Disk Space:
-#        - Total Memory: "{{ disk_space.total_memory }} MB"
-#        - Used Memory: "{{ disk_space.used_memory }} MB"
-        - Free Memory: "{{ disk_space.available_mb }} MB"
-#        - Swap Total: "{{ disk_space.swap_total }} MB"
-#        - Swap Used: "{{ disk_space.swap_used }} MB"
-#        - Swap Free: "{{ disk_space.swap_free }} MB"
-      Java Version: "{{ java_version }}"
-      Memory Info: "{{ memory_info.stdout }}"
+    - name: Show Collected System Information
+      ansible.builtin.debug:
+        var: system_info
 
-- name: Show Collected System Information
-  ansible.builtin.debug:
-    var: system_info
+  when: ansible_facts['os_family'] != "Windows"
+
+########################
+# Windows System Info
+########################
+- block:
+    - name: Get Memory Information (Windows)
+      ansible.windows.win_shell: |
+        Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, FreePhysicalMemory | ConvertTo-Json
+      register: memory_info_win
+
+    - name: Collect Architecture Information (Windows)
+      ansible.windows.win_shell: |
+        (Get-CimInstance Win32_OperatingSystem).OSArchitecture
+      register: architecture_win
+
+    - name: Collect OS Information (Windows)
+      ansible.windows.win_shell: |
+        (Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version) | ConvertTo-Json
+      register: os_info_win
+
+    - name: Collect Java Version Information (Windows)
+      ansible.windows.win_command: java -version
+      register: java_version_win
+      ignore_errors: true
+
+    - name: Collect Disk Space Information for C:\ (Windows)
+      ansible.windows.win_shell: |
+        Get-PSDrive C | Select-Object Used,Free | ConvertTo-Json
+      register: disk_info_win
+
+    - name: Collect All Windows System Information
+      ansible.builtin.set_fact:
+        system_info:
+          Architecture: "{{ architecture_win.stdout | trim }}"
+          OS Name: "{{ (os_info_win.stdout | from_json).Caption }}"
+          OS Version: "{{ (os_info_win.stdout | from_json).Version }}"
+          Filesystem Disk Space:
+            - Free Memory: "{{ (memory_info_win.stdout | from_json).FreePhysicalMemory }} KB"
+          Java Version: "{{ java_version_win.stderr_lines[0] | default('Java not installed') }}"
+          Memory Info: "{{ memory_info_win.stdout }}"
+          Disk Info: "{{ disk_info_win.stdout }}"
+
+    - name: Show Collected System Information (Windows)
+      ansible.builtin.debug:
+        var: system_info
+
+  when: ansible_facts['os_family'] == "Windows"
