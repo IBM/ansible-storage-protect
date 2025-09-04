@@ -1,0 +1,110 @@
+---
+# ================= Check if BA Client is already installed ==================
+
+- name: Check if BA Client is already installed (windows)
+  ansible.windows.win_reg_stat:
+    path: HKLM:\SOFTWARE\IBM\ADSM\CurrentVersion
+    name: PTF
+  register: ba_client_check
+  ignore_errors: true
+
+- name: Display BA Client status
+  ansible.builtin.debug:
+    msg: "BA Client is already installed. Installed Version -> {{ ba_client_check.value }}"
+  when: ba_client_check.exists and ba_client_action == "install"
+
+- name: Fail or Skip Installation
+  ansible.builtin.meta: end_play
+  when: ba_client_check.exists and ba_client_action == "install"
+
+# ================= Pre-checks ==========================
+
+- name: Check available disk space on C:\
+  community.windows.win_disk_facts:
+  register: disk_facts
+
+- name: Set fact for disk space availability
+  ansible.builtin.set_fact:
+    avail_disk_space: "{{ (system_info['Disk Info']['Free'] | int) > 1500000000 }}"
+
+- name: Compatibility results
+  ansible.builtin.debug:
+    msg: |
+      Disk Space: {{ avail_disk_space }}
+
+- name: Fail if system is incompatible
+  ansible.builtin.fail:
+    msg: >
+      System compatibility checks failed. Please ensure:
+      - Sufficient disk space: > 1500 MB available on C:\
+  when: not avail_disk_space
+
+# ====================== Transferring package ======================
+
+- name: Transfer BA Client installer to remote host
+  ansible.windows.win_copy:
+    src: "{{ ba_client_installer_path }}"   # Local path to .exe
+    dest: "C:\\Temp\\{{ ba_client_installer_path | basename }}"
+  register: copy_result
+
+- name: Validate file transfer
+  ansible.builtin.fail:
+    msg: "BA Client installer copy failed."
+  when: copy_result is not defined
+
+# ====================== Installing BA Client ======================
+
+- name: Install BA Client silently
+  ansible.windows.win_package:
+    path: "C:\\Temp\\{{ ba_client_installer_path | basename }}"
+    arguments: /S /v"/qn"
+    state: present
+  register: install_result
+
+- name: Fail if installation failed
+  ansible.builtin.fail:
+    msg: "BA Client installation failed. Debug: {{ install_result }}"
+  when: install_result.rc is defined and install_result.rc != 0
+
+# ====================== Post-checks ======================
+
+- name: Verify BA Client installation in registry
+  ansible.windows.win_reg_stat:
+    path: HKLM:\SOFTWARE\IBM\ADSM\CurrentVersion
+    name: PTF
+  register: installation_check
+
+- name: Display BA Client installation status
+  ansible.builtin.debug:
+    msg: |
+      BA Client {{ ba_client_version }} installation status:
+      {{ "Installed Successfully" if installation_check.exists else "Not Installed" }}
+
+- name: Fail if verification fails
+  ansible.builtin.fail:
+    msg: "BA Client installation verification failed."
+  when: not installation_check.exists
+
+- name: Installation status summary
+  ansible.builtin.set_fact:
+    is_installation_successful: "{{ installation_check.exists }}"
+
+# ====================== Start BA Client Service ======================
+
+- name: Ensure dsmcad service is started and enabled
+  ansible.windows.win_service:
+    name: dsmcad
+    start_mode: auto
+    state: started
+  when: ba_client_start_daemon
+
+- name: Confirm dsmcad service status
+  ansible.windows.win_service_info:
+    name: dsmcad
+  register: dsmcad_status
+  when: ba_client_start_daemon
+
+- name: Debug dsmcad service status
+  ansible.builtin.debug:
+    msg: "dsmcad service is {{ 'running' if dsmcad_status.services[0].state == 'running' else 'not running' }}"
+  when: ba_client_start_daemon
