@@ -54,6 +54,12 @@ ansible-galaxy collection install ibm.storage_protect:==1.0.0
 
 See [using Ansible collections](https://docs.ansible.com/ansible/devel/user_guide/collections_using.html) for more details.
 
+🔧 Note on Python Version Requirement
+
+Some Ansible collections (including baclient-installation) require Python 3.9 or higher on the remote hosts. If your target systems (e.g. RHEL 8) are using an older Python version (like 3.6), the collection will fail due to incompatibility.
+
+To address this without modifying the collection code, you can use the `python_version_install.yml` playbook to automatically install Python 3.9+ from source on the remote host. After installation, you can instruct Ansible to use the new Python interpreter for all tasks.
+
 ## Use Cases
 
 ### Preparing Storage Protect client system-option file
