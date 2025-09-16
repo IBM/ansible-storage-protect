@@ -81,4 +81,5 @@ dsm_opt_parameters:
   dsm_opt_wildcardsareliteral: ""
 
 dsm_opt_optfile_path: "/opt/tivoli/tsm/client/ba/bin/dsm.opt"
+dsm_opt_optfile_path_windows: 'C:\Program Files\Tivoli\TSM\baclient\dsm.opt'
 dsm_opt_state: "present"

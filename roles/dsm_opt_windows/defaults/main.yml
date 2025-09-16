@@ -1,8 +1,0 @@
-dsm_opt_parameters:
-  dsm_opt_servername: "TSM_Server"
-  dsm_opt_node: "MY_NODE"
-  dsm_opt_passwordaccess: "generate"
-
-  
-dsm_opt_optfile_path: 'C:\Program Files\Tivoli\TSM\baclient\dsm.opt'
-dsm_opt_state: "present"
