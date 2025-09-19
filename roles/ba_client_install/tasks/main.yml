@@ -27,21 +27,17 @@
     name: system_info
   when: ba_client_action is defined and ba_client_state == "present"
 
-- name: Run install tasks for Linux
-  ansible.builtin.include_tasks: ba_client_install_linux.yml
-  when:
-    - ba_client_action is defined
-    - ba_client_action == "install"
-    - ba_client_state == "present"
-    - ansible_system != "AIX"
+- name: Run install tasks
+  ansible.builtin.include_tasks: ba_client_install.yml
+  when: ba_client_action is defined and ba_client_action == "install" and ba_client_state == "present"
 
-- name: Run install tasks for AIX
-  ansible.builtin.include_tasks: ba_client_install_aix.yml
-  when:
-    - ba_client_action is defined
-    - ba_client_action == "install"
-    - ba_client_state == "present"
-    - ansible_system == "AIX"
+# - name: Run install tasks for AIX
+#   ansible.builtin.include_tasks: ba_client_install_aix.yml
+#   when:
+#     - ba_client_action is defined
+#     - ba_client_action == "install"
+#     - ba_client_state == "present"
+#     - ansible_system == "AIX"
 
 - name: Run upgrade tasks
   ansible.builtin.include_tasks: ba_client_upgrade_linux.yml
