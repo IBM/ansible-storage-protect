@@ -453,24 +453,59 @@
 
     # ====================== Transferring package ======================
 
-    - name: Transfer BA Client installer to remote host
-      ansible.windows.win_copy:
-        src: "{{ ba_client_installer_path }}"   # Local path to .exe
-        dest: "C:\\Temp\\{{ ba_client_installer_path | basename }}"
-      register: copy_result
+    - name: Ensure C:\Temp exists
+      ansible.windows.win_file:
+        path: C:\Temp
+        state: directory
 
-    - name: Validate file transfer
-      ansible.builtin.fail:
-        msg: "BA Client installer copy failed."
-      when: copy_result is not defined
+    - name: Check if BA Client installer already exists
+      ansible.windows.win_stat:
+        path: "C:\\Temp\\8.1.26.0-TIV-TSMBAC-WinX64.exe"
+        get_size: yes
+      register: installer_check
+
+    - name: Download BA Client installer if not present
+      ansible.windows.win_get_url:
+        url: "https://public.dhe.ibm.com/storage/tivoli-storage-management/maintenance/client/v8r1/Windows/x64/v8126/{{ ba_client_version }}-TIV-TSMBAC-WinX64.exe"
+        dest: "C:\\Temp\\{{ ba_client_installer_path | basename }}"
+      when: not installer_check.stat.exists
+      register: download_result
+
+    - name: Debug installer status
+      ansible.builtin.debug:
+        msg: >-
+          {% if installer_check.stat.exists %}
+            BA Client installer already exists. Skipping download.
+          {% else %}
+            BA Client installer downloaded successfully. Size: {{ download_result.dest | default('Unknown') }}
+          {% endif %}
+
+    - name: Extract BA Client installer
+      ansible.windows.win_command: >
+        C:\Temp\{{ ba_client_installer_path | basename }} -y -oC:\Temp\ba_client_extracted
+      args:
+        creates: C:\Temp\ba_client_extracted
+      register: extract_result
+
+    - name: Find extracted MSI
+      ansible.windows.win_find:
+        paths: C:\Temp\ba_client_extracted
+        recurse: yes
+        patterns: '*.msi'
+      register: msi_files
+
+    - name: Debug extracted files
+      ansible.builtin.debug:
+        var: msi_files
 
     # ====================== Installing BA Client ======================
 
-    - name: Install BA Client silently
+    - name: Install BA Client from MSI silently
       ansible.windows.win_package:
-        path: "C:\\Temp\\{{ ba_client_installer_path | basename }}"
-        arguments: /S /v"/qn"
+        path: "{{ msi_files.files[0].path }}"
+        arguments: /qn ACCEPTLICENSE=YES
         state: present
+      when: msi_files.matched > 0
       register: install_result
 
     - name: Fail if installation failed
@@ -480,26 +515,26 @@
 
     # ====================== Post-checks ======================
 
-    - name: Verify BA Client installation in registry
-      ansible.windows.win_reg_stat:
-        path: HKLM:\SOFTWARE\IBM\ADSM\CurrentVersion
-        name: PTF
+    - name: Verify BA Client installation via Win32_Product
+      ansible.windows.win_shell: |
+        $client = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like "*IBM Storage Protect Client*" }
+        if ($client) { $client.Version } else { Write-Output "Not Installed" }
       register: installation_check
 
     - name: Display BA Client installation status
       ansible.builtin.debug:
         msg: |
           BA Client {{ ba_client_version }} installation status:
-          {{ "Installed Successfully" if installation_check.exists else "Not Installed" }}
+          {{ "Installed Successfully" if installation_check.stdout else "Not Installed" }}
 
     - name: Fail if verification fails
       ansible.builtin.fail:
         msg: "BA Client installation verification failed."
-      when: not installation_check.exists
+      when: not installation_check.stdout
 
     - name: Installation status summary
       ansible.builtin.set_fact:
-        is_installation_successful: "{{ installation_check.exists }}"
+        is_installation_successful: "{{ installation_check.stdout }}"
 
     # ====================== Start BA Client Service ======================
 
