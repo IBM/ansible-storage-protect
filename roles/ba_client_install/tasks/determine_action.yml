@@ -2,89 +2,150 @@
 # =========================
 # Linux: Check installed version
 # =========================
-- name: Query installed version on Linux
-  ansible.builtin.command: rpm -q TIVsm-BA
-  register: installed_version_check_linux
-  ignore_errors: true
-  changed_when: false
-  when: ansible_os_family != "Windows"
 
-- name: Extract installed version on Linux
-  ansible.builtin.set_fact:
-    installed_version: >-
-      {{
-        installed_version_check_linux.stdout.split('-')[2] ~ '.' ~
-        installed_version_check_linux.stdout.split('-')[3].split('.')[0]
-      }}
-  when: 
-    - ansible_os_family != "Windows"
-    - installed_version_check_linux.rc == 0
+- block: 
+    - name: Query installed version on Linux
+      ansible.builtin.command: rpm -q TIVsm-BA
+      register: installed_version_check_linux
+      ignore_errors: true
+      changed_when: false
+
+    - name: Extract installed version on Linux
+      ansible.builtin.set_fact:
+        installed_version: >-
+          {{
+            installed_version_check_linux.stdout.split('-')[2] ~ '.' ~
+            installed_version_check_linux.stdout.split('-')[3].split('.')[0]
+          }}
+      when: 
+        - installed_version_check_linux.rc == 0
+
+    - name: Debug the installed version
+      ansible.builtin.debug:
+        var: installed_version
+      when: installed_version is defined
+
+    - name: Normalize the user version and installed version
+      ansible.builtin.set_fact:
+        normalized_user_version: "{{ (ba_client_version.split('.') + ['0'])[0:4] | join('.') }}"
+        normalized_installed_version: "{{ (installed_version.split('.') + ['0'])[0:4] | join('.') }}"
+      when: installed_version is defined
+
+    - name: Debug normalized versions
+      ansible.builtin.debug:
+        msg: >
+          User version (normalized): {{ normalized_user_version }},
+          Installed version (normalized): {{ normalized_installed_version }}
+      when: installed_version is defined
+
+    - name: Parsing normalized versions into lists for comparison
+      ansible.builtin.set_fact:
+        user_version_list: "{{ normalized_user_version.split('.') | map('int') | list }}"
+        installed_version_list: "{{ normalized_installed_version.split('.') | map('int') | list }}"
+      when: installed_version is defined
+
+    - name: Determining action based on conditions
+      ansible.builtin.set_fact:
+        ba_client_action: >-
+          {{
+            "upgrade" if
+            (installed_version is defined and user_version_list > installed_version_list and version_available)
+            else
+            "install" if
+            (installed_version is not defined and version_available)
+            else
+            "none"
+          }}
+
+    - name: Fail if no ba_client_action can be determined
+      ansible.builtin.fail:
+        msg: >-
+          Unable to determine ba_client_action. Either:
+          - Specified version {{ ba_client_version }} is not available locally, or
+          - Installed version {{ installed_version | default('None') }} is greater or equal to the specified version.
+          The specified version should be greater than the already installed version {{ installed_version | default('None') }}.
+      when: ba_client_action == 'none'
+  
+  when: ansible_os_family == "RedHat"
 
 # =========================
 # Windows: Check installed version
 # =========================
-- name: Query installed BA Client on Windows (registry)
-  ansible.windows.win_reg_stat:
-    path: HKLM:\SOFTWARE\IBM\ADSM\CurrentVersion
-    name: Version
-  register: installed_version_check_windows
+
+- block:
+    - name: Query installed BA Client version on Windows
+      ansible.windows.win_shell: |
+        $client = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like "*IBM Storage Protect Client*" }
+        if ($client) { Write-Output $client.Version } else { Write-Output "Not Installed" }
+      register: installed_version_check_windows
+
+    - name: Debug the installed_version_check_windows 
+      ansible.builtin.debug:
+        var: installed_version_check_windows
+
+    - name: Set installed version fact (Windows)
+      ansible.builtin.set_fact:
+        installed_version: "{{ installed_version_check_windows.stdout | trim }}"
+      when:
+        - installed_version_check_windows.stdout
+
+    - name: Debug the installed version
+      ansible.builtin.debug:
+        var: installed_version
+      when: installed_version is defined
+
+    - name: Normalize the user version and installed version
+      ansible.builtin.set_fact:
+        normalized_user_version: "{{ (ba_client_version.split('.') + ['0'])[0:4] | join('.') }}"
+        normalized_installed_version: >-
+          {{
+            (
+              installed_version.split('.')[:2]                 
+              + [installed_version.split('.')[2][:2]]          
+              + ['0']
+            )
+            | map('int')                                    
+            | map('string')
+            | join('.')
+          }}
+      when: installed_version is defined
+
+    - name: Debug normalized versions
+      ansible.builtin.debug:
+        msg: >
+          User version (normalized): {{ normalized_user_version }},
+          Installed version (normalized): {{ normalized_installed_version }}
+      when: installed_version is defined
+
+    - name: Parsing normalized versions into lists for comparison
+      ansible.builtin.set_fact:
+        user_version_list: "{{ normalized_user_version.split('.') | map('int') | list }}"
+        installed_version_list: "{{ normalized_installed_version.split('.') | map('int') | list }}"
+      when: installed_version is defined
+
+    - name: Determining action based on conditions
+      ansible.builtin.set_fact:
+        ba_client_action: >-
+          {{
+            "upgrade" if
+            (installed_version is defined and user_version_list > installed_version_list and version_available)
+            else
+            "install" if
+            (installed_version is not defined and version_available)
+            else
+            "none"
+          }}
+
+    - name: Fail if no ba_client_action can be determined
+      ansible.builtin.fail:
+        msg: >-
+          Unable to determine ba_client_action. Either:
+          - Specified version {{ ba_client_version }} is not available locally, or
+          - Installed version {{ installed_version | default('None') }} is greater or equal to the specified version.
+          The specified version should be greater than the already installed version {{ installed_version | default('None') }}.
+      when: ba_client_action == 'none'
+
   when: ansible_os_family == "Windows"
-
-- name: Set installed version fact (Windows)
-  ansible.builtin.set_fact:
-    installed_version: "{{ installed_version_check_windows.value }}"
-  when:
-    - ansible_os_family == "Windows"
-    - installed_version_check_windows.exists
-
-# =========================
-# Common Logic
-# =========================
-- name: Debug the installed version
-  ansible.builtin.debug:
-    var: installed_version
-  when: installed_version is defined
-
-- name: Normalize the user version and installed version
-  ansible.builtin.set_fact:
-    normalized_user_version: "{{ (ba_client_version.split('.') + ['0'])[0:4] | join('.') }}"
-    normalized_installed_version: "{{ (installed_version.split('.') + ['0'])[0:4] | join('.') }}"
-  when: installed_version is defined
-
-- name: Debug normalized versions
-  ansible.builtin.debug:
-    msg: >
-      User version (normalized): {{ normalized_user_version }},
-      Installed version (normalized): {{ normalized_installed_version }}
-  when: installed_version is defined
-
-- name: Parsing normalized versions into lists for comparison
-  ansible.builtin.set_fact:
-    user_version_list: "{{ normalized_user_version.split('.') | map('int') | list }}"
-    installed_version_list: "{{ normalized_installed_version.split('.') | map('int') | list }}"
-  when: installed_version is defined
-
-- name: Determining action based on conditions
-  ansible.builtin.set_fact:
-    ba_client_action: >-
-      {{
-        "upgrade" if
-        (installed_version is defined and user_version_list > installed_version_list and version_available)
-        else
-        "install" if
-        (installed_version is not defined and version_available)
-        else
-        "none"
-      }}
-
-- name: Fail if no ba_client_action can be determined
-  ansible.builtin.fail:
-    msg: >-
-      Unable to determine ba_client_action. Either:
-      - Specified version {{ ba_client_version }} is not available locally, or
-      - Installed version {{ installed_version | default('None') }} is greater or equal to the specified version.
-      The specified version should be greater than the already installed version {{ installed_version | default('None') }}.
-  when: ba_client_action == 'none'
 
 # - name: Debug ba_client_action
 #   ansible.builtin.debug:

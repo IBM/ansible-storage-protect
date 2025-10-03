@@ -460,7 +460,7 @@
 
     - name: Check if BA Client installer already exists
       ansible.windows.win_stat:
-        path: "C:\\Temp\\8.1.26.0-TIV-TSMBAC-WinX64.exe"
+        path: "C:\\Temp\\{{ ba_client_version }-TIV-TSMBAC-WinX64.exe"
         get_size: yes
       register: installer_check
 

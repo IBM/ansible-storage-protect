@@ -32,9 +32,9 @@
   when: ba_client_action is defined and ba_client_action == "install" and ba_client_state == "present"
 
 - name: Run upgrade tasks
-  ansible.builtin.include_tasks: ba_client_upgrade_linux.yml
+  ansible.builtin.include_tasks: ba_client_upgrade.yml
   when: ba_client_action is defined and ba_client_action == "upgrade" and ba_client_state == "present"
 
 - name: Run uninstall tasks
-  ansible.builtin.include_tasks: ba_client_uninstall_linux.yml
+  ansible.builtin.include_tasks: ba_client_uninstall.yml
   when: ba_client_state == "absent"
