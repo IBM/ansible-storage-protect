@@ -25,12 +25,12 @@
     # ============= Uninstalling the ba_client before performing upgrade ===========
 
     - name: Uinstall the BA client before upgrade
-      ansible.builtin.include_tasks: ba_client_uninstall_linux.yml
+      ansible.builtin.include_tasks: ba_client_uninstall.yml
 
     # ============= Installing the new version of ba_client ===========
 
     - name: Upgrading the BA client
-      ansible.builtin.include_tasks: ba_client_install_linux.yml
+      ansible.builtin.include_tasks: ba_client_install.yml
 
     - name: Debug the install result
       ansible.builtin.debug:

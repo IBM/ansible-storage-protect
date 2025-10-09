@@ -98,6 +98,7 @@
       ansible.builtin.set_fact:
         normalized_user_version: "{{ (ba_client_version.split('.') + ['0'])[0:4] | join('.') }}"
         normalized_installed_version: >-
+          {% if installed_version != 'Not Installed' %}
           {{
             (
               installed_version.split('.')[:2]                 
@@ -108,11 +109,14 @@
             | map('string')
             | join('.')
           }}
+          {% else %}
+          Not Installed
+          {% endif %}
       when: installed_version is defined
 
     - name: Debug normalized versions
       ansible.builtin.debug:
-        msg: >
+        msg: >-
           User version (normalized): {{ normalized_user_version }},
           Installed version (normalized): {{ normalized_installed_version }}
       when: installed_version is defined
@@ -123,15 +127,15 @@
         installed_version_list: "{{ normalized_installed_version.split('.') | map('int') | list }}"
       when: installed_version is defined
 
-    - name: Determining action based on conditions
+    - name: Determining action based on conditions (Windows)
       ansible.builtin.set_fact:
         ba_client_action: >-
           {{
-            "upgrade" if
-            (installed_version is defined and user_version_list > installed_version_list and version_available)
+            "install"
+            if (installed_version == 'Not Installed')
             else
-            "install" if
-            (installed_version is not defined and version_available)
+            "upgrade"
+            if (user_version_list > installed_version_list)
             else
             "none"
           }}
@@ -147,6 +151,3 @@
 
   when: ansible_os_family == "Windows"
 
-# - name: Debug ba_client_action
-#   ansible.builtin.debug:
-#     msg: "Determined action: {{ ba_client_action }}"

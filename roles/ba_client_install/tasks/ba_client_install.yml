@@ -460,14 +460,30 @@
 
     - name: Check if BA Client installer already exists
       ansible.windows.win_stat:
-        path: "C:\\Temp\\{{ ba_client_version }-TIV-TSMBAC-WinX64.exe"
+        path: "C:\\Temp\\{{ ba_client_version }}-TIV-TSMBAC-WinX64.exe"
+        get_size: yes
+      register: installer_check
+
+    - name: Normalize BA Client installer file name
+      set_fact:
+        ba_client_installer_name: "{{ ba_client_version }}-TIV-TSMBAC-WinX64.exe"
+        ba_client_installer_path: "C:\\Temp\\{{ ba_client_version }}-TIV-TSMBAC-WinX64.exe"
+
+    - name: Derive installer subfolder from version
+      set_fact:
+        ba_client_subfolder: "v{{ ba_client_version.split('.')[0] }}{{ ba_client_version.split('.')[1] }}{{ ba_client_version.split('.')[2] }}"
+
+    - name: Check if BA Client installer already exists
+      ansible.windows.win_stat:
+        path: "{{ ba_client_installer_path }}"
         get_size: yes
       register: installer_check
 
     - name: Download BA Client installer if not present
       ansible.windows.win_get_url:
-        url: "https://public.dhe.ibm.com/storage/tivoli-storage-management/maintenance/client/v8r1/Windows/x64/v8126/{{ ba_client_version }}-TIV-TSMBAC-WinX64.exe"
-        dest: "C:\\Temp\\{{ ba_client_installer_path | basename }}"
+        url: "https://public.dhe.ibm.com/storage/tivoli-storage-management/maintenance/client/v8r1/Windows/x64/{{ ba_client_subfolder }}/{{ ba_client_installer_name }}"
+        dest: "{{ ba_client_installer_path }}"
+        validate_certs: no
       when: not installer_check.stat.exists
       register: download_result
 
