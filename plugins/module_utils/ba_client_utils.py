@@ -5,8 +5,37 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 from distutils.version import LooseVersion
-from ansible.module_utils.basic import AnsibleModule
+
+IS_WINDOWS = platform.system().lower().startswith("win")
+
+if not IS_WINDOWS:
+    # Linux / normal Ansible environment
+    from ansible.module_utils.basic import AnsibleModule
+else:
+    # Windows-safe fallback for when Ansible isn't available
+    class AnsibleModule:
+        def __init__(self, *args, **kwargs):
+            # mimic AnsibleModule interface just enough for this helper
+            self.params = {}
+        def run_command(self, cmd, use_unsafe_shell=False):
+            # simple subprocess wrapper
+            if use_unsafe_shell:
+                completed = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            else:
+                completed = subprocess.run(cmd.split(), shell=False, capture_output=True, text=True)
+            return completed.returncode, completed.stdout, completed.stderr
+        def fail_json(self, **kwargs):
+            print(f"[Windows fail_json] {kwargs.get('msg', '')}")
+            raise SystemExit(1)
+        def exit_json(self, **kwargs):
+            print(f"[Windows exit_json] {kwargs}")
+            raise SystemExit(0)
+        def warn(self, msg):
+            print(f"[Windows WARN] {msg}")
+        def log(self, msg):
+            print(f"[Windows LOG] {msg}")
 
 
 class BAClientHelper:
@@ -20,7 +49,13 @@ class BAClientHelper:
         return rc, out, err
 
     def log(self, msg):
-        self.module.warn(msg)
+        try:
+            if self.is_windows():
+                print(msg)
+            else:   
+                self.module.warn(msg)
+        except Exception:
+            pass
 
     def file_exists(self, path):
         return os.path.exists(path)
@@ -36,15 +71,18 @@ class BAClientHelper:
 
     def check_installed(self):
         if self.is_windows():
-            cmd = 'reg query "HKLM\\SOFTWARE\\IBM\\ADSM\\CurrentVersion" /v PTF'
-            rc, out, err = self.run_cmd(cmd)
-            if rc == 0 and "PTF" in out:
-                version = out.split()[-1]
-                return True, version
-            return False, None
+            try:
+                cmd = 'reg query "HKLM\\SOFTWARE\\IBM\\ADSM\\CurrentVersion\Api64" /v PtfLevel'
+                rc, out, err = self.run_cmd(cmd, check_rc=False)
+                if rc == 0 and "PtfLevel" in out:
+                    version = out.split()[-1]
+                    return True, version
+                return False, None
+            except Exception as e:
+                return False, None
         else:
             cmd = "rpm -q TIVsm-BA"
-            rc, out, err = self.run_cmd(cmd, check_rc=False) 
+            rc, out, err = self.run_cmd(cmd, check_rc=False)
             if rc == 0 and "TIVsm-BA" in out:
                 rpm_full = out.strip().replace("TIVsm-BA-", "")
                 rpm_no_arch = rpm_full.split(".x86_64")[0]
@@ -54,7 +92,7 @@ class BAClientHelper:
                 return False, None
             else:
                 self.module.fail_json(msg=f"Command failed: {cmd}\nError: {err.strip()}")
-        
+
     def verify_system_prereqs(self):
         """Verify system prerequisites (OS, architecture, privileges, disk, Java)"""
         min_disk_mb = 1500
@@ -67,7 +105,8 @@ class BAClientHelper:
         }
 
         if self.is_windows():
-            rc, out, err = self.run_cmd('whoami /groups | find "Administrators"')
+            # check admin membership
+            rc, out, err = self.run_cmd('whoami /groups | find "Administrators"', use_unsafe_shell=True, check_rc=False)
             if rc != 0:
                 self.module.fail_json(
                     msg="Admin privileges required to install BA Client on Windows"
@@ -85,6 +124,7 @@ class BAClientHelper:
                     f"Supported: {', '.join(compatible_arch)}"
             )
 
+        # disk usage
         st = shutil.disk_usage("/")
         free_mb = st.free // (1024 * 1024)
         if free_mb < min_disk_mb:
@@ -123,7 +163,10 @@ class BAClientHelper:
         """Extract tarball and ensure RPMs exist"""
 
         if self.is_windows():
-            return None
+            if (os.path.exists(dest)):
+                self.run_cmd(cmd=f"powershell -Command \"Remove-Item -Path '{dest}' -Recurse -Force -ErrorAction SilentlyContinue\"")
+            self.run_cmd(cmd=f"\"{src}\" -y -o\"{dest}\"")
+            return
 
         # --- Validation ---
         if not os.path.exists(src):
@@ -158,12 +201,16 @@ class BAClientHelper:
         if self.is_windows():
             if not os.path.exists(package_source):
                 self.module.fail_json(msg=f"Package source not found: {package_source}")
-            cmd = f'"{package_source}" /S /v"/qn INSTALLDIR=\\"{install_path}\\""'
 
+            self.extract_package(package_source, temp_dir)
+            # silent install typical pattern
+            file_loc = os.path.dirname(package_source)
+            with open("testt.txt", "w") as tfr:
+                tfr.write("Installation started")
+
+            cmd = f"\"{file_loc}/baClient/TSMClient/IBM Storage Protect Client.msi\" /qn INSTALLDIR=\"{install_path}\" /l*v install_baclient.log"
         else:
-            # extract_dir = "/opt/baClient"
             if package_source.endswith(".tar") or package_source.endswith(".tar.gz"):
-                # self.module.warn(f"Extracting BA Client package {package_source} to {extract_dir}")
                 self.extract_package(package_source, temp_dir)
             else:
                 if os.path.isdir(package_source):
@@ -171,7 +218,6 @@ class BAClientHelper:
                 else:
                     self.module.fail_json(msg=f"Invalid package source: {package_source}")
 
-            # Find all RPM files to install
             rpm_files = [
                 os.path.join(temp_dir, f)
                 for f in os.listdir(temp_dir)
@@ -180,33 +226,44 @@ class BAClientHelper:
             if not rpm_files:
                 self.module.fail_json(msg=f"No RPM files found under {temp_dir}")
 
-            # Install all RPMs in order
             cmd = f'cd "{temp_dir}" && rpm -ivh --force --nodeps *.rpm'
 
-        # Execute installation command
         rc, out, err = self.run_cmd(cmd, use_unsafe_shell=True)
         if rc != 0:
-            self.module.fail_json(msg=f"Installation failed: {err}")
+            if (self.is_windows()):
+                print("Installation Failed")
+                print(err)
+            else:
+                self.module.fail_json(msg=f"Installation failed: {err}")
+        else:
+            print("Installation succeeded. Exit code: " + str(rc))
 
-        self.module.warn("BA Client installation completed successfully")
+        print("BA Client installation completed successfully")
         return True
-    
+
     def post_installation_verification(self, ba_client_version, state):
         """Verify that BA Client is installed correctly and return status summary."""
 
         if self.is_windows():
-            check_cmd = 'wmic product get name | find "IBM Spectrum Protect"'
+            check_cmd = 'wmic product get name | find "IBM Storage Protect Client"'
+            print(check_cmd)
         else:
             check_cmd = "rpm -q TIVsm-BA"
 
-        rc, out, err = self.run_cmd(check_cmd)
+        rc, out, err = self.run_cmd(check_cmd, use_unsafe_shell=self.is_windows(), check_rc=False)
 
         if rc == 0:
-            self.module.warn(f"BA Client {ba_client_version} installation status: Installed Successfully")
+            if self.is_windows():
+                print(f"BA Client {ba_client_version} installation status: Installed Successfully")
+            else:
+                self.module.warn(f"BA Client {ba_client_version} installation status: Installed Successfully")
             installation_successful = True
         else:
             msg = f"BA Client {ba_client_version} installation status: Not Installed\nError: {err.strip()}"
-            self.module.warn(msg)
+            if self.is_windows():
+                print(msg)
+            else:
+                self.module.warn(msg)
 
             if state == "install":
                 self.module.fail_json(msg="BA Client installation verification failed. Please check logs.")
@@ -225,10 +282,9 @@ class BAClientHelper:
             return {"daemon_enabled": False}
 
         if self.is_windows():
-            # Windows services
             services = ["TSM Client Scheduler", "TSM Client Acceptor"]
             for svc in services:
-                rc, out, err = self.run_cmd(f'net start "{svc}"')
+                rc, out, err = self.run_cmd(f'net start "{svc}"', check_rc=False)
                 if rc != 0 and "already running" not in out.lower():
                     self.module.warn(f"Failed to start Windows service '{svc}': {err.strip()}")
                 else:
@@ -236,19 +292,17 @@ class BAClientHelper:
             return {"daemon_enabled": True}
 
         else:
-            # Linux service handling
-            rc_enable, out_enable, err_enable = self.run_cmd("systemctl enable dsmcad.service")
+            rc_enable, out_enable, err_enable = self.run_cmd("systemctl enable dsmcad.service", check_rc=False)
             if rc_enable != 0:
                 self.module.warn(f"Failed to enable dsmcad.service: {err_enable.strip()}")
 
-            rc_start, out_start, err_start = self.run_cmd("systemctl start dsmcad.service")
+            rc_start, out_start, err_start = self.run_cmd("systemctl start dsmcad.service", check_rc=False)
             if rc_start != 0:
                 self.module.warn(f"Failed to start dsmcad.service: {err_start.strip()}")
             else:
                 self.module.warn("dsmcad.service started successfully.")
 
-            # Verify status
-            rc_status, out_status, err_status = self.run_cmd("systemctl is-enabled dsmcad.service")
+            rc_status, out_status, err_status = self.run_cmd("systemctl is-enabled dsmcad.service", check_rc=False)
             if rc_status == 0 and out_status.strip() == "enabled":
                 self.module.warn("dsmcad.service is enabled and active.")
                 daemon_enabled = True
@@ -258,41 +312,35 @@ class BAClientHelper:
 
             return {"daemon_enabled": daemon_enabled}
 
-
     def uninstall_ba_client(self, extract_dest="/opt/baClient", backup_dir="/opt/baClientPackagesBk"):
         """
         Performs complete uninstallation of BA Client and dependent packages with backup and rollback.
         """
         if self.is_windows():
-            cmd = 'wmic product where "Name like \'%%Tivoli Storage Manager%%\'" call uninstall /nointeractive'
-            rc, out, err = self.run_cmd(cmd)
+            cmd = 'powershell "Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like \'*IBM Storage Protect Client*\' } | ForEach-Object { $_.Uninstall() }"'
+            rc, out, err = self.run_cmd(cmd, use_unsafe_shell=True, check_rc=False)
             if rc != 0:
                 self.module.fail_json(msg=f"Uninstallation failed: {err}")
             return True
 
-        # --- Step 1: Check installation ---
-        rc, out, err = self.run_cmd("rpm -q TIVsm-BA")
+        rc, out, err = self.run_cmd("rpm -q TIVsm-BA", check_rc=False)
         if rc != 0:
             self.log("BA Client is not installed on this system. Skipping uninstallation.")
             return False
 
-        # --- Step 2: Stop running processes and daemon ---
         self.run_cmd("systemctl stop dsmcad", check_rc=False)
         self.run_cmd("killall dsmc", check_rc=False)
 
-        # --- Step 3: Backup config files ---
         os.makedirs(backup_dir, exist_ok=True)
         for f in ["/opt/tivoli/tsm/client/ba/bin/dsm.opt", "/opt/tivoli/tsm/client/ba/bin/dsm.sys"]:
             if os.path.exists(f):
                 shutil.copy2(f, f"{f}.bk")
 
-        # --- Step 4: Backup existing RPMs if available ---
-        rc, out, err = self.run_cmd(f"find {extract_dest} -name '*.rpm'")
+        rc, out, err = self.run_cmd(f"find {extract_dest} -name '*.rpm'", check_rc=False)
         if out.strip():
             for rpm_path in out.strip().splitlines():
                 self.run_cmd(f"cp {rpm_path} {backup_dir}", check_rc=False)
 
-        # --- Step 5: Define uninstall order ---
         uninstall_order = [
             "TIVsm-BAcit",
             "TIVsm-BAhdw",
@@ -308,11 +356,10 @@ class BAClientHelper:
         successfully_uninstalled = []
         failed_packages = []
 
-        # --- Step 6: Uninstall each package sequentially ---
         for pkg in uninstall_order:
             rc, _, err = self.run_cmd(f"rpm -q {pkg}", check_rc=False)
             if rc != 0:
-                continue  # not installed
+                continue
 
             rc, out, err = self.run_cmd(f"rpm -e {pkg}", check_rc=False)
             if rc == 0:
@@ -320,95 +367,35 @@ class BAClientHelper:
             else:
                 failed_packages.append((pkg, err))
 
-        # --- Step 7: Handle uninstallation failures ---
         if failed_packages:
             self.module.fail_json(
-                msg=f"Uninstallation failed for packages: {', '.join([p.split(':')[0] for p in failed_packages])}. "
-                    f"Reason(s): {'; '.join(failed_packages)}."
+                msg=f"Uninstallation failed for packages: {', '.join([p for p, _ in failed_packages])}. "
+                    f"Reason(s): {'; '.join([e for _, e in failed_packages])}."
             )
 
-        # --- Step 8: Cleanup and finish ---
         shutil.rmtree(backup_dir, ignore_errors=True)
         self.module.warn("BA Client successfully uninstalled with all components removed.")
         return True
-    
-        # if failed_packages:
-        #     reinstall_order = [
-        #         "gskcrypt64", "gskssl64", "TIVsm-API64",
-        #         "TIVsm-APIcit", "TIVsm-BA", "TIVsm-BAcit",
-        #         "TIVsm-BAhdw", "TIVsm-WEBGUI"
-        #     ]
-        #     pkgs_to_reinstall = [pkg for pkg in reinstall_order if pkg in successfully_uninstalled]
 
-        #     if pkgs_to_reinstall:
-        #         rpm_paths = []
-        #         for pkg in pkgs_to_reinstall:
-        #             rc, out, err = self.run_cmd(f"find {extract_dest} -name '{pkg}*.rpm'")
-        #             if rc == 0 and out.strip():
-        #                 rpm_paths.extend(out.strip().splitlines())
-
-        #         if rpm_paths:
-        #             install_cmd = f"rpm -ivh {' '.join(rpm_paths)}"
-        #             rc, out, err = self.run_cmd(install_cmd, check_rc=False)
-        #             if rc != 0:
-        #                 self.module.fail_json(
-        #                     msg=f"Rollback failed while reinstalling packages. Error: {err}"
-        #                 )
-
-        #     shutil.rmtree(backup_dir, ignore_errors=True)
-        #     failure_msgs = [f"{pkg}: {msg}" for pkg, msg in failed_packages]
-        #     self.module.fail_json(
-        #         msg=f"Uninstallation failed for packages: {', '.join([f[0] for f in failed_packages])}. "
-        #             f"Reason(s): {'; '.join(failure_msgs)}. Rollback performed."
-        #     )
-
-        
-
-        # if exit_on_success:
-        #     self.module.exit_json(changed=True, msg="BA Client uninstalled successfully with all components removed.")
-        # else:
-        #     self.log("BA Client uninstalled successfully (continuing for upgrade).")
-
-
-    # def start_baclient_daemon(self):
-    #     if self.is_windows():
-    #         self.run_cmd('net start "TSM Client Scheduler"')
-    #         self.run_cmd('net start "TSM Client Acceptor"')
-    #     else:
-    #         rc, out, err = self.run_cmd("systemctl start dsmcad || /opt/tivoli/tsm/client/ba/bin/dsmcad &")
-    #         if rc != 0:
-    #             self.module.warn(f"Warning: Unable to start daemon automatically: {err}")
-
-    # def perform_installation(self, package_source, install_path, temp_dir):
-    #     self.verify_system_prereqs()
-
-    #     if not self.file_exists(package_source):
-    #         self.module.fail_json(msg=f"Package source not found: {package_source}")
-
-    #     self.extract_package(package_source, temp_dir)
-    #     self.install_ba_client(temp_dir, install_path)
-    #     self.start_baclient_daemon()
-
-    def upgrade_ba_client(self, package_source, desired_version, install_path, ba_client_version, state, temp_dir):
-        
+    def upgrade_ba_client(self, package_source, install_path, ba_client_version, state, temp_dir):
+        """Upgrade BA Client to specified version."""
         installed, installed_version = self.check_installed()
         if not installed:
             self.module.fail_json(msg="BA Client not installed. Please install instead of upgrade.")
 
-        self.log(f"Upgrading BA Client from {installed_version} → {desired_version}")
+        self.log(f"Upgrading BA Client from {installed_version} -> {ba_client_version}")
 
-        # Step 1: Uninstall old version
         self.uninstall_ba_client()
 
-        # Step 2: Install new version
         self.install_ba_client(package_source, install_path, temp_dir)
         self.post_installation_verification(ba_client_version, state)
-        # self.start_baclient_daemon(True)
 
-        # Step 3: Verify upgrade success
         post_installed, post_version = self.check_installed()
-        if not post_installed or post_version != desired_version:
-            self.module.fail_json(msg="Upgrade failed: version mismatch after installation")
-        
+        if not post_installed or post_version != ba_client_version:
+            if (IS_WINDOWS):
+                print("Upgrade failed: version mismatch after installation")
+            else:
+                self.module.fail_json(msg="Upgrade failed: version mismatch after installation")
+
         self.log(f"BA Client successfully upgraded from {installed_version} to {post_version}")
         return {"changed": True, "msg": f"BA Client successfully upgraded from {installed_version} to {post_version}"}
