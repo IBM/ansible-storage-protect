@@ -22,6 +22,90 @@ except Exception:
     # For now we'll re-raise because your actual helper is project-specific.
     raise
 
+DOCUMENTATION = '''
+---
+Module Name: ibm.storage_protect.sp_baclient_install
+Author: Shalu Mishrax
+
+Short Description:
+  Install, upgrade or remove the IBM Storage Protect Backup-Archive (BA) Client on Linux and Windows hosts.
+
+Description:
+  This module provides idempotent management of the BA Client software on target hosts.
+  It supports the following high-level operations:
+    - state=present: install the BA Client if not installed or if version mismatch or force is specified.
+    - state=upgrade: upgrade an existing BA Client installation to a specific version.
+    - state=absent: uninstall the BA Client and clean up associated components.
+
+  For Linux hosts, the module uses package operations (tar extraction / rpm install) and checks existing installations via rpm.
+  For Windows hosts, the module uses registry and Win32_Product queries for detection and silent installer/uninstaller logic.
+
+Options:
+  package_source:
+    type: str
+    required: false
+    description:
+      Path to the BA Client installation package (e.g., tar on Linux, .exe/.msi on Windows).
+
+  install_path:
+    type: str
+    required: false
+    default (Linux): /opt/tivoli/tsm/client/ba/bin
+    default (Windows): C:\Program Files\IBM\TSM\baclient
+    description:
+      Target installation directory of BA Client binaries.
+
+  version:
+    type: str
+    required: false
+    description:
+      Desired version of BA Client. Required for upgrade operations.
+
+  force:
+    type: bool
+    required: false
+    default: false
+    description:
+      If true, forces reinstallation even if the desired version is already present.
+
+  start_daemon:
+    type: bool
+    required: false
+    default: true
+    description:
+      Whether to start the BA Client daemon/service after installation.
+
+Returns:
+  changed (bool): whether any change was made.
+  msg (str): human-readable message summarizing the operation.
+  version (str): the installed BA Client version (if applicable).
+
+Notes:
+  * The execution must be run with sufficient privileges (root on Linux, Administrator on Windows).
+  * On Windows, if Python interpreter required, use ansible_python_interpreter inventory variable.
+  * Ensure disk space and architecture compatibility are met. The module performs pre-checks and will fail if conditions are not satisfied.
+'''
+
+EXAMPLES = '''
+  - name: Install or upgrade BA Client on Linux
+      sp_baclient_install:
+        ba_client_version: "{{ ba_client_version }}"
+        state: absent
+        package_source: "{{ linux_package_source }}"
+        install_path: '/opt/tivoli/tsm/client/ba/bin'
+      when: ansible_os_family != "Windows"
+
+  - name: Execute Python module on Windows
+      win_command: >
+        python C:\temp\sp_baclient_install.py
+        --state absent
+        --ba-client-version {{ ba_client_version }}
+        --package-source {{ windows_package_source }}
+        --version {{ ba_client_version }}
+        --install-path "C:\Program Files\Tivoli\tsm\client\ba\bin"
+        --temp-dir C:\temp\baClient
+      when: ansible_os_family == "Windows"
+'''
 
 def build_windows_like_module():
     """

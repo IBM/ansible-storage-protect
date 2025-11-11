@@ -1,15 +1,65 @@
 ---
-- name: Install BA Client
-  hosts: "{{ target_hosts | default('all') }}"
+- name: BA Client Role Execution (Dynamic by OS)
+  hosts: all
+  gather_facts: yes
   become: true
 
-  roles:
-    - role: ibm.storage_protect.python_version_install
-      vars:
-        required_python_version: "3.9"
-        python_source_url: "https://www.python.org/ftp/python/3.9.18/Python-3.9.18.tgz"
-        python_source_filename: "Python-3.9.18.tgz"
-        python_source_dir: "Python-3.9.18"
-        python_bin_path: "/usr/local/bin/python3.9"
+  vars:
+    ba_client_version: '8.1.27.0'
+    linux_package_source: "/tmp/{{ ba_client_version }}-TIV-TSMBAC-LinuxX86.tar"
+    windows_package_source: "C:\\temp\\{{ ba_client_version }}-TIV-TSMBAC-WinX64.exe"
 
-    - role: ibm.storage_protect.ba_client_install
+  tasks:
+    # -------------------------------
+    # Linux Section
+    # -------------------------------
+    - name: Install or upgrade BA Client on Linux
+      sp_baclient_install:
+        ba_client_version: "{{ ba_client_version }}"
+        state: absent
+        package_source: "{{ linux_package_source }}"
+        install_path: '/opt/tivoli/tsm/client/ba/bin'
+      register: install_result
+      when: ansible_os_family != "Windows"
+
+    - name: Show Linux installation result
+      debug:
+        var: install_result
+      when: ansible_os_family != "Windows"
+
+    # -------------------------------
+    # Windows Section
+    # -------------------------------
+    - name: Ensure target directory exists on Windows
+      win_file:
+        path: C:\temp\ansible-storage-protect
+        state: directory
+      when: ansible_os_family == "Windows"
+
+    - name: Copy Python module utils
+      win_copy:
+        src: /Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/module_utils/ba_client_utils.py
+        dest: C:\temp\module_utils\ba_client_utils.py
+      when: ansible_os_family == "Windows"
+
+    - name: Execute Python module on Windows
+      win_command: >
+        python C:\temp\sp_baclient_install.py
+        --state absent
+        --ba-client-version {{ ba_client_version }}
+        --package-source {{ windows_package_source }}
+        --version {{ ba_client_version }}
+        --install-path "C:\Program Files\Tivoli\tsm\client\ba\bin"
+        --temp-dir C:\temp\baClient
+      register: hello
+      when: ansible_os_family == "Windows"
+
+    - name: Show Windows module stdout
+      debug:
+        msg: "{{ hello.stdout }}"
+      when: ansible_os_family == "Windows"
+
+    - name: Show Windows module stderr
+      debug:
+        msg: "{{ hello.stderr }}"
+      when: ansible_os_family == "Windows"
