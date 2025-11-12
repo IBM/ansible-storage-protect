@@ -273,40 +273,57 @@ def main():
         if not utils.file_exists(package_source):
             module.fail_json(msg=f"Package source not found on host: {package_source}")
 
-        # Perform install
-        utils.install_ba_client(package_source, install_path, temp_dir)
+        try:
+            # Perform install
+            utils.install_ba_client(package_source, install_path, temp_dir)
 
-        # Verify
-        verify_result = utils.post_installation_verification(ba_client_version, action)
+            # Verify
+            verify_result = utils.post_installation_verification(ba_client_version, action)
 
-        # NOTE: If your helper can start service/daemon on Windows, let it handle internally.
-        # daemon_result = utils.start_baclient_daemon(ba_client_start_daemon)
+            # NOTE: If your helper can start service/daemon on Windows, let it handle internally.
+            # daemon_result = utils.start_baclient_daemon(ba_client_start_daemon)
 
-        module.exit_json(
-            changed=True,
-            msg=f"BA Client {verify_result.get('ba_client_version', ba_client_version)} verification completed",
-            **verify_result,
-            # **daemon_result
-        )
+            module.exit_json(
+                changed=True,
+                msg=f"BA Client {verify_result.get('ba_client_version', ba_client_version)} verification completed",
+                **verify_result,
+                # **daemon_result
+            )
+
+        except Exception as install_error:
+            module.log(f"Installation failed: {install_error}")
+            utils.rollback(action="install")  # <-- ROLLBACK install
+            module.fail_json(msg=f"Installation failed and rollback executed: {install_error}")
 
     elif action == 'upgrade':
-        upgrade_result = utils.upgrade_ba_client(
-            package_source,
-            install_path,
-            ba_client_version,
-            state,
-            temp_dir
-        )
-        module.exit_json(**upgrade_result)
+        try:
+            upgrade_result = utils.upgrade_ba_client(
+                package_source,
+                install_path,
+                ba_client_version,
+                state,
+                temp_dir
+            )
+            module.exit_json(**upgrade_result)
+        except Exception as upgrade_error:
+            module.log(f"Upgrade failed: {upgrade_error}")
+            utils.rollback(action="upgrade")  # <-- ROLLBACK upgrade
+            module.fail_json(msg=f"Upgrade failed and rollback executed: {upgrade_error}")
 
     elif state == 'absent':
         if not installed:
             module.exit_json(changed=False, msg="BA Client not installed, nothing to remove")
-        uninstalled = utils.uninstall_ba_client()
-        if uninstalled:
-            module.exit_json(changed=True, msg="BA Client successfully uninstalled")
-        else:
-            module.exit_json(changed=False, msg="BA Client was not installed, nothing to uninstall")
+        
+        try:
+            uninstalled = utils.uninstall_ba_client()
+            if uninstalled:
+                module.exit_json(changed=True, msg="BA Client successfully uninstalled")
+            else:
+                module.exit_json(changed=False, msg="BA Client was not installed, nothing to uninstall")
+        except Exception as uninstall_error:
+            module.log(f"Uninstallation failed: {uninstall_error}")
+            utils.rollback(action="uninstall")  # <-- ROLLBACK uninstall
+            module.fail_json(msg=f"Uninstallation failed and rollback executed: {uninstall_error}")
 
     # fallback
     module.exit_json(

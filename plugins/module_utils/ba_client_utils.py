@@ -240,7 +240,169 @@ class BAClientHelper:
 
         print("BA Client installation completed successfully")
         return True
+    
+    def rollback(self, action="install"):
+        """
+        Rollback mechanism for BA Client operations.
+        - action='install' → uninstall packages
+        - action='uninstall' → reinstall packages
+        """
+        self.module.log(f"Initiating rollback for action={action}")
 
+        if self.is_windows():
+            return self._rollback_windows(action, )
+        else:
+            return self._rollback_linux(action, )
+        
+    # LINUX ROLLBACK
+    def _rollback_linux(self, action):
+        results = []
+
+        # ---------------- INSTALL FAILURE -----------------
+        if action == "install":
+            uninstall_order = [
+                "TIVsm-WEBGUI",
+                "TIVsm-BAhdw",
+                "TIVsm-BAcit",
+                "TIVsm-APIcit",
+                "TIVsm-BA",
+                "TIVsm-API64",
+                "gskssl64",
+                "gskcrypt64",
+            ]
+            self.module.log("Rollback: uninstalling packages from failed installation.")
+            for pkg in uninstall_order:
+                cmd = f"rpm -e {pkg}"
+                rc, out, err = self.run_cmd(cmd, check_rc=False)
+                results.append({"package": pkg, "rc": rc, "stderr": err.strip()})
+            return {"rollback_type": "install", "results": results}
+
+        # ---------------- UNINSTALL FAILURE -----------------
+        elif action == "uninstall":
+            reinstall_order = [
+                "gskcrypt64",
+                "gskssl64",
+                "TIVsm-API64",
+                "TIVsm-APIcit",
+                "TIVsm-BA",
+                "TIVsm-BAcit",
+                "TIVsm-BAhdw",
+                "TIVsm-WEBGUI",
+            ]
+            self.module.log("Rollback: reinstalling packages due to failed uninstallation.")
+            for pkg in reinstall_order:
+                rpm_pattern = f"{self.install_dir}/{pkg}*.rpm"
+                cmd = f"rpm -ivh {rpm_pattern}"
+                rc, out, err = self.run_cmd(cmd, check_rc=False)
+                results.append({"package": pkg, "rc": rc, "stderr": err.strip()})
+            return {"rollback_type": "uninstall", "results": results}
+
+        # ---------------- UPGRADE FAILURE -----------------
+        elif action == "upgrade":
+            self.module.log("Rollback: restoring previous version and configuration files.")
+            backup_dir = "/opt/baClientPackagesBk"
+            backup_files = [
+                "/opt/tivoli/tsm/client/ba/bin/dsm.opt.bk",
+                "/opt/tivoli/tsm/client/ba/bin/dsm.sys.bk"
+            ]
+
+            # Step 1: Restore backup configuration files
+            for file in backup_files:
+                orig = file.replace(".bk", "")
+                if os.path.exists(file):
+                    shutil.copy(file, orig)
+                    results.append({"file_restored": orig, "status": "restored"})
+                else:
+                    results.append({"file_restored": orig, "status": "backup_missing"})
+
+            # Step 2: Reinstall previous BA Client version from backup
+            reinstall_order = [
+                "gskcrypt64", "gskssl64",
+                "TIVsm-API64", "TIVsm-APIcit",
+                "TIVsm-BA", "TIVsm-BAcit",
+                "TIVsm-BAhdw", "TIVsm-WEBGUI"
+            ]
+
+            for pkg in reinstall_order:
+                rpm_pattern = f"{backup_dir}/{pkg}*.rpm"
+                cmd = f"rpm -ivh {rpm_pattern}"
+                rc, out, err = self.run_cmd(cmd, check_rc=False)
+                results.append({"package": pkg, "rc": rc, "stderr": err.strip()})
+
+            # Step 3: Clean up backup dir
+            if os.path.exists(backup_dir):
+                shutil.rmtree(backup_dir, ignore_errors=True)
+                results.append({"cleanup": backup_dir, "status": "removed"})
+
+            return {"rollback_type": "upgrade", "results": results}
+
+    # WINDOWS ROLLBACK
+    def _rollback_windows(self, action):
+        results = []
+
+        # ---------------- INSTALL FAILURE -----------------
+        if action == "install":
+            uninstall_targets = [
+                "IBM Storage Protect Client",
+                "IBM Spectrum Protect Client",
+                "Tivoli Storage Manager Client"
+            ]
+            for target in uninstall_targets:
+                ps_cmd = (
+                    f'Get-WmiObject -Class Win32_Product | '
+                    f'Where-Object {{ $_.Name -like "*{target}*" }} | '
+                    f'ForEach-Object {{ $_.Uninstall() }}'
+                )
+                rc, out, err = self.run_cmd(["powershell.exe", "-Command", ps_cmd], check_rc=False)
+                results.append({"package": target, "rc": rc, "stderr": err.strip()})
+            return {"rollback_type": "install", "results": results}
+
+        # ---------------- UNINSTALL FAILURE -----------------
+        elif action == "uninstall":
+            self.module.log("Rollback: reinstalling BA Client on Windows after uninstall failure.")
+            installer_path = os.path.join(self.install_dir, "TSMClient", "install.exe")
+            if os.path.exists(installer_path):
+                cmd = f'"{installer_path}" /qn REINSTALL=ALL REINSTALLMODE=vomus'
+                rc, out, err = self.run_cmd(cmd, check_rc=False)
+                results.append({"package": "BA Client", "rc": rc, "stderr": err.strip()})
+            else:
+                results.append({"package": "BA Client", "error": "Installer not found"})
+            return {"rollback_type": "uninstall", "results": results}
+
+        # ---------------- UPGRADE FAILURE -----------------
+        elif action == "upgrade":
+            self.module.log("Rollback: restoring previous BA Client version and configs on Windows.")
+            backup_dir = r"C:\temp\baClientBackup"
+            config_files = [
+                r"C:\Program Files\Tivoli\tsm\client\ba\bin\dsm.opt.bk",
+                r"C:\Program Files\Tivoli\tsm\client\ba\bin\dsm.sys.bk"
+            ]
+
+            # Step 1: Restore config backups
+            for file in config_files:
+                orig = file.replace(".bk", "")
+                if os.path.exists(file):
+                    shutil.copy(file, orig)
+                    results.append({"file_restored": orig, "status": "restored"})
+                else:
+                    results.append({"file_restored": orig, "status": "backup_missing"})
+
+            # Step 2: Reinstall previous version from backup
+            installer_path = os.path.join(backup_dir, "8.1.25.0-TIV-TSMBAC-WinX64.exe")
+            if os.path.exists(installer_path):
+                cmd = f'"{installer_path}" /qn INSTALLDIR="{self.install_dir}"'
+                rc, out, err = self.run_cmd(cmd, check_rc=False)
+                results.append({"package": "BA Client", "rc": rc, "stderr": err.strip()})
+            else:
+                results.append({"package": "BA Client", "error": "Backup installer missing"})
+
+            # Step 3: Remove backup dir
+            if os.path.exists(backup_dir):
+                shutil.rmtree(backup_dir, ignore_errors=True)
+                results.append({"cleanup": backup_dir, "status": "removed"})
+
+            return {"rollback_type": "upgrade", "results": results}
+    
     def post_installation_verification(self, ba_client_version, state):
         """Verify that BA Client is installed correctly and return status summary."""
 
