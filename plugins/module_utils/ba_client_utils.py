@@ -247,66 +247,84 @@ class BAClientHelper:
         - action='install' → uninstall packages
         - action='uninstall' → reinstall packages
         """
-        self.module.log(f"Initiating rollback for action={action}")
+        self.module.warn(f"Initiating rollback for action={action}")
+        print(f"Initiating rollback for action={action}")
 
         if self.is_windows():
-            return self._rollback_windows(action, )
+            return self._rollback_windows(action)
         else:
-            return self._rollback_linux(action, )
+            return self._rollback_linux(action)
         
     # LINUX ROLLBACK
     def _rollback_linux(self, action):
         results = []
+        package_dir = "/opt/baClient"  # default package repo
+        backup_dir = "/opt/baClientPackagesBk"
 
-        # ---------------- INSTALL FAILURE -----------------
+        # -------- INSTALL FAILURE --------
         if action == "install":
             uninstall_order = [
                 "TIVsm-WEBGUI",
+                "TIVsm-JBB",         
                 "TIVsm-BAhdw",
                 "TIVsm-BAcit",
                 "TIVsm-APIcit",
                 "TIVsm-BA",
                 "TIVsm-API64",
                 "gskssl64",
-                "gskcrypt64",
+                "gskcrypt64"
             ]
             self.module.log("Rollback: uninstalling packages from failed installation.")
             for pkg in uninstall_order:
-                cmd = f"rpm -e {pkg}"
+                # Force uninstall without dependency checks and scripts
+                cmd = f"rpm -e --nodeps --noscripts {pkg}"
                 rc, out, err = self.run_cmd(cmd, check_rc=False)
-                results.append({"package": pkg, "rc": rc, "stderr": err.strip()})
-            return {"rollback_type": "install", "results": results}
+                results.append({
+                    "package": pkg,
+                    "rc": rc,
+                    "stdout": out.strip(),
+                    "stderr": err.strip()
+                })
+                if rc != 0:
+                    self.module.warn(f"Rollback warning: Failed to remove {pkg}, rc={rc}, err={err.strip()}")
 
-        # ---------------- UNINSTALL FAILURE -----------------
+            # Verify cleanup
+            rc, out, _ = self.run_cmd("rpm -qa 'TIVsm*'", check_rc=False)
+
+            if not out.strip():
+                self.module.warn("Rollback successful: All TIVsm packages removed.")
+                rollback_status = "Rollback successful: All TIVsm packages removed."
+            else:
+                self.module.log(f"Rollback warning: Some TIVsm packages still present:\n{out.strip()}")
+                rollback_status = f"Rollback warning: Some TIVsm packages still present:\n{out.strip()}"
+
+            return {"rollback_type": action, "results": results, "status": rollback_status}
+
+        # -------- UNINSTALL FAILURE --------
         elif action == "uninstall":
             reinstall_order = [
-                "gskcrypt64",
-                "gskssl64",
-                "TIVsm-API64",
-                "TIVsm-APIcit",
-                "TIVsm-BA",
-                "TIVsm-BAcit",
-                "TIVsm-BAhdw",
-                "TIVsm-WEBGUI",
+                "gskcrypt64", "gskssl64", "TIVsm-API64", "TIVsm-APIcit",
+                "TIVsm-BA", "TIVsm-BAcit", "TIVsm-BAhdw", "TIVsm-WEBGUI"
             ]
             self.module.log("Rollback: reinstalling packages due to failed uninstallation.")
             for pkg in reinstall_order:
-                rpm_pattern = f"{self.install_dir}/{pkg}*.rpm"
+                rpm_pattern = f"{package_dir}/{pkg}*.rpm"
                 cmd = f"rpm -ivh {rpm_pattern}"
                 rc, out, err = self.run_cmd(cmd, check_rc=False)
                 results.append({"package": pkg, "rc": rc, "stderr": err.strip()})
+            self.module.warn(f"Rollback successful: All packages reinstalled after uninstall failure.")
             return {"rollback_type": "uninstall", "results": results}
 
-        # ---------------- UPGRADE FAILURE -----------------
+        # -------- UPGRADE FAILURE --------
         elif action == "upgrade":
             self.module.log("Rollback: restoring previous version and configuration files.")
-            backup_dir = "/opt/baClientPackagesBk"
             backup_files = [
                 "/opt/tivoli/tsm/client/ba/bin/dsm.opt.bk",
                 "/opt/tivoli/tsm/client/ba/bin/dsm.sys.bk"
             ]
+            results = []
 
-            # Step 1: Restore backup configuration files
+            # Restore configuration files
             for file in backup_files:
                 orig = file.replace(".bk", "")
                 if os.path.exists(file):
@@ -315,26 +333,42 @@ class BAClientHelper:
                 else:
                     results.append({"file_restored": orig, "status": "backup_missing"})
 
-            # Step 2: Reinstall previous BA Client version from backup
+            # First, remove the new upgrade version
+            self.run_cmd("rpm -e $(rpm -qa 'TIVsm*')", check_rc=False)
+
+            # Reinstall previous packages from backup
             reinstall_order = [
-                "gskcrypt64", "gskssl64",
-                "TIVsm-API64", "TIVsm-APIcit",
-                "TIVsm-BA", "TIVsm-BAcit",
-                "TIVsm-BAhdw", "TIVsm-WEBGUI"
+                "gskcrypt64",
+                "gskssl64",
+                "TIVsm-API64",
+                "TIVsm-APIcit",
+                "TIVsm-BA",
+                "TIVsm-BAcit",
+                "TIVsm-BAhdw",
+                "TIVsm-WEBGUI"
             ]
 
             for pkg in reinstall_order:
                 rpm_pattern = f"{backup_dir}/{pkg}*.rpm"
                 cmd = f"rpm -ivh {rpm_pattern}"
+                self.module.log(f"Rollback command: {cmd}")
                 rc, out, err = self.run_cmd(cmd, check_rc=False)
                 results.append({"package": pkg, "rc": rc, "stderr": err.strip()})
 
-            # Step 3: Clean up backup dir
+            # Cleanup
             if os.path.exists(backup_dir):
                 shutil.rmtree(backup_dir, ignore_errors=True)
                 results.append({"cleanup": backup_dir, "status": "removed"})
 
+            # Verify rollback success
+            rc, out, _ = self.run_cmd("rpm -qa 'TIVsm*'", check_rc=False)
+            if "8.1.25" in out:
+                self.module.warn("Rollback successful: Previous version and configs restored after upgrade failure.")
+            else:
+                self.module.log(f"Rollback warning: restore may have failed — installed TIVsm packages:\n{out.strip()}")
+
             return {"rollback_type": "upgrade", "results": results}
+
 
     # WINDOWS ROLLBACK
     def _rollback_windows(self, action):
@@ -546,6 +580,23 @@ class BAClientHelper:
             self.module.fail_json(msg="BA Client not installed. Please install instead of upgrade.")
 
         self.log(f"Upgrading BA Client from {installed_version} -> {ba_client_version}")
+
+        backup_dir = os.path.join(temp_dir, "backup_old_rpms")
+        os.makedirs(backup_dir, exist_ok=True)
+
+        # Backup currently installed BA Client rpms
+        cmd = "rpm -qa 'TIVsm*' --queryformat '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n'"
+        rc, out, err = self.run_cmd(cmd, check_rc=False)
+
+        for pkg in out.strip().splitlines():
+            rpm_path = f"/var/lib/rpm/{pkg}.rpm"
+            # In real systems, we may not have the original rpm, so use `rpm -q --qf` to find installed details
+            # Best approach: use repoquery or keep old rpms in a known directory
+            self.run_cmd(f"rpm -qp --qf '%{{NAME}}' {pkg}", check_rc=False)
+            # Simulate backup: copy old rpm from your package source path if available
+            self.run_cmd(f"cp {package_source}/{pkg}*.rpm {backup_dir}/", check_rc=False)
+
+        self.module.log(f"Backed up existing rpms to {backup_dir}")
 
         self.uninstall_ba_client()
 

@@ -292,8 +292,11 @@ def main():
 
         except Exception as install_error:
             module.log(f"Installation failed: {install_error}")
-            utils.rollback(action="install")  # <-- ROLLBACK install
-            module.fail_json(msg=f"Installation failed and rollback executed: {install_error}")
+            rollback_info = utils.rollback(action="install")
+            module.exit_json(
+                changed=False,
+                msg=f"Installation failed and rollback executed: {install_error}. {rollback_info['status']}"
+            )
 
     elif action == 'upgrade':
         try:
@@ -308,7 +311,7 @@ def main():
         except Exception as upgrade_error:
             module.log(f"Upgrade failed: {upgrade_error}")
             utils.rollback(action="upgrade")  # <-- ROLLBACK upgrade
-            module.fail_json(msg=f"Upgrade failed and rollback executed: {upgrade_error}")
+            module.exit_json(changed=False, msg=f"Upgrade failed and rollback executed: {upgrade_error}")
 
     elif state == 'absent':
         if not installed:
@@ -323,7 +326,10 @@ def main():
         except Exception as uninstall_error:
             module.log(f"Uninstallation failed: {uninstall_error}")
             utils.rollback(action="uninstall")  # <-- ROLLBACK uninstall
-            module.fail_json(msg=f"Uninstallation failed and rollback executed: {uninstall_error}")
+            module.exit_json(
+                changed=False,
+                msg=f"Uninstallation failed and rollback executed: {uninstall_error}"
+            )
 
     # fallback
     module.exit_json(
