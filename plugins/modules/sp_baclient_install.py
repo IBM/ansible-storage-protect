@@ -277,17 +277,19 @@ def main():
             # Perform install
             utils.install_ba_client(package_source, install_path, temp_dir)
 
+            utils.configure_ba_client()
+
             # Verify
             verify_result = utils.post_installation_verification(ba_client_version, action)
 
             # NOTE: If your helper can start service/daemon on Windows, let it handle internally.
-            # daemon_result = utils.start_baclient_daemon(ba_client_start_daemon)
+            daemon_result = utils.start_baclient_daemon(ba_client_start_daemon)
 
             module.exit_json(
                 changed=True,
                 msg=f"BA Client {verify_result.get('ba_client_version', ba_client_version)} verification completed",
                 **verify_result,
-                # **daemon_result
+                **daemon_result
             )
 
         except Exception as install_error:

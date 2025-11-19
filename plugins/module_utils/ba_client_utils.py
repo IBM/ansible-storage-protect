@@ -470,6 +470,50 @@ class BAClientHelper:
             "ba_client_version": ba_client_version
         }
 
+    def configure_ba_client(self):
+        config_dir = "/opt/tivoli/tsm/client/ba/bin"
+        dsm_opt = f"{config_dir}/dsm.opt"
+        dsm_sys = f"{config_dir}/dsm.sys"
+
+        # Ensure directory exists
+        os.makedirs(config_dir, exist_ok=True)
+
+        # ----- DSM.SYS -----
+        sys_content = """SErvername  TSM_SERVER
+    TCPServeraddress  your.server.address
+    TCPPort           1500
+    """
+
+        if not os.path.exists(dsm_sys):
+            with open(dsm_sys, "w") as f:
+                f.write(sys_content)
+            self.module.warn("Created default dsm.sys configuration.")
+        else:
+            with open(dsm_sys, "a") as f:
+                f.write("\n" + sys_content)
+            self.module.warn("Updated existing dsm.sys configuration.")
+
+        # ----- DSM.OPT -----
+        opt_content = """SErvername  TSM_SERVER
+    NODename   your_node_name
+    PasswordDir /opt/tivoli/tsm/client/ba/bin
+    """
+
+        if not os.path.exists(dsm_opt):
+            with open(dsm_opt, "w") as f:
+                f.write(opt_content)
+            self.module.warn("Created default dsm.opt configuration.")
+        else:
+            with open(dsm_opt, "a") as f:
+                f.write("\n" + opt_content)
+            self.module.warn("Updated existing dsm.opt configuration.")
+
+        # ----- Validation -----
+        if os.path.exists(dsm_opt) and os.path.exists(dsm_sys):
+            self.module.warn("BA Client configuration files created/updated successfully.")
+        else:
+            self.module.warn("BA Client configuration missing or not applied correctly.")
+
     def start_baclient_daemon(self, ba_client_start_daemon):
         """Enable and start BA Client daemon/service across platforms."""
 
@@ -601,7 +645,9 @@ class BAClientHelper:
         self.uninstall_ba_client()
 
         self.install_ba_client(package_source, install_path, temp_dir)
+        self.configure_ba_client()
         self.post_installation_verification(ba_client_version, state)
+        self.start_baclient_daemon(ba_client_start_daemon=True)
 
         post_installed, post_version = self.check_installed()
         if not post_installed or post_version != ba_client_version:
