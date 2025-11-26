@@ -1,0 +1,15 @@
+---
+# BA Client version
+ba_client_version: "8.1.25.0"
+
+# Linux BA Client package source
+linux_package_source: "/tmp/{{ ba_client_version }}-TIV-TSMBAC-LinuxX86.tar"
+
+# Windows BA Client package source
+windows_package_source: "C:\\temp\\{{ ba_client_version }}-TIV-TSMBAC-WinX64.exe"
+
+# Windows temp/module paths
+windows_temp_dir: "C:\\temp"
+windows_ba_install_dir: "C:\\Program Files\\Tivoli\\tsm\\client\\ba\\bin"
+windows_module_utils_dest: "C:\\temp\\module_utils\\ba_client_utils.py"
+windows_python_module: "C:\\temp\\sp_baclient_install.py"
