@@ -1,0 +1,21 @@
+---
+- name: Install BA Client on Linux
+  hosts: linux
+  gather_facts: yes
+  become: true
+
+  vars_files:
+    - ../../vars/main.yml
+
+  tasks:
+    - name: Install or upgrade BA Client
+      sp_baclient_install:
+        ba_client_version: "{{ ba_client_version }}"
+        state: present
+        package_source: "{{ linux_package_source }}"
+        install_path: "/opt/tivoli/tsm/client/ba/bin"
+      register: install_result
+
+    - name: Show installation result
+      debug:
+        var: install_result
