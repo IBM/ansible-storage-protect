@@ -1,0 +1,27 @@
+---
+- name: Uninstall BA Client on Windows
+  hosts: windows
+  gather_facts: yes
+
+  vars_files:
+    - ../../vars/main.yml
+
+  tasks:
+    - name: Uninstall BA Client using Python module
+      win_command: >
+        python {{ windows_python_module }}
+        --state absent
+        --ba-client-version {{ ba_client_version }}
+        --package-source {{ windows_package_source }}
+        --version {{ ba_client_version }}
+        --install-path "{{ windows_ba_install_dir }}"
+        --temp-dir {{ windows_temp_dir }}\\baClient
+      register: uninstall_out
+
+    - name: Show uninstall stdout
+      debug:
+        msg: "{{ uninstall_out.stdout }}"
+
+    - name: Show uninstall stderr
+      debug:
+        msg: "{{ uninstall_out.stderr }}"
