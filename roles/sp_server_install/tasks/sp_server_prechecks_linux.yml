@@ -72,7 +72,17 @@
     paths: "{{ sp_server_bin_repo }}"
     patterns: "{{ sp_server_version }}*.bin"
   register: file_status
+  when: sp_server_individual_component_name is not defined
   delegate_to: localhost
+
+- name: Find SP Server binary when individual component is specified
+  ansible.builtin.find:
+    paths: "{{ sp_server_bin_repo }}/{{ sp_server_individual_component_name }}"
+    patterns: "{{ sp_server_version }}*.bin"
+  register: file_status
+  when: sp_server_individual_component_name is defined
+  delegate_to: localhost
+
 
 - name: Fail if the binary does not exist
   ansible.builtin.fail:
