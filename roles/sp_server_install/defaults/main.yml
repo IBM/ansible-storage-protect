@@ -16,6 +16,7 @@ db2_instance_path: "/opt/tivoli/tsm/db2/instance"
 imcl_path: "/opt/IBM/InstallationManager/eclipse/tools/imcl"
 sp_server_version: ""
 sp_server_bin_repo: ""
+sp_server_individual_component_name: ""
 sp_server_installation_status: false
 # ==== tsm_user vars =====
 tsm_group: "tsmusers"
