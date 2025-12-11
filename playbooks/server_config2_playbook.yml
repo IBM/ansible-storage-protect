@@ -1,0 +1,66 @@
+---
+- name: Setup IBM Storage Protect Server instance
+  hosts: server1
+  become: yes
+  vars:
+    instance_user: tsminst1
+    instance_dir: /tsminst1
+    server_bin: /opt/tivoli/tsm/server/bin
+    service_name: tsminst1
+
+  tasks:
+
+    - name: Load db2profile for tsminst1 (does nothing permanent)
+      shell: "source /home/{{ instance_user }}/sqllib/db2profile"
+      become_user: "{{ instance_user }}"
+      args:
+        executable: /bin/bash
+      changed_when: false  # Prevents unnecessary change report
+
+    - name: Copy dsmserv.rc to instance script
+      become_user: "root"
+      copy:
+        src: "/opt/tivoli/tsm/server/bin/dsmserv.rc"
+        dest: "/opt/tivoli/tsm/server/bin/{{ service_name }}"
+        mode: '0755'
+        remote_src: yes
+
+    - name: Ensure instance_dir variable is set in instance script
+      lineinfile:
+        path: "/opt/tivoli/tsm/server/bin/{{ service_name }}"
+        regexp: '^instance_dir='
+        line: "instance_dir=\"{{ instance_dir }}\""
+
+    - name: Create systemd service file
+      copy:
+        dest: "/etc/systemd/system/{{ service_name }}.service"
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=IBM Storage Protect Server instance {{ service_name }}
+          After=network.target
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=true
+          ExecStart={{ server_bin }}/{{ service_name }} start
+          ExecStop={{ server_bin }}/{{ service_name }} stop
+          ExecReload={{ server_bin }}/{{ service_name }} restart
+          TasksMax=infinity
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable service
+      systemd:
+        name: "{{ service_name }}"
+        enabled: yes
+
+    - name: Restart service
+      systemd:
+        name: "{{ service_name }}"
+        state: restarted
