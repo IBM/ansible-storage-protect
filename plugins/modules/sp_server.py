@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Auto Orchestrate — tiny, batteries included orchestration runner for host discovery + reusable tasks.
+Auto Orchestrate — tiny, batteries‑included orchestration runner for host discovery + reusable tasks.
 
 Replaces the earlier PLAYBOOK concept with **ORCHESTRATIONs** (index-of-steps) and **tasks** (reusable units).
 
@@ -123,6 +123,137 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'module_
 import module_utils.sp_server_utils as utils1
 import module_utils.sp_server_constants as sp_server_constants
 
+DOCUMENTATION = """
+---
+Module: sp_server
+Author: Nikhil Tanni
+
+short_description: Install, upgrade, uninstall, and rollback IBM Storage Protect Server
+
+description:
+  - This module manages the lifecycle of the IBM Storage Protect (SP) Server software.
+  - It supports installation, upgrade, uninstallation, and rollback of the SP Server
+    binaries on supported platforms.
+  - The module is responsible only for server software lifecycle operations and does
+    not perform server configuration, database initialization, or runtime tuning.
+  - Configuration and post-install setup are handled separately by the C(sp_server_configure)
+    module.
+
+options:
+  action:
+    description:
+      - Specifies the lifecycle action to perform on the IBM Storage Protect Server.
+    required: true
+    type: str
+    choices:
+      - install
+      - upgrade
+      - uninstall
+
+  install_source:
+    description:
+      - Path to the IBM Storage Protect Server installation media or extracted installer.
+      - Required when C(action=install) or C(action=upgrade).
+    required: false
+    type: str
+
+  install_dir:
+    description:
+      - Target directory where the IBM Storage Protect Server binaries should be installed.
+      - If not provided, the platform default installation path is used.
+    required: false
+    type: str
+
+  version:
+    description:
+      - Target version of IBM Storage Protect Server to install or upgrade to.
+      - Used for validation and idempotency checks.
+    required: false
+    type: str
+
+  rollback_version:
+    description:
+      - Version of IBM Storage Protect Server to roll back to.
+      - Used only when C(action=rollback).
+    required: false
+    type: str
+
+  force:
+    description:
+      - Forces the requested operation even if pre-checks detect existing installations
+        or version mismatches.
+      - Use with caution, especially during uninstall or rollback.
+    required: false
+    type: bool
+    default: false
+
+  log_level:
+    description:
+      - Logging verbosity for the module execution.
+    required: false
+    type: str
+    default: "INFO"
+
+  log_file:
+    description:
+      - Full path to a file where detailed execution logs should be written.
+    required: false
+    type: str
+
+author:
+  - IBM Automation Engineering <ibm-automation@lists.ibm.com>
+
+notes:
+  - This module manages only the server software lifecycle and does not configure
+    users, directories, DB2 instances, databases, services, or macros.
+  - The module is designed to be idempotent where possible by detecting existing
+    installations and installed versions.
+  - Rollback support depends on the availability of rollback media or previously
+    installed versions on the target system.
+  - Platform-specific installers and commands are handled internally for Windows
+    and Linux systems.
+
+seealso:
+  - module: sp_server_configure
+  - module: sp_baclient_install
+  - https://github.com/IBM/ansible-storage-protect
+  - IBM Storage Protect documentation
+
+"""
+
+EXAMPLES = """
+    - name: Run SP orchestration (Linux)
+        ansible.builtin.command: >
+            {{ sp_python_exe }} "{{ sp_server_install_dest_lin }}/sp_server.py"
+            --mode={{ sp_mode }}
+            --serverpassword="{{ sp_pwd }}"
+            --componentname="server"
+            {% if sp_mode == "install" or sp_mode == "upgrade" %}
+            --newversion={{ sp_server_version }}
+            {% endif %}
+            --log-level={{ sp_log_level }}
+        args:
+            chdir: "{{ sp_server_install_dest_lin }}"
+        register: sp_linux_output
+        no_log: false
+
+    - name: Run SP orchestration (Windows)
+        ansible.windows.win_command: >
+            {{ sp_python_exe }} "{{ sp_server_install_dest_win }}\\sp_server.py"
+            --mode={{ sp_mode }}
+            --serverpassword="{{ sp_pwd }}"
+            --componentname="server"
+            {% if sp_mode == "install" or sp_mode == "upgrade" %}
+            --newversion={{ sp_server_version }}
+            {% endif %}
+            --log-level={{ sp_log_level }}
+        args:
+            chdir: "{{ sp_server_install_dest_win }}"
+        register: sp_windows_output
+        no_log: false
+
+"""
+
 ARTIFACT_PATTERNS = {
     # Example: 1.2.1.0-ORGI-SPOC-WindowsX64.exe
     "windows": r"^\d+\.\d+\.\d+\.\d+-IBM-SPOC-WindowsX64\.exe$",
@@ -137,6 +268,7 @@ ARTIFACT_PATTERNS = {
     "aix": r"([0-9]+(?:\\.[0-9]+){1,3})-[A-Za-z0-9_-]+-AixPPC\\.bin$",
 }
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ---------- Logging setup ----------
 
@@ -197,11 +329,12 @@ class BA_SERVER_SETUP:
         self.ctx = context
         self.log = context["logger"]
 
-        if utils1.fs_exists(path="ansible-vars.json"):
-            self.ansible_vars_data = utils1.read_json_file(path="ansible-vars.json")
+        ansiblevars_path = os.path.join(SCRIPT_DIR, "ansible-vars.json")
+        if utils1.fs_exists(path=ansiblevars_path):
+            self.ansible_vars_data = utils1.read_json_file(path=ansiblevars_path)
             self.ctx["ansible_vars_data"] = self.ansible_vars_data
         else:
-            raise FileNotFoundError("ansible-vars.json")
+            raise FileNotFoundError(ansiblevars_path)
 
 
     def run(self, mode: str) -> bool:
@@ -216,126 +349,17 @@ class BA_SERVER_SETUP:
         if mode == "uninstall":
             return self._uninstall(os_name, install_path)
         if mode == "upgrade":
-            install_component_name = self.ctx["args"]["componentname"]
-            component_id = sp_server_constants.offerings_metadata[install_component_name]["id"]
-            return self._upgrade(os_name, install_path, component_id)
+            return self._upgrade(os_name, install_path)
         return self._install(os_name, install_path)
 
     def _install(self, os_name: str, install_path: Path) -> bool:
 
         install_component_name = self.ctx["args"]["componentname"]
-        component_id = sp_server_constants.offerings_metadata[install_component_name]["id"]
-        
-        # For Windows, clean up IBM Installation Manager AND DB2 remnants BEFORE checking if installed
-        # This prevents conflicts with existing IM/DB2 during installation
-        if os_name.lower().strip() == "windows":
-            import shutil
-            
-            # First, query all DB2 services (not just DB2TSM1)
-            self.log.info("Detecting and removing all DB2 services...")
-            try:
-                query_cmd = 'sc query state= all | findstr /i "DB2"'
-                result = utils1.exec_run(context=self.ctx, cmd=query_cmd)
-                if result.get('rc') == 0 and result.get('stdout'):
-                    # Extract service names from output
-                    import re
-                    service_names = re.findall(r'SERVICE_NAME:\s+(\S+)', result.get('stdout', ''))
-                    self.log.info(f"Found DB2 services: {service_names}")
-                    
-                    # Stop and remove each DB2 service
-                    for service in service_names:
-                        try:
-                            stop_cmd = f'sc stop "{service}"'
-                            utils1.exec_run(context=self.ctx, cmd=stop_cmd)
-                            delete_cmd = f'sc delete "{service}"'
-                            utils1.exec_run(context=self.ctx, cmd=delete_cmd)
-                            self.log.info(f"Stopped and removed DB2 service: {service}")
-                        except Exception as e:
-                            self.log.debug(f"Could not remove service {service}: {e}")
-            except Exception as e:
-                self.log.debug(f"Could not query DB2 services: {e}")
-            
-            # Also try to remove known DB2TSM1 services explicitly
-            db2_services = ["DB2GOVERNOR_DB2TSM1", "DB2LICD_DB2TSM1", "DB2MGMTSVC_DB2TSM1", "DB2REMOTECMD_DB2TSM1"]
-            for service in db2_services:
-                try:
-                    stop_cmd = f'sc stop "{service}"'
-                    utils1.exec_run(context=self.ctx, cmd=stop_cmd)
-                    delete_cmd = f'sc delete "{service}"'
-                    utils1.exec_run(context=self.ctx, cmd=delete_cmd)
-                    self.log.info(f"Stopped and removed DB2 service: {service}")
-                except Exception as e:
-                    self.log.debug(f"Could not remove service {service}: {e}")
-            
-            # Remove ALL IBM DB2 registry keys (more aggressive)
-            self.log.info("Removing all IBM DB2 registry keys...")
-            registry_keys = [
-                r'HKLM\SOFTWARE\IBM\DB2',
-                r'HKLM\SOFTWARE\WOW6432Node\IBM\DB2',
-                r'HKLM\SOFTWARE\IBM\SQLLIB',
-                r'HKLM\SOFTWARE\WOW6432Node\IBM\SQLLIB',
-                r'HKLM\SYSTEM\CurrentControlSet\Services\DB2'
-            ]
-            for reg_key in registry_keys:
-                try:
-                    reg_delete_cmd = f'reg delete "{reg_key}" /f'
-                    utils1.exec_run(context=self.ctx, cmd=reg_delete_cmd)
-                    self.log.info(f"Removed registry key: {reg_key}")
-                except Exception as e:
-                    self.log.debug(f"Could not remove registry key {reg_key}: {e}")
-            
-            # Remove DB2 directories (more comprehensive)
-            self.log.info("Removing all DB2 directories...")
-            db2_dirs = [
-                r"C:\ProgramData\IBM\DB2",
-                r"C:\Program Files\Tivoli\TSM\db2",
-                r"C:\Program Files\IBM\SQLLIB",
-                r"C:\Program Files (x86)\IBM\SQLLIB",
-                r"C:\Program Files\IBM\DB2",
-                r"C:\Program Files (x86)\IBM\DB2"
-            ]
-            for db2_dir in db2_dirs:
-                if os.path.exists(db2_dir):
-                    try:
-                        # Use PowerShell for more forceful removal
-                        ps_cmd = f'powershell -Command "Remove-Item -Path \'{db2_dir}\' -Recurse -Force -ErrorAction SilentlyContinue"'
-                        utils1.exec_run(context=self.ctx, cmd=ps_cmd)
-                        self.log.info(f"Removed DB2 directory: {db2_dir}")
-                    except Exception as e:
-                        self.log.warning(f"Could not remove DB2 directory {db2_dir}: {e}")
-            
-            # Remove lock file
-            imlock_path = r"C:\ProgramData\IBM\Installation Manager\.imlock"
-            if os.path.exists(imlock_path):
-                try:
-                    os.remove(imlock_path)
-                    self.log.info(f"Removed existing IBM Installation Manager lock file: {imlock_path}")
-                except Exception as e:
-                    self.log.warning(f"Could not remove lock file {imlock_path}: {e}")
-            
-            # Remove IBM Installation Manager directory to force fresh install
-            im_dir = r"C:\Program Files\IBM\Installation Manager"
-            if os.path.exists(im_dir):
-                try:
-                    shutil.rmtree(im_dir)
-                    self.log.info(f"Removed existing IBM Installation Manager directory: {im_dir}")
-                except Exception as e:
-                    self.log.warning(f"Could not remove IBM Installation Manager directory {im_dir}: {e}")
-            
-            # Also clean up shared IBM directory
-            ibm_shared_dir = r"C:\Program Files\IBM\IBMIMShared"
-            if os.path.exists(ibm_shared_dir):
-                try:
-                    shutil.rmtree(ibm_shared_dir)
-                    self.log.info(f"Removed IBM shared directory: {ibm_shared_dir}")
-                except Exception as e:
-                    self.log.warning(f"Could not remove IBM shared directory {ibm_shared_dir}: {e}")
-        
         _installstatus = utils1.ba_is_installed(self.ctx, oskey=os_name, install_data=sp_server_constants.offerings_metadata[install_component_name])
         # if _installstatus["status"]:
         #     self.log.info(_installstatus["message"])
         #     self.log.info("Proceeding for upgrade activities")
-        #     return self._upgrade(os_name, install_path, component_id)
+        #     return self._upgrade(os_name, install_path)
         # else:
         self.log.debug(_installstatus)
 
@@ -344,7 +368,7 @@ class BA_SERVER_SETUP:
             self.log.error("failed to prepare %s", install_path)
             return False
 
-        artifact_path_data = utils1.find_installer(oskey=os_name, base_dir=str(self._artifacts_base()), version=self.ctx["args"]["newversion"])
+        artifact_path_data = utils1.find_installer(oskey=os_name, base_dir=self._artifacts_base(), version=self.ctx["args"]["newversion"])
         new_version = self.ctx["args"]["newversion"]
     
         if (not artifact_path_data["status"]):
@@ -386,7 +410,7 @@ class BA_SERVER_SETUP:
             return False
 
         candidate_version = self.ctx["args"]["newversion"]
-        artifact_path_data = utils1.find_installer(oskey=os_name, base_dir=str(self._artifacts_base()), version=candidate_version)
+        artifact_path_data = utils1.find_installer(oskey=os_name, base_dir=self._artifacts_base(), version=candidate_version)
 
         if (not artifact_path_data["status"]):
             self.log.error(artifact_path_data["message"])
@@ -397,8 +421,7 @@ class BA_SERVER_SETUP:
             self.log.info("already up to date (%s vs %s) - no upgrade required", current_version, candidate_version)
             return True
 
-        # Pass installed packages dict to uninstall so it knows exact versions
-        if not self._uninstall(os_name, install_path, installed_packages=_installstatus["data"]["installedpackages"]):
+        if not self._uninstall(os_name, install_path):
             self.log.error("uninstall failed; aborting upgrade")
             return False
 
@@ -419,7 +442,7 @@ class BA_SERVER_SETUP:
         self.log.info("upgrade complete: %s -> %s", current_version, candidate_version)
         return True
 
-    def _uninstall(self, os_name: str, install_path: Path, installed_packages: dict | None = None) -> bool:
+    def _uninstall(self, os_name: str, install_path: Path) -> bool:
 
         """
         get location of IBM Installation manager:
@@ -427,60 +450,33 @@ class BA_SERVER_SETUP:
             location key
 
         Then call /eclipse/tools/imcl
+
         then use the uninstall xml file
+
         with silent parameters and uninstall
-        
-        Parameters:
-            installed_packages: Dict of package_id -> version 
         """
 
         ibm_im_location_reg = None
 
         if os_name.lower().strip() == "windows":
-            # Try to get from registry first
             ibm_im_location_reg = utils1.winreg_query_value(root="HKLM", subkey="SOFTWARE\\IBM\\Installation Manager", name="location")
-            
-            # If registry query fails, check common installation paths
-            if ibm_im_location_reg is None:
-                self.log.warning("Installation Manager location not found in registry, checking common paths...")
-                common_paths = [
-                    "C:\\Program Files\\IBM\\Installation Manager",
-                    "C:\\Program Files (x86)\\IBM\\Installation Manager",
-                    "C:\\ProgramData\\IBM\\Installation Manager"
-                ]
-                for path in common_paths:
-                    # Verify that the path contains the eclipse/tools/imcl structure
-                    imcl_path = os.path.join(path, "eclipse", "tools", "imcl.exe")
-                    if os.path.exists(imcl_path):
-                        ibm_im_location_reg = path
-                        self.log.info("Found Installation Manager at: {}".format(path))
-                        self.log.debug("Verified imcl.exe exists at: {}".format(imcl_path))
-                        break
         else:
-            ibm_im_location_reg = self.ansible_vars_data.get("install_location_im_linux")  # type: ignore
-            if ibm_im_location_reg is None:
-                ibm_im_location_reg = self.ansible_vars_data.get("install_location_im", "/opt/IBM/InstallationManager")  # type: ignore
+            ibm_im_location_reg = self.ansible_vars_data.get("install_location_im", "/opt/IBM/InstallationManager")
 
         self.log.info("Identified Installation Manager path:")
         self.log.info(ibm_im_location_reg)
         
-        if ibm_im_location_reg is None:
-            self.log.error("IBM Installation Manager location not found. Cannot proceed with uninstall.")
-            self.log.error("For Windows: Check if IBM Installation Manager is installed at common paths or registry key exists at HKLM\\SOFTWARE\\IBM\\Installation Manager")
-            self.log.error("For Linux: Ensure 'install_location_im_linux' is set in ansible variables or Installation Manager is at /opt/IBM/InstallationManager")
-            return False
-        
         install_manager_imcl = os.path.join(ibm_im_location_reg, "eclipse", "tools", "imcl")
         self.log.info("install manager path considered: " + str(install_manager_imcl))
 
-        artifact_path_data = utils1.find_installer(oskey=os_name, base_dir=str(self._artifacts_base()), version=self.ctx["args"]["newversion"])
+        artifact_path_data = utils1.find_installer(oskey=os_name, base_dir=self._artifacts_base(), version=self.ctx["args"]["newversion"])
         new_version = self.ctx["args"]["newversion"]
     
         if (not artifact_path_data["status"]):
             self.log.error(artifact_path_data["message"])
             return artifact_path_data["status"]
 
-        resp = self._undeploy(os_name=os_name, imcl_loc=install_manager_imcl, artifact_path=Path(artifact_path_data["data"]["installerfile"]), installed_packages=installed_packages)
+        resp = self._undeploy(os_name=os_name, imcl_loc=install_manager_imcl, artifact_path=Path(artifact_path_data["data"]["installerfile"]))
         return resp
 
     def _artifacts_base(self) -> Path:
@@ -516,12 +512,10 @@ class BA_SERVER_SETUP:
         self.log.debug(utils1.file_read_text(path=xmlfile))
 
         InputXMLBuilder = utils1.AgentInputXMLBuilder(context=self.ctx)
-        # Always use "install" mode for _deploy, even during upgrade
-        # (upgrade flow: uninstall old -> install new)
         InputXMLBuilder.generate(
             filename=xmlfile,
-            inputdata=self.ansible_vars_data,  # type: ignore
-            mode="install"
+            inputdata=self.ansible_vars_data,
+            mode=self.ansible_vars_data["sp_mode"]
         )
 
         # update in put response xml file
@@ -609,7 +603,10 @@ class BA_SERVER_SETUP:
                 self.log.debug("Converted binary to linux line endings")
 
         install_cmd = install_script_fullfilepath + " -s -input {respfile} -acceptLicense".format(respfile=xmlfile)
-        
+
+        if os_name.lower() == "aix":
+            install_cmd = "ulimit -f unlimited && ulimit -c unlimited && ulimit -n unlimited && " + install_cmd
+            
         self.log.debug("Install command: {}".format(install_cmd))
         
         resp = utils1.exec_run(context=self.ctx, cmd=install_cmd)
@@ -617,7 +614,7 @@ class BA_SERVER_SETUP:
 
         return resp["rc"] == 0
     
-    def _undeploy(self, os_name: str, imcl_loc: str, artifact_path: Path, installed_packages: dict | None = None) -> bool:
+    def _undeploy(self, os_name: str, imcl_loc: str, artifact_path: Path) -> bool:
         self.log.info("Starting to undeploy/uninstall using imcl at: {}".format(imcl_loc))
 
         artifact_path_extracted = os.path.join(artifact_path.parent, "extracted")
@@ -629,16 +626,10 @@ class BA_SERVER_SETUP:
 
         xmlfile = os.path.join(artifact_path_extracted, "input", "uninstall_response_sample.xml")
         InputXMLBuilder = utils1.AgentInputXMLBuilder(context=self.ctx)
-        
-        # Pass installed packages to XML builder so it can include versions
-        inputdata_with_versions = dict(self.ansible_vars_data)  # type: ignore
-        if installed_packages:
-            inputdata_with_versions["installed_packages"] = installed_packages  # type: ignore
-            
         InputXMLBuilder.generate(
             filename=xmlfile,
-            inputdata=inputdata_with_versions,  # type: ignore
-            mode="uninstall"  # Always use "uninstall" mode for _undeploy
+            inputdata=self.ansible_vars_data,
+            mode=self.ansible_vars_data["sp_mode"]
         )
 
         uninstall_cmd = imcl_loc + " -s -input " + artifact_path_extracted +"/input/uninstall_response_sample.xml -acceptLicense"
@@ -648,94 +639,7 @@ class BA_SERVER_SETUP:
 
         self.log.info("Resp from uninstall execution: {}".format(resp))
 
-        if resp["rc"] == 0:
-            # Extract version from uninstall output
-            version_info = "Unknown"
-            if "stdout" in resp and resp["stdout"]:
-                # Parse output like: "Uninstalled com.tivoli.dsm.server_8.2.0.20251121_0706 from..."
-                import re
-                match = re.search(r'com\.tivoli\.dsm\.server_(\S+)', resp["stdout"])
-                if match:
-                    version_info = match.group(1)
-            
-            # Clean up Windows user and group after successful uninstall
-            if os_name.lower().strip() == "windows":
-                self._cleanup_windows_user_group()
-                
-            # Print final summary
-            self.log.info("UNINSTALL COMPLETED SUCCESSFULLY")
-            self.log.info("Uninstalled Version: {}".format(version_info))
-            self.log.info("  ✓ SP Server software removed")
-            self.log.info("System is now clean and ready for fresh installation")
-        
         return resp["rc"] == 0
-
-    def _cleanup_windows_user_group(self) -> None:
-        """Clean up Windows user, group, folders, and registry entries created during installation"""
-        tsm_user = self.ansible_vars_data.get("tsm_user", "tsminst1")  # type: ignore
-        tsm_group = self.ansible_vars_data.get("tsm_group", "tsmusers")  # type: ignore
-        
-        self.log.info("Starting comprehensive Windows cleanup...")
-        
-        # 1. Remove user
-        self.log.info("Removing Windows user...")
-        user_del_cmd = f'net user "{tsm_user}" /delete'
-        resp = utils1.exec_run(context=self.ctx, cmd=user_del_cmd)
-        if resp["rc"] == 0:
-            self.log.info("Removed user: {}".format(tsm_user))
-        else:
-            self.log.warning("Failed to remove user {} (may not exist): {}".format(tsm_user, resp["stderr"]))
-        
-        # 2. Remove group
-        self.log.info("Removing Windows group...")
-        group_del_cmd = f'net localgroup "{tsm_group}" /delete'
-        resp = utils1.exec_run(context=self.ctx, cmd=group_del_cmd)
-        if resp["rc"] == 0:
-            self.log.info("Removed group: {}".format(tsm_group))
-        else:
-            self.log.warning("Failed to remove group {} (may not exist): {}".format(tsm_group, resp["stderr"]))
-        
-        # 3. Remove TSM instance and root folders
-        self.log.info("Removing TSM folders...")
-        folders_to_remove = [
-            f"C:\\{tsm_user}",  # e.g., C:\tsminst1
-            "C:\\tsmroot",
-            "C:\\Program Files\\Tivoli\\TSM\\server",  # Server installation
-            "C:\\Program Files\\Tivoli\\TSM\\server_install",  # Server install temp files (CRITICAL for reinstall)
-            "C:\\Program Files\\Tivoli\\TSM\\db2",  # DB2 files
-            "C:\\Program Files\\IBM\\IBMIMShared"  # IBM IM Shared (if safe to remove)
-        ]
-        
-        for folder in folders_to_remove:
-            if utils1.fs_exists(path=folder, context=self.ctx):
-                self.log.info("Removing folder: {}".format(folder))
-                cmd = f'powershell -Command "Remove-Item -Path \'{folder}\' -Recurse -Force -ErrorAction SilentlyContinue"'
-                resp = utils1.exec_run(context=self.ctx, cmd=cmd)
-                if resp["rc"] == 0:
-                    self.log.info("Removed folder: {}".format(folder))
-                else:
-                    self.log.warning("Failed to remove folder {}: {}".format(folder, resp["stderr"]))
-            else:
-                self.log.debug("Folder does not exist, skipping: {}".format(folder))
-        
-        # 5. Remove Tivoli and DB2 registry entries
-        self.log.info("Removing Tivoli and DB2 registry entries...")
-        registry_keys = [
-            "HKLM\\SOFTWARE\\Tivoli",
-            "HKLM\\SOFTWARE\\IBM\\ADSM",
-            "HKLM\\SOFTWARE\\IBM\\DB2"  # DB2 registry entries
-        ]
-        
-        for reg_key in registry_keys:
-            self.log.info("Removing registry key: {}".format(reg_key))
-            cmd = f'reg delete "{reg_key}" /f'
-            resp = utils1.exec_run(context=self.ctx, cmd=cmd)
-            if resp["rc"] == 0:
-                self.log.info("Removed registry key: {}".format(reg_key))
-            else:
-                self.log.debug("Registry key not found or already deleted: {}".format(reg_key))
-        
-        self.log.info("Windows cleanup completed")
 
 
     def _verify(self, os_name: str, install_path: Path) -> bool:
