@@ -1,0 +1,134 @@
+sp_mode: "install"        # install | uninstall
+sp_pwd: "Ibmibm*2025#13579"
+
+profile_id: "IBM Storage Protect"
+
+install_location_tsm: "/opt/tivoli/tsm"
+
+install_location_im: "/opt/IBM/InstallationManager"
+
+sp_server_install_dest_win: "C:/temp/baserver" 
+sp_server_install_dest_lin: "/tmp/baserver"  # TODO: change to /opt/sp_server_binary/ after you testing
+# sp_server_temp_dest --> this is not used as we handle it interenally like /artifact as subfolder
+# repository_location --> this is not used as we handle it internally
+# sp_server_bin_repo --> this is not used as we look for binary in current dir only under ./artifacts location
+# sp_server_installation_status --> not used
+
+license_value: "tsm"
+license_option: "A" # TODO: check this variable how used
+
+
+
+# Windows
+# sp_server_version: "8.1.27.100"
+sp_server_version: "8.2.1.000"
+
+# Linux
+# sp_server_version: "8.1.7.000"
+# sp_server_version: "8.2.0.000"
+# sp_server_version
+
+offerings:
+  server: true
+#  license: true
+  stagent: false
+  devices: false
+  oc: false
+  ossm: false
+
+
+sp_log_level: "DEBUG"
+
+sp_sync_scripts: true
+
+secure_port: "9443"
+ssl_password: "YourSSLPassword"
+ssl_password_confirm: "{{ ssl_password }}"
+
+server_name: "Server1"
+server_password: "IBMSPServer@@123456789"
+
+backup_start_time: "12:00"
+backup_start_time_string: "12PM"
+
+maxcap: "100G"
+
+root_dir: /tsmroot
+instance_dir: "/tsminst1"
+tsm_group: "tsmusers"
+tsm_group_gid: "10001"
+tsm_user: "tsminst1"
+tsm_user_uid: "10001"
+tsm_user_password: "Tsmuser@@123456789"
+
+directories:
+  - TSMdbspace01
+  - TSMdbspace02
+  - TSMdbspace03
+  - TSMdbspace04
+  - TSMalog
+  - TSMarchlog
+
+macros:
+  - { name: "basics", src: "templates/basics.j2", dest: "/{{ tsm_user }}/basics.mac" }
+  - { name: "policy", src: "templates/policy.j2", dest: "/{{ tsm_user }}/policy.mac" }
+  - { name: "schedule", src: "templates/schedules.j2", dest: "/{{ tsm_user }}/schedules.mac" }
+  - { name: "cntrpool", src: "templates/cntrpool.j2", dest: "/{{ tsm_user }}/cntrpool.mac" }
+  - { name: "cntrmaintenance", src: "templates/cntrmaintenance.j2", dest: "/{{ tsm_user }}/cntrmaintenance.mac" }
+
+allowed_sizes:
+  - xsmall
+  - small
+  - medium
+  - large
+
+storage_prepare_size: "xsmall"
+
+dsk_size:
+  xsmall:
+    TSMdbspace: [200, 250]
+    TSMalog: [30, 80]
+    TSMarchlog: [251, 300]
+    TSMfile: [10000, 10050]
+    TSMbkup: [1000, 1050]
+  small:
+    TSMdbspace: [1000, 1050]
+    TSMalog: [140, 190]
+    TSMarchlog: [1000, 1005]
+    TSMfile: [38000, 38050]
+    TSMbkup: [3000, 3050]
+  medium:
+    TSMdbspace: [2000, 2005]
+    TSMalog: [140, 190]
+    TSMarchlog: [2000, 2005]
+    TSMfile: [180000, 180050]
+    TSMbkup: [10000, 10050]
+  large:
+    TSMdbspace: [4000, 4050]
+    TSMalog: [550, 600]
+    TSMarchlog: [4000, 4050]
+    TSMfile: [500000, 500050]
+    TSMbkup: [16000, 16050]
+
+max_sessions:
+  xsmall: 75
+  small: 250
+  medium: 500
+  large: 1000
+
+db2_instance_path: "/opt/tivoli/tsm/db2/instance" # TODO: for clean config
+# imcl_path --> this is not used as the path is contructed from install_location_im
+
+backup_start_time: "12:00"
+backup_start_time_string: "12PM"
+backup_start_plus_fourteen: "14:00"
+maxcap: "100G"
+dbbk_streams: "4"
+dbbk_compress: "YES"
+dbbk_password: "YourDBkPassword@@123456789"
+backup_start_plus_ten: "10:00"
+server_name: "Server1"
+server_password: "IBMSPServer@@123456789"
+server_blueprint: false
+admin_name: "tsmuser1"
+admin_password: "tsmuser1@@123456789"

@@ -1,0 +1,157 @@
+---
+############################################################
+# PLAY 1: Windows SP Server Orchestration
+############################################################
+- name: SP Server orchestration - Windows
+  hosts: sp_server_windows
+  gather_facts: true
+  become: false
+
+  vars_files:
+    - vars/sp_server.yml
+
+  vars:
+    sp_python_exe: "python"
+    # External location of modules (NOT in playbook folder)
+    sp_source_module_dir: "{{ sp_source_module_dir | default('/opt/ansible-storage-protect/plugins') }}"
+
+  tasks:
+    - name: Ensure working dir exists
+      ansible.windows.win_file:
+        path: "{{ sp_server_install_dest_win }}"
+        state: directory
+
+    - name: Ensure module_utils dir exists
+      ansible.windows.win_file:
+        path: "{{ sp_server_install_dest_win }}/module_utils"
+        state: directory
+
+    - name: Copy modules to Windows target
+      ansible.windows.win_copy:
+        src: "{{ sp_source_module_dir }}/modules/sp_baserver.py"
+        dest: "{{ sp_server_install_dest_win }}/sp_baserver.py"
+      when: sp_sync_scripts | bool
+
+    - name: Copy module_utils files
+      ansible.windows.win_copy:
+        src: "{{ sp_source_module_dir }}/module_utils/{{ item }}"
+        dest: "{{ sp_server_install_dest_win }}/module_utils/{{ item }}"
+      loop:
+        - sp_server_utils.py
+        - sp_server_constants.py
+      when: sp_sync_scripts | bool
+
+    - name: Convert vars/sp_server.yml to JSON and save on target
+      ansible.builtin.copy:
+        dest: "{{ sp_server_install_dest_win }}/ansible-vars.json"
+        content: >-
+          {{
+            (lookup('file', 'vars/sp_server.yml')
+             | regex_replace('(?m)^\\s*#.*$', '')
+             | regex_replace('(?m)\\s+#.*$', '')
+             | trim
+             | from_yaml
+             )
+             | to_nice_json
+          }}
+      when: sp_sync_scripts | bool
+
+    - name: Run SP orchestration (Windows)
+      ansible.windows.win_command: >
+        {{ sp_python_exe }} "{{ sp_server_install_dest_win }}\\sp_baserver.py"
+        --mode={{ sp_mode }}
+        --serverpassword="{{ sp_pwd }}"
+        --componentname="server"
+        {% if sp_mode == "install" or sp_mode == "upgrade" %}
+        --newversion={{ sp_server_version }}
+        {% endif %}
+        --log-level={{ sp_log_level }}
+      args:
+        chdir: "{{ sp_server_install_dest_win }}"
+      register: sp_windows_output
+      no_log: false
+
+    - name: Show output (Windows)
+      ansible.builtin.debug:
+        var: sp_windows_output.stdout_lines
+
+
+############################################################
+# PLAY 2: Linux SP Server Orchestration
+############################################################
+- name: SP Server orchestration - Linux
+  hosts: sp_server_linux
+  gather_facts: true
+  become: true
+
+  vars_files:
+    - vars/sp_server.yml
+
+  vars:
+    sp_python_exe: "python3.12"
+    sp_source_module_dir: "{{ sp_source_module_dir | default('/mnt/c/Users/NikhilTanni/Downloads/Nikk-dev/IBM/ansible-storage-protect/plugins') }}"
+
+  tasks:
+    - name: Ensure working dir exists
+      ansible.builtin.file:
+        path: "{{ sp_server_install_dest_lin }}"
+        state: directory
+        mode: "0755"
+
+    - name: Ensure module_utils dir exists
+      ansible.builtin.file:
+        path: "{{ sp_server_install_dest_lin }}/module_utils"
+        state: directory
+        mode: "0755"
+
+    - name: Copy modules to Linux target
+      ansible.builtin.copy:
+        src: "{{ sp_source_module_dir }}/modules/sp_baserver.py"
+        dest: "{{ sp_server_install_dest_lin }}/sp_baserver.py"
+        mode: "0644"
+      when: sp_sync_scripts | bool
+
+    - name: Copy module_utils files
+      ansible.builtin.copy:
+        src: "{{ sp_source_module_dir }}/module_utils/{{ item }}"
+        dest: "{{ sp_server_install_dest_lin }}/module_utils/{{ item }}"
+        mode: "0644"
+      loop:
+        - sp_server_utils.py
+        - sp_server_constants.py
+      when: sp_sync_scripts | bool
+
+    - name: Convert vars/sp_server.yml to JSON and save on target
+      ansible.builtin.copy:
+        dest: "{{ sp_server_install_dest_lin }}/ansible-vars.json"
+        mode: '0644'
+        content: >-
+          {{
+            (lookup('file', 'vars/sp_server.yml')
+             | regex_replace('(?m)^\\s*#.*$', '')
+             | regex_replace('(?m)\\s+#.*$', '')
+             | trim
+             | from_yaml
+            )
+             | to_nice_json
+          }}
+      when: sp_sync_scripts | bool
+
+    - name: Run SP orchestration (Linux)
+      ansible.builtin.command: >
+        {{ sp_python_exe }} "{{ sp_server_install_dest_lin }}/sp_baserver.py"
+        --mode={{ sp_mode }}
+        --serverpassword="{{ sp_pwd }}"
+        --componentname="server"
+        {% if sp_mode == "install" or sp_mode == "upgrade" %}
+        --newversion={{ sp_server_version }}
+        {% endif %}
+        --log-level={{ sp_log_level }}
+      args:
+        chdir: "{{ sp_server_install_dest_lin }}"
+      register: sp_linux_output
+      no_log: false
+
+    - name: Show output (Linux)
+      ansible.builtin.debug:
+        var: sp_linux_output.stdout_lines
