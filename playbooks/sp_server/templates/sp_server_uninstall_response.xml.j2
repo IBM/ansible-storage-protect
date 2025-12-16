@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<agent-input clean="true" temporary="true">
+  <uninstall modify="false">
+    {% for key, metadata in offerings_metadata.items() %}
+    {% if offerings[key] %}
+    <offering profile='{{ metadata.profile }}' id='{{ metadata.id }}'/>
+    {% endif %}
+    {% endfor %}
+  </uninstall>
+</agent-input>
