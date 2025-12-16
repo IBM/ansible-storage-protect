@@ -9,7 +9,7 @@
 
   vars:
 
-    sp_source_module_dir: "{{ sp_source_module_dir | default('/mnt/c/Users/NikhilTanni/Downloads/Nikk-dev/IBM/ansible-storage-protect/plugins') }}"
+    sp_source_module_dir: "{{ sp_source_module_dir | default('/path/to/repo/IBM/ansible-storage-protect/plugins') }}"
 
 
     # Path to your Python implementation of SPServerConfiguration
