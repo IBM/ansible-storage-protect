@@ -371,7 +371,11 @@ class SPServerConfiguration:
         elif self.os_type == "windows":
             # Equivalent operations using Windows primitives
             # Group
-            group_cmd = f'net localgroup "{tsm_group}" /add'
+            group_cmd = (
+                f'powershell -NoProfile -NonInteractive -Command '
+                f'"if (-not (Get-LocalGroup -Name \\"{tsm_group}\\" -ErrorAction SilentlyContinue)) '
+                f'{{ New-LocalGroup -Name \\"{tsm_group}\\" }}"'
+            )
 
             resp = utils1.exec_run(self.context, group_cmd)
             if (resp["rc"] != 0):
@@ -381,7 +385,17 @@ class SPServerConfiguration:
                 self.log.info("Group created {}".format(tsm_group))
 
             # User
-            user_cmd = f'net user "{tsm_user}" "{tsm_user_password}" /add'
+            user_cmd = (
+                f'powershell -NoProfile -NonInteractive -Command '
+                f'"if (-not (Get-LocalUser -Name \\"{tsm_user}\\" -ErrorAction SilentlyContinue)) '
+                f'{{ '
+                f'$pwd = ConvertTo-SecureString \\"{tsm_user_password}\\" -AsPlainText -Force; '
+                f'New-LocalUser -Name \\"{tsm_user}\\" '
+                f'-Password $pwd '
+                f'-PasswordNeverExpires '
+                f'-UserMayNotChangePassword '
+                f'}}"'
+            )
 
             resp = utils1.exec_run(self.context, user_cmd)
             if (resp["rc"] != 0):
@@ -392,7 +406,11 @@ class SPServerConfiguration:
                 self.log.info("User created {}".format(tsm_user))
 
             # Add user to group
-            add_to_group_cmd = f'net localgroup "{tsm_group}" "{tsm_user}" /add'
+            add_to_group_cmd = (
+                f'powershell -NoProfile -NonInteractive -Command '
+                f'"Add-LocalGroupMember -Group \\"{tsm_group}\\" -Member \\"{tsm_user}\\" '
+                f'-ErrorAction SilentlyContinue"'
+            )
 
             resp = utils1.exec_run(self.context, add_to_group_cmd)
             if (resp["rc"] != 0):
@@ -400,6 +418,25 @@ class SPServerConfiguration:
                 self.log.warning(resp["stderr"])
             else:
                 self.log.info("Group created {}".format(tsm_group))
+
+            # Password 
+            passwd_cmd = (
+                f'powershell -NoProfile -NonInteractive -Command '
+                f'"$pwd = ConvertTo-SecureString \\"{tsm_user_password}\\" -AsPlainText -Force; '
+                f'Set-LocalUser -Name \\"{tsm_user}\\" -Password $pwd"'
+            )
+
+            resp = utils1.exec_run(self.context, passwd_cmd)
+            if resp["rc"] != 0:
+                self.log.error("Failed to set password for user {}".format(tsm_user))
+                self.log.error(resp["stderr"])
+                return {
+                    "status": False,
+                    "message": "Failed to set password for user",
+                    "data": resp
+                }
+            else:
+                self.log.info("User password is set {}".format(tsm_user))
 
         else:
             msg = f"Unsupported OS for user/group creation: {self.os_type}"
@@ -445,42 +482,77 @@ class SPServerConfiguration:
         """
         Mirrors:
           - Creating the DB2 server instance as root (db2icrt ...)
-        Linux-only: DB2 commands are specific to the path used in the playbook.
         """
         self.log.info("Creating DB2 server instance (if required)")
         tsm_user = self.vars["tsm_user"]
 
-        if self.os_type != "linux":
-            msg = "DB2 instance creation is only implemented for Linux in this script"
-            self.log.warning(msg)
-            return make_result(False, msg)
-
-        # Check if instance already exists (rough equivalent of "creates:" in Ansible)
-        sqllib_path = f"/home/{tsm_user}/sqllib"
-        if utils1.fs_exists(sqllib_path):
-            msg = f"DB2 instance already exists at {sqllib_path}"
-            self.log.info(msg)
-            return make_result(True, msg)
-
-        cmd = f"/opt/tivoli/tsm/db2/instance/db2icrt -a server -u {tsm_user} {tsm_user}"
-
-        resp = utils1.exec_run(self.context, cmd)
-        if (resp["rc"] != 0):
-            self.log.warning("Failed to create DB2 server instance")
-            self.log.warning(resp["stderr"])
-            return {"status": False, "message": "Failed to create DB2 server instance", "data": resp}
-        else:
-            self.log.info("DB2 Server instance created")
+        if self.os_type == "linux":
             
-        return {"status": True, "message": "DB2 server instance created", "data": resp}
+            # Check if instance already exists (rough equivalent of "creates:" in Ansible)
+            sqllib_path = f"/home/{tsm_user}/sqllib"
+            if utils1.fs_exists(sqllib_path):
+                msg = f"DB2 instance already exists at {sqllib_path}"
+                self.log.info(msg)
+                return make_result(True, msg)
 
+            cmd = f"/opt/tivoli/tsm/db2/instance/db2icrt -a server -u {tsm_user} {tsm_user}"
+
+            resp = utils1.exec_run(self.context, cmd)
+            if (resp["rc"] != 0):
+                self.log.warning("Failed to create DB2 server instance")
+                self.log.warning(resp["stderr"])
+                return {"status": False, "message": "Failed to create DB2 server instance", "data": resp}
+            else:
+                self.log.info("DB2 Server instance created")
+
+            return {"status": True, "message": "DB2 server instance created", "data": resp}
+        
+        elif self.os_type == "windows":
+            # Check if instance already exists
+            check_cmd = f'db2ilist'
+            resp = utils1.exec_run(self.context, check_cmd)
+
+            if resp["rc"] == 0 and tsm_user.lower() in resp["stdout"].lower():
+                msg = f"DB2 instance '{tsm_user}' already exists"
+                self.log.info(msg)
+                return make_result(True, msg)
+
+            # db2icrt.exe path (adjust if your install differs)
+            db2icrt_path = (
+                r'"C:\Program Files\Tivoli\tsm\db2\BIN\db2icrt.exe"'
+            )
+            tsm_user_password = self.vars["tsm_user_password"]
+
+            cmd = (
+                f'{db2icrt_path} {tsm_user}'
+                f'/s:ese '
+                f'/p:C:\\{tsm_user} '
+                f'/u:{tsm_user},{tsm_user_password}'
+            )
+
+            resp = utils1.exec_run(self.context, cmd)
+            if resp["rc"] != 0:
+                self.log.error("Failed to create DB2 server instance (Windows)")
+                self.log.error(resp["stdout"])
+                self.log.error(resp["stderr"])
+                return make_result(False, "Failed to create DB2 server instance", resp)
+
+            self.log.info("DB2 Server instance created (Windows)")
+            return make_result(True, "DB2 server instance created", resp)
+            
+        else:
+            msg = f"Unsupported OS for DB2 instance creation: {self.os_type}"
+            self.log.error(msg)
+            return make_result(False, msg)
+            
+        
     # -----------------------------------------------------------------------
     # 4. DB2 configuration as instance user (subset of playbook steps)
     # -----------------------------------------------------------------------
 
     def configure_db2_as_instance_user(self) -> Dict[str, Any]:
         """
-        Configures DB2 as the instance user, mirroring the full Ansible playbook logic:
+        Configures DB2 as the instance user, mirroring the full Ansible playbook logic, for both Linux and Windows:
         - Update default database path
         - Set DB2 registry variables
         - Modify LD_LIBRARY_PATH
@@ -494,96 +566,262 @@ class SPServerConfiguration:
 
         tsm_user = self.vars["tsm_user"]
         tsm_group = self.vars.get("tsm_group", "tsmusers")
-        db_paths = [f"/{tsm_user}/TSMdbspace01", f"/{tsm_user}/TSMdbspace02",
-                    f"/{tsm_user}/TSMdbspace03", f"/{tsm_user}/TSMdbspace04"]
-        act_log_dir = f"/{tsm_user}/TSMalog"
-        arch_log_dir = f"/{tsm_user}/TSMarchlog"
+        if self.os_type == "linux":
+            db_paths = [
+                f"/{tsm_user}/TSMdbspace01",
+                f"/{tsm_user}/TSMdbspace02",
+                f"/{tsm_user}/TSMdbspace03",
+                f"/{tsm_user}/TSMdbspace04",
+            ]
+            act_log_dir = f"/{tsm_user}/TSMalog"
+            arch_log_dir = f"/{tsm_user}/TSMarchlog"
+
+        elif self.os_type == "windows":
+            base_dir = f"C:\\{tsm_user}"
+
+            db_paths = [
+                f"{base_dir}\\TSMdbspace01",
+                f"{base_dir}\\TSMdbspace02",
+                f"{base_dir}\\TSMdbspace03",
+                f"{base_dir}\\TSMdbspace04",
+            ]
+
+            act_log_dir = f"{base_dir}\\TSMalog"
+            arch_log_dir = f"{base_dir}\\TSMarchlog"
+
+        # db_paths = [f"/{tsm_user}/TSMdbspace01", f"/{tsm_user}/TSMdbspace02",
+        #             f"/{tsm_user}/TSMdbspace03", f"/{tsm_user}/TSMdbspace04"]
+        # act_log_dir = f"/{tsm_user}/TSMalog"
+        # arch_log_dir = f"/{tsm_user}/TSMarchlog"
         act_log_size = self.vars.get("sp_server_active_log_size", 100)
         server_blueprint = self.vars.get("server_blueprint", False)
 
-        if self.os_type != "linux":
-            msg = "DB2 configuration as instance user is only implemented for Linux"
-            self.log.warning(msg)
-            return make_result(False, msg)
+        if self.os_type == "linux":
+            # --- Linux logic ---
 
-        self.log.info("Configuring DB2 as instance user")
+            self.log.info("Configuring DB2 as instance user")
 
-        db2profile = f"/home/{tsm_user}/sqllib/db2profile"
-        userprofile = f"/home/{tsm_user}/sqllib/userprofile"
+            db2profile = f"/home/{tsm_user}/sqllib/db2profile"
+            userprofile = f"/home/{tsm_user}/sqllib/userprofile"
 
-        # Check DB2 profile
-        if not utils1.fs_exists(db2profile):
-            msg = f"DB2 profile not found: {db2profile}"
-            self.log.error(msg)
-            return make_result(False, msg)
+            # Check DB2 profile
+            if not utils1.fs_exists(db2profile):
+                msg = f"DB2 profile not found: {db2profile}"
+                self.log.error(msg)
+                return make_result(False, msg)
 
-        # 1️⃣ Update default DB path
-        cmd_update_dftdbpath = (
-            f'su - {tsm_user} -c "source {db2profile}; '
-            f'export DB2INSTANCE=\\"{tsm_user}\\"; '
-            f'db2 update dbm cfg using dftdbpath /{tsm_user}"'
-        )
-        resp = utils1.exec_run(self.context, cmd_update_dftdbpath)
-        if resp["rc"] != 0:
-            self.log.error("Failed to update default database path")
-            self.log.error(resp["stderr"])
-            return {"status": False, "message": "Failed to update default database path", "data": resp}
-        self.log.info("Default database path updated")
-
-        # 2️⃣ Set DB2 registry variable
-        cmd_db2set = (
-            f'su - {tsm_user} -c "source {db2profile}; '
-            f'export DB2INSTANCE=\\"{tsm_user}\\"; '
-            f'db2set DB2NOEXITLIST=ON"'
-        )
-        resp = utils1.exec_run(self.context, cmd_db2set)
-        if resp["rc"] != 0:
-            self.log.error("Failed to set DB2 registry variable DB2NOEXITLIST")
-            self.log.error(resp["stderr"])
-            return {"status": False, "message": "Failed to set DB2 registry variable DB2NOEXITLIST", "data": resp}
-        self.log.info("DB2 registry variable DB2NOEXITLIST set")
-
-        # 3️⃣ Modify LD_LIBRARY_PATH in userprofile
-        ld_lib_line = (
-            'export LD_LIBRARY_PATH=/opt/tivoli/tsm/server/bin/dbbkapi:'
-            '/usr/local/ibm/gsk8_64/lib64:/opt/ibm/lib:/opt/ibm/lib64:$LD_LIBRARY_PATH'
-        )
-        utils1.append_line_to_file(userprofile, ld_lib_line)
-        self.log.info("LD_LIBRARY_PATH updated in userprofile")
-
-        # 4️⃣ Check if database is already formatted
-        cmd_db_check = (
-            f'su - {tsm_user} -c "source {db2profile}; '
-            f'export DB2INSTANCE=\\"{tsm_user}\\"; '
-            f'db2 list db directory | grep -i \\"Database alias\\""'
-        )
-        db_check_resp = utils1.exec_run(self.context, cmd_db_check)
-        db_formatted = db_check_resp["rc"] == 0
-
-        if db_formatted:
-            self.log.info("Database already formatted; skipping formatting and cleaning")
-        else:
-            self.log.info("Database not formatted; preparing directories for formatting")
-
-            # Ensure database directories exist and are empty
-            for dbdir in db_paths:
-                utils1.ensure_dir(dbdir, owner=tsm_user, group=tsm_group, mode="0755")
-                files = utils1.list_files(dbdir)
-                for f in files:
-                    utils1.remove_file(f)
-                self.log.info(f"Cleaned database directory: {dbdir}")
-
-            # Ensure log directories exist
-            for logdir in [act_log_dir, arch_log_dir]:
-                utils1.ensure_dir(logdir, owner=tsm_user, group=tsm_group, mode="0755")
-                self.log.info(f"Ensured log directory: {logdir}")
-
-            # Format the database
-            db_paths_str = ",".join(db_paths)
-            cmd_format_db = (
+            # 1️⃣ Update default DB path
+            cmd_update_dftdbpath = (
                 f'su - {tsm_user} -c "source {db2profile}; '
                 f'export DB2INSTANCE=\\"{tsm_user}\\"; '
-                f'dsmserv format dbdir={db_paths_str} '
+                f'db2 update dbm cfg using dftdbpath /{tsm_user}"'
+            )
+            resp = utils1.exec_run(self.context, cmd_update_dftdbpath)
+            if resp["rc"] != 0:
+                self.log.error("Failed to update default database path")
+                self.log.error(resp["stderr"])
+                return {"status": False, "message": "Failed to update default database path", "data": resp}
+            self.log.info("Default database path updated")
+
+            # 2️⃣ Set DB2 registry variable
+            cmd_db2set = (
+                f'su - {tsm_user} -c "source {db2profile}; '
+                f'export DB2INSTANCE=\\"{tsm_user}\\"; '
+                f'db2set DB2NOEXITLIST=ON"'
+            )
+            resp = utils1.exec_run(self.context, cmd_db2set)
+            if resp["rc"] != 0:
+                self.log.error("Failed to set DB2 registry variable DB2NOEXITLIST")
+                self.log.error(resp["stderr"])
+                return {"status": False, "message": "Failed to set DB2 registry variable DB2NOEXITLIST", "data": resp}
+            self.log.info("DB2 registry variable DB2NOEXITLIST set")
+
+            # 3️⃣ Modify LD_LIBRARY_PATH in userprofile
+            ld_lib_line = (
+                'export LD_LIBRARY_PATH=/opt/tivoli/tsm/server/bin/dbbkapi:'
+                '/usr/local/ibm/gsk8_64/lib64:/opt/ibm/lib:/opt/ibm/lib64:$LD_LIBRARY_PATH'
+            )
+            utils1.append_line_to_file(userprofile, ld_lib_line)
+            self.log.info("LD_LIBRARY_PATH updated in userprofile")
+
+            # 4️⃣ Check if database is already formatted
+            cmd_db_check = (
+                f'su - {tsm_user} -c "source {db2profile}; '
+                f'export DB2INSTANCE=\\"{tsm_user}\\"; '
+                f'db2 list db directory | grep -i \\"Database alias\\""'
+            )
+            db_check_resp = utils1.exec_run(self.context, cmd_db_check)
+            db_formatted = db_check_resp["rc"] == 0
+
+            if db_formatted:
+                self.log.info("Database already formatted; skipping formatting and cleaning")
+            else:
+                self.log.info("Database not formatted; preparing directories for formatting")
+
+                # Ensure database directories exist and are empty
+                for dbdir in db_paths:
+                    utils1.ensure_dir(dbdir, owner=tsm_user, group=tsm_group, mode="0755")
+                    files = utils1.list_files(dbdir)
+                    for f in files:
+                        utils1.remove_file(f)
+                    self.log.info(f"Cleaned database directory: {dbdir}")
+
+                # Ensure log directories exist
+                for logdir in [act_log_dir, arch_log_dir]:
+                    utils1.ensure_dir(logdir, owner=tsm_user, group=tsm_group, mode="0755")
+                    self.log.info(f"Ensured log directory: {logdir}")
+
+                # Format the database
+                db_paths_str = ",".join(db_paths)
+                cmd_format_db = (
+                    f'su - {tsm_user} -c "source {db2profile}; '
+                    f'export DB2INSTANCE=\\"{tsm_user}\\"; '
+                    f'dsmserv format dbdir={db_paths_str} '
+                    f'activelogsize={act_log_size} '
+                    f'activelogdirectory={act_log_dir} '
+                    f'archlogdirectory={arch_log_dir}"'
+                )
+                resp = utils1.exec_run(self.context, cmd_format_db)
+                if resp["rc"] != 0:
+                    self.log.error("Failed to format the database")
+                    self.log.error(resp["stderr"])
+                    return {"status": False, "message": "Failed to format the database", "data": resp}
+                self.log.info("Database formatted successfully")
+
+            # 5️⃣ Copy and configure server options
+            dsmserv_opt = f"/{tsm_user}/dsmserv.opt"
+            utils1.copy_file("/opt/tivoli/tsm/server/bin/dsmserv.opt.smp", dsmserv_opt,
+                            owner=tsm_user, group=tsm_group, mode="0644")
+
+            server_options = [
+                "commmethod tcpip",
+                "tcpport 1500",
+                "tcpwindowsize 0",
+                "tcpnodelay yes",
+                "commmethod sharedmem",
+                "shmport 1510",
+                f"ACTIVELOGSIZE {act_log_size}",
+                "COMMTIMEOUT 3600",
+                "DEDUPREQUIRESBACKUP NO",
+                "DEVCONFIG devconf.dat",
+                "EXPINTERVAL 0",
+                "IDLETIMEOUT 60",
+                f"MAXSESSIONS {self.vars.get('max_sessions', 10)}",
+                "NUMOPENVOLSALLOWED 20",
+                "TCPWINDOWSIZE 0",
+                f"VOLUMEHISTORY volhist.out",
+                f"ACTIVELOGDIRECTORY {act_log_dir}",
+                f"ARCHLOGDIRECTORY {arch_log_dir}"
+            ]
+            utils1.update_lines_in_file(dsmserv_opt, server_options)
+            self.log.info("Server options configured")
+
+            # 6️⃣ Ensure admin user setup file exists
+            admin_file = f"/{tsm_user}/.admin_user_setup_done"
+            if not utils1.fs_exists(admin_file):
+                utils1.touch_file(admin_file, owner=tsm_user, group=tsm_group)
+                self.log.info(".admin_user_setup_done created")
+            else:
+                self.log.info("Admin user setup already completed")
+
+            # 7️⃣ Ensure DBBKAPI directory is writable
+            dbbkapi_dir = "/opt/tivoli/tsm/server/bin/dbbkapi"
+            if utils1.fs_exists(dbbkapi_dir):
+                utils1.exec_run(self.context, f"chgrp -R {tsm_group} {dbbkapi_dir}")
+                utils1.exec_run(self.context, f"chmod -R 775 {dbbkapi_dir}")
+                self.log.info("Adjusted permissions for dbbkapi directory")
+            else:
+                self.log.warning(f"dbbkapi directory not found: {dbbkapi_dir}")
+
+            # 8️⃣ Ensure dsm.sys exists
+            dsm_sys = "/opt/tivoli/tsm/client/api/bin64/dsm.sys"
+            if not utils1.fs_exists(dsm_sys):
+                self.log.info("dsm.sys not found, creating default API client configuration")
+                dsm_sys_content = (
+                    "SERVERNAME TSMDBMGR_TSMINST1\n"
+                    "COMMMethod TCPip\n"
+                    "TCPPort 1500\n"
+                    "TCPServeraddress localhost\n"
+                    "NODENAME TSMDBMGR\n"
+                    "PASSWORDACCESS generate\n"
+                )
+                utils1.file_write_text(dsm_sys, dsm_sys_content)
+                utils1.chown(self.context, dsm_sys, "root", tsm_group)
+                utils1.chmod(self.context, dsm_sys, "0664")
+            else:
+                self.log.info("dsm.sys already exists — skipping creation")
+
+            return make_result(True, "DB2 instance user configuration completed", {
+                "db_formatted_check": db_check_resp
+            })
+        
+        elif self.os_type == "windows":
+            db2_bin = r"C:\Program Files\Tivoli\tsm\db2\BIN"
+            dsmserv_exe = r"C:\Program Files\Tivoli\tsm\server\dsmserv.exe"
+            tsm_user_password = self.vars["tsm_user_password"]
+
+            # 1️⃣ Set the DB2 instance environment variable
+            cmd_set_instance = f'set DB2INSTANCE={tsm_user}'
+            resp = utils1.exec_run(self.context, f'cmd /c "{cmd_set_instance}"')
+            if resp["rc"] != 0:
+                self.log.error(f"Failed to set DB2INSTANCE for {tsm_user}")
+                return make_result(False, "Failed to set DB2INSTANCE", resp)
+            self.log.info(f"DB2INSTANCE environment variable set to {tsm_user}")
+
+            # --- 2️⃣ Start the DB2 instance ---
+            db2start_cmd = f'"{db2_bin}\\db2start"'
+            resp = utils1.exec_run(self.context, f'cmd /c "set DB2INSTANCE={tsm_user} && {db2start_cmd}"')
+            if resp["rc"] != 0:
+                self.log.error("Failed to start DB2 instance")
+                self.log.error(resp["stderr"])
+                return make_result(False, "DB2 start failed", resp)
+            self.log.info(f"DB2 instance {tsm_user} started successfully")
+
+            # 2️⃣ Change default DB path
+            dft_db_path = f"C:\\{tsm_user}"  # change as needed
+            db2_update_cmd = f'"{db2_bin}\\db2" update dbm cfg using dftdbpath {dft_db_path}'
+            resp = utils1.exec_run(self.context, f'cmd /c "set DB2INSTANCE={tsm_user} && {db2_update_cmd}"')
+            if resp["rc"] != 0:
+                self.log.error("Failed to update default DB path")
+                self.log.error(resp["stdout"])
+                return make_result(False, "Failed to update default DB path", resp)
+            self.log.info(f"Default DB path updated to {dft_db_path}")
+
+            # 3️⃣ Set DB2 exit list handler
+            cmd_set_exitlist = f'cmd /c "{db2_bin}\\db2set.exe -i {tsm_user} DB2NOEXITLIST=ON"'
+            resp = utils1.exec_run(self.context, cmd_set_exitlist)
+            if resp["rc"] != 0:
+                self.log.error("Failed to set DB2 exit list handler")
+                return make_result(False, "Failed to set DB2 exit list handler", resp)
+            self.log.info("DB2 exit list handler set successfully")
+
+            # 4️⃣ Start the DB2 instance
+            cmd_db2start = f'cmd /c "set DB2INSTANCE={tsm_user} && "{db2_bin}\\db2start""'
+            resp = utils1.exec_run(self.context, cmd_db2start)
+            if resp["rc"] != 0:
+                self.log.error("Failed to start DB2 instance")
+                return make_result(False, "Failed to start DB2 instance", resp)
+            self.log.info("DB2 instance started successfully")
+
+            # 5️⃣ Ensure DB and log directories exist and are empty
+            for dbdir in db_paths:
+                full_path = f"C:\\{dbdir}"
+                utils1.ensure_dir(full_path, owner=tsm_user)
+                for f in utils1.list_files(full_path):
+                    utils1.remove_file(f)
+                self.log.info(f"Database directory cleaned: {full_path}")
+
+            for logdir in [act_log_dir, arch_log_dir]:
+                full_path = f"C:\\{logdir}"
+                utils1.ensure_dir(full_path, owner=tsm_user)
+                self.log.info(f"Log directory ensured: {full_path}")
+
+            # 6️⃣ Format the database with DSMSERV
+            db_paths_str = ",".join(db_paths)
+            cmd_format_db = (
+                f'cmd /c "set DB2INSTANCE={tsm_user} && '
+                f'"{dsmserv_exe}" format '
+                f'dbdir={db_paths_str} '
                 f'activelogsize={act_log_size} '
                 f'activelogdirectory={act_log_dir} '
                 f'archlogdirectory={arch_log_dir}"'
@@ -592,75 +830,73 @@ class SPServerConfiguration:
             if resp["rc"] != 0:
                 self.log.error("Failed to format the database")
                 self.log.error(resp["stderr"])
-                return {"status": False, "message": "Failed to format the database", "data": resp}
+                return make_result(False, "Failed to format the database", resp)
             self.log.info("Database formatted successfully")
 
-        # 5️⃣ Copy and configure server options
-        dsmserv_opt = f"/{tsm_user}/dsmserv.opt"
-        utils1.copy_file("/opt/tivoli/tsm/server/bin/dsmserv.opt.smp", dsmserv_opt,
-                        owner=tsm_user, group=tsm_group, mode="0644")
 
-        server_options = [
-            "commmethod tcpip",
-            "tcpport 1500",
-            "tcpwindowsize 0",
-            "tcpnodelay yes",
-            "commmethod sharedmem",
-            "shmport 1510",
-            f"ACTIVELOGSIZE {act_log_size}",
-            "COMMTIMEOUT 3600",
-            "DEDUPREQUIRESBACKUP NO",
-            "DEVCONFIG devconf.dat",
-            "EXPINTERVAL 0",
-            "IDLETIMEOUT 60",
-            f"MAXSESSIONS {self.vars.get('max_sessions', 10)}",
-            "NUMOPENVOLSALLOWED 20",
-            "TCPWINDOWSIZE 0",
-            f"VOLUMEHISTORY volhist.out",
-            f"ACTIVELOGDIRECTORY {act_log_dir}",
-            f"ARCHLOGDIRECTORY {arch_log_dir}"
-        ]
-        utils1.update_lines_in_file(dsmserv_opt, server_options)
-        self.log.info("Server options configured")
+            # 6️⃣ Copy server options (adjusted path for Windows)
+            dsmserv_opt_src = r"C:\Program Files\Tivoli\tsm\server\bin\dsmserv.opt.smp"
+            dsmserv_opt_dst = f"C:\\{tsm_user}\\dsmserv.opt"
+            utils1.copy_file(dsmserv_opt_src, dsmserv_opt_dst, owner=tsm_user)
+            self.log.info("Server options configured (Windows)")
 
-        # 6️⃣ Ensure admin user setup file exists
-        admin_file = f"/{tsm_user}/.admin_user_setup_done"
-        if not utils1.fs_exists(admin_file):
-            utils1.touch_file(admin_file, owner=tsm_user, group=tsm_group)
-            self.log.info(".admin_user_setup_done created")
-        else:
-            self.log.info("Admin user setup already completed")
+            # 7️⃣ Admin user setup file
+            admin_file = f"C:\\{tsm_user}\\.admin_user_setup_done"
+            if not utils1.fs_exists(admin_file):
+                utils1.touch_file(admin_file, owner=tsm_user)
+                self.log.info(".admin_user_setup_done created (Windows)")
+            else:
+                self.log.info("Admin user setup already completed (Windows)")
 
-        # 7️⃣ Ensure DBBKAPI directory is writable
-        dbbkapi_dir = "/opt/tivoli/tsm/server/bin/dbbkapi"
-        if utils1.fs_exists(dbbkapi_dir):
-            utils1.exec_run(self.context, f"chgrp -R {tsm_group} {dbbkapi_dir}")
-            utils1.exec_run(self.context, f"chmod -R 775 {dbbkapi_dir}")
-            self.log.info("Adjusted permissions for dbbkapi directory")
-        else:
-            self.log.warning(f"dbbkapi directory not found: {dbbkapi_dir}")
+            # 8️⃣ Ensure DBBKAPI directory is writable
+            dbbkapi_dir = r"C:\Program Files\Tivoli\tsm\server\bin\dbbkapi"
 
-        # 8️⃣ Ensure dsm.sys exists
-        dsm_sys = "/opt/tivoli/tsm/client/api/bin64/dsm.sys"
-        if not utils1.fs_exists(dsm_sys):
-            self.log.info("dsm.sys not found, creating default API client configuration")
-            dsm_sys_content = (
-                "SERVERNAME TSMDBMGR_TSMINST1\n"
-                "COMMMethod TCPip\n"
-                "TCPPort 1500\n"
-                "TCPServeraddress localhost\n"
-                "NODENAME TSMDBMGR\n"
-                "PASSWORDACCESS generate\n"
-            )
-            utils1.file_write_text(dsm_sys, dsm_sys_content)
-            utils1.chown(self.context, dsm_sys, "root", tsm_group)
-            utils1.chmod(self.context, dsm_sys, "0664")
-        else:
-            self.log.info("dsm.sys already exists — skipping creation")
+            if utils1.fs_exists(dbbkapi_dir):
+                # Grant Modify permissions to instance user
+                cmd_acl = (
+                    f'icacls "{dbbkapi_dir}" '
+                    f'/grant "{tsm_user}:(OI)(CI)M" /T'
+                )
+                resp = utils1.exec_run(self.context, cmd_acl)
+                if resp["rc"] != 0:
+                    self.log.error("Failed to update permissions on DBBKAPI directory")
+                    self.log.error(resp["stderr"])
+                    return make_result(False, "Failed to update DBBKAPI permissions", resp)
 
-        return make_result(True, "DB2 instance user configuration completed", {
-            "db_formatted_check": db_check_resp
-        })
+                self.log.info("DBBKAPI directory permissions updated for instance user")
+            else:
+                self.log.warning(f"DBBKAPI directory not found: {dbbkapi_dir}")
+
+            # Ensure dsm.sys exists (Windows)
+            dsm_sys = r"C:\Program Files\Tivoli\tsm\client\api\dsm.sys"
+
+            if not utils1.fs_exists(dsm_sys):
+                self.log.info("dsm.sys not found, creating default API client configuration (Windows)")
+
+                dsm_sys_content = (
+                    "SERVERNAME TSMDBMGR_TSMINST1\r\n"
+                    "COMMMethod TCPip\r\n"
+                    "TCPPort 1500\r\n"
+                    "TCPServeraddress localhost\r\n"
+                    "NODENAME TSMDBMGR\r\n"
+                    "PASSWORDACCESS generate\r\n"
+                )
+
+                utils1.file_write_text(dsm_sys, dsm_sys_content)
+
+                # Grant read/write access to instance user
+                cmd_acl = f'icacls "{dsm_sys}" /grant "{tsm_user}:M"'
+                resp = utils1.exec_run(self.context, cmd_acl)
+                if resp["rc"] != 0:
+                    self.log.error("Failed to set permissions on dsm.sys")
+                    self.log.error(resp["stderr"])
+                    return make_result(False, "Failed to set dsm.sys permissions", resp)
+
+                self.log.info("dsm.sys created and permissions set")
+            else:
+                self.log.info("dsm.sys already exists — skipping creation")
+
+            return make_result(True, "DB2 instance user configuration completed (Windows)", {})
 
     # -----------------------------------------------------------------------
     # 5. Macro files and server configuration scripts
