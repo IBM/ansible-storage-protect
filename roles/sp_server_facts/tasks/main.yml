@@ -14,6 +14,41 @@
     q_stgpool: "{{ sp_server_facts_flags.q_stgpool }}"
   register: sp_server_facts
 
-- name: "Display Storage Protect Server Facts"
+- name: Display Storage Protect Server Facts
   ansible.builtin.debug:
     var: sp_server_facts
+
+- name: run sp_server_facts module
+  ibm.storage_protect.sp_server_facts:
+    q_status: true
+    q_db: false
+    q_monitorsettings: true
+    q_replrule: true
+    q_mgmtclass: true
+    q_stgpool: true
+    q_log: true
+    q_copygroup: true
+  register: sp_facts_result
+
+- name: prepare snapshot payload (mask secrets if any)
+  set_fact:
+    sp_snapshot: "{{ {'resource':'sp_server','collected_by':'sp_server_facts','collected_from':inventory_hostname,'timestamp':ansible_date_time.utc|default(ansible_date_time.iso8601),'data': sp_facts_result} }}"
+
+- name: write snapshot to control node (atomic)
+  delegate_to: localhost
+  run_once: true
+  vars:
+    ts: "{{ lookup('pipe','date -u +%Y%m%dT%H%M%SZ') }}"
+    out_file: "reports/current.json"
+  copy:
+    content: "{{ sp_snapshot | to_nice_json }}"
+    dest: "{{ out_file }}"
+    mode: '0640'
+
+- name: Run drift detection script
+  delegate_to: localhost
+  run_once: true
+  command: "{{ pythonbin }} ../plugins/modules/diff_analyse.py" 
+
+
+
