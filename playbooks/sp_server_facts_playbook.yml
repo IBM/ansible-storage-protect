@@ -1,5 +1,5 @@
 - name: collect sp_server_facts 
-  hosts: sp_server_linux
+  hosts: "{{ target_hosts | default('all') }}"
   gather_facts: true
   become: false
   vars:
