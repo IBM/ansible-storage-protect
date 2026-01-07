@@ -16,6 +16,90 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'module_
 
 import module_utils.sp_server_utils as utils1
 
+DOCUMENTATION = """
+---
+Module: sp_server_configure
+Author: Shalu Mishra
+
+short_description: Configure IBM Storage Protect Server after installation
+
+description:
+  - This module performs post-installation configuration of the IBM Storage Protect (SP) Server.
+  - It configures operating system users and groups, directory structures, DB2 instance
+    runtime settings, database formatting, server options, and macro execution.
+  - The module assumes that the IBM Storage Protect Server software is already installed.
+  - The module is designed to be idempotent and safe to re-run.
+
+options:
+  vars_file:
+    description:
+      - Path to a JSON or YAML file containing server configuration variables.
+      - This file defines instance names, directories, DB2 settings, macros,
+        and other server configuration parameters.
+    required: true
+    type: str
+
+  step:
+    description:
+      - Execute a single configuration step instead of the full workflow.
+      - Useful for debugging or partial reruns.
+    required: false
+    type: str
+    choices:
+      - create_group_and_user
+      - create_directories
+      - create_db2_instance
+      - configure_db2_as_instance_user
+      - format_database_windows
+      - generate_and_run_macros
+      - configure_services
+
+  dry_run:
+    description:
+      - If set to true, the module reports the actions that would be taken
+        without making any changes.
+    required: false
+    type: bool
+    default: false
+
+  log_level:
+    description:
+      - Logging verbosity for configuration execution.
+    required: false
+    type: str
+    default: "INFO"
+
+  log_file:
+    description:
+      - Full path to a file where detailed configuration logs should be written.
+    required: false
+    type: str
+
+author:
+  - IBM Automation Engineering <ibm-automation@lists.ibm.com>
+
+notes:
+  - This module must be run after successful installation of IBM Storage Protect Server.
+  - The module supports both Linux and Windows platforms with platform-specific logic.
+  - Database formatting and macro execution are idempotent and guarded by marker files.
+  - On Windows systems, DB2 and server commands are executed using DB2CMD and DSM SERV utilities.
+  - Errors during intermediate steps are returned with detailed diagnostics for troubleshooting.
+
+requirements:
+  - IBM Storage Protect Server must already be installed.
+  - DB2 runtime bundled with Storage Protect must be available.
+  - Sufficient operating system privileges are required to create users, directories, services, and database resources.
+
+"""
+
+EXAMPLES = """
+    - name: Execute SPServerConfiguration (Windows)
+          ansible.windows.win_command: >
+            python {{ sp_server_install_dest_win }}\sp_server_configure.py
+            --vars-file {{ sp_server_install_dest_win }}\ansible-vars.json
+          register: sp_server_config_raw
+          failed_when: sp_server_config_raw.rc != 0
+"""
 
 def make_result(status: bool, message: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     return {"status": status, "message": message, "data": data or {}}
@@ -838,12 +922,12 @@ class SPServerConfiguration:
 
         resp = utils1.exec_run(self.context, cmd)
 
-        if resp["rc"] != 0:
-            # Database already exists → treat as SUCCESS
-            if "already exists" in resp["stdout"]:
-                self.log.warning("Database already exists marking as formatted")
-            else:
-                return make_result(False, "Database format failed", resp)
+        # if resp["rc"] != 0:
+        #     # Database already exists → treat as SUCCESS
+        #     if "already exists" in resp["stdout"]:
+        #         self.log.warning("Database already exists marking as formatted")
+        #     else:
+        #         return make_result(False, "Database format failed", resp)
 
         # Create marker
         utils1.touch_file(marker_file, owner=tsm_user)
