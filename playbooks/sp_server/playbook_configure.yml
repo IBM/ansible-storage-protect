@@ -1,0 +1,175 @@
+---
+- name: Configuring SP Server using Python implementation
+  hosts: sp_server_linux
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - vars/sp_server.yml
+
+  vars:
+
+    sp_source_module_dir: "{{ sp_source_module_dir | default('/path/to/repo/IBM/ansible-storage-protect/plugins') }}"
+
+
+    # Path to your Python implementation of SPServerConfiguration
+    sp_config_script: "{{ sp_server_install_dest_lin }}/sp_baserver_configure.py"
+
+    # JSON (or other) vars file consumed by the Python script
+    sp_config_vars_file: "{{ sp_server_install_dest_lin }}/ansible-vars.json"
+
+    # Logging locations on the target
+    sp_config_log_dir: /var/log/sp_server
+    sp_config_log_file: "{{ sp_config_log_dir }}/sp_server_configuration.log"
+
+  pre_tasks:
+    - name: Ensure SP Server log directory exists
+      ansible.builtin.file:
+        path: "{{ sp_config_log_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+  tasks:
+    - name: Run SP Server configuration (all steps) via Python
+      block:
+
+        - name: Ensure working dir exists
+          ansible.builtin.file:
+            path: "{{ sp_server_install_dest_lin }}"
+            state: directory
+            mode: "0755"
+
+        - name: Ensure module_utils dir exists
+          ansible.builtin.file:
+            path: "{{ sp_server_install_dest_lin }}/module_utils"
+            state: directory
+            mode: "0755"
+
+        - name: Copy modules to Linux target
+          ansible.builtin.copy:
+            src: "{{ sp_source_module_dir }}/modules/sp_baserver_configure.py"
+            dest: "{{ sp_server_install_dest_lin }}/sp_baserver_configure.py"
+            mode: "0644"
+          when: sp_sync_scripts | bool
+
+        - name: Copy module_utils files
+          ansible.builtin.copy:
+            src: "{{ sp_source_module_dir }}/module_utils/{{ item }}"
+            dest: "{{ sp_server_install_dest_lin }}/module_utils/{{ item }}"
+            mode: "0644"
+          loop:
+            - sp_server_utils.py
+            - sp_server_constants.py
+          when: sp_sync_scripts | bool
+
+        - name: Convert vars/sp_server.yml to JSON and save on target
+          ansible.builtin.copy:
+            dest: "{{ sp_server_install_dest_lin }}/ansible-vars.json"
+            mode: '0644'
+            content: >-
+              {{
+                (lookup('template', 'vars/sp_server.yml')
+                | regex_replace('(?m)^\\s*#.*$', '')
+                | regex_replace('(?m)\\s+#.*$', '')
+                | trim
+                | from_yaml
+                )
+                | to_nice_json
+              }}
+          when: sp_sync_scripts | bool
+
+        - name: Execute SPServerConfiguration.configure_all()
+          ansible.builtin.command: >
+            python3.12 {{ sp_config_script }}
+            --vars-file {{ sp_config_vars_file }}
+          register: sp_server_config_raw
+          changed_when: sp_server_config_raw.rc == 0
+          failed_when: sp_server_config_raw.rc != 0
+
+        - name: Parse JSON result from Python output
+          ansible.builtin.set_fact:
+            sp_server_config_result: "{{ sp_server_config_raw.stdout | from_json }}"
+
+        - name: Log high-level configuration result
+          ansible.builtin.debug:
+            msg:
+              - "SP Server configuration status: {{ sp_server_config_result.status | default('unknown') }}"
+              - "Message: {{ sp_server_config_result.message | default('') }}"
+
+        - name: Log per-step results if available
+          ansible.builtin.debug:
+            var: sp_server_config_result.data.step_results
+          when:
+            - sp_server_config_result is defined
+            - sp_server_config_result.data is defined
+            - sp_server_config_result.data.step_results is defined
+
+        - name: Persist configuration output to log file
+          ansible.builtin.copy:
+            dest: "{{ sp_config_log_file }}"
+            content: |
+              === SP Server configuration run at {{ ansible_date_time.iso8601 }} ===
+              Host: {{ inventory_hostname }}
+
+              Status: {{ sp_server_config_result.status | default('unknown') }}
+              Message: {{ sp_server_config_result.message | default('') }}
+
+              ---- JSON result --------------------------------------
+              {{ sp_server_config_result | to_nice_json }}
+
+              ---- Raw stdout ---------------------------------------
+              {{ sp_server_config_raw.stdout }}
+
+              ---- Raw stderr ---------------------------------------
+              {{ sp_server_config_raw.stderr | default('') }}
+
+            owner: root
+            group: root
+            mode: "0644"
+
+      rescue:
+
+        - name: Attempt Python-based cleanup (SPServerConfiguration.cleanup)
+          ansible.builtin.command: >
+            python3.12 {{ sp_config_script }}
+            --vars-file {{ sp_config_vars_file }}
+            --step cleanup
+          register: sp_server_cleanup_raw
+          failed_when: false
+
+        - name: Log Python cleanup attempt output
+          ansible.builtin.debug:
+            var: sp_server_cleanup_raw
+
+        - name: Persist cleanup output to log file
+          ansible.builtin.copy:
+            dest: "{{ sp_config_log_file }}"
+            content: |
+              === SP Server configuration FAILED at {{ ansible_date_time.iso8601 }} ===
+              Host: {{ inventory_hostname }}
+
+              ---- Cleanup raw stdout ------------------------------
+              {{ sp_server_cleanup_raw.stdout | default('') }}
+
+              ---- Cleanup raw stderr ------------------------------
+              {{ sp_server_cleanup_raw.stderr | default('') }}
+
+            owner: root
+            group: root
+            mode: "0644"
+          when: sp_server_cleanup_raw is defined
+
+        # Optional: keep your legacy cleanup include for extra rollback
+        - name: Legacy cleanup of the server configuration
+          ansible.builtin.include_tasks: sp_server_clean_config.yml
+
+        - name: Server Configuration Status
+          ansible.builtin.debug:
+            msg: >
+              SP Server Configuration FAILED. System has been rolled back (Python + legacy cleanup).
+              Check {{ sp_config_log_file }} and the Ansible task output for details.
+
+        - name: Stop execution of the play
+          ansible.builtin.meta: end_play
