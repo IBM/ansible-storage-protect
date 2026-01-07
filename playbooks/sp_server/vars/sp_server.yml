@@ -59,7 +59,7 @@ tsm_group: "tsmusers"
 tsm_group_gid: "10001"
 tsm_user: "tsminst1"
 tsm_user_uid: "10001"
-tsm_user_password: "Tsmuser@@123456789"
+tsm_user_password: "Tsmuser123456789"
 
 directories:
   - TSMdbspace01

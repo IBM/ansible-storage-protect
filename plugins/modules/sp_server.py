@@ -123,6 +123,137 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'module_
 import module_utils.sp_server_utils as utils1
 import module_utils.sp_server_constants as sp_server_constants
 
+DOCUMENTATION = """
+---
+Module: sp_server
+Author: Nikhil Tanni
+
+short_description: Install, upgrade, uninstall, and rollback IBM Storage Protect Server
+
+description:
+  - This module manages the lifecycle of the IBM Storage Protect (SP) Server software.
+  - It supports installation, upgrade, uninstallation, and rollback of the SP Server
+    binaries on supported platforms.
+  - The module is responsible only for server software lifecycle operations and does
+    not perform server configuration, database initialization, or runtime tuning.
+  - Configuration and post-install setup are handled separately by the C(sp_server_configure)
+    module.
+
+options:
+  action:
+    description:
+      - Specifies the lifecycle action to perform on the IBM Storage Protect Server.
+    required: true
+    type: str
+    choices:
+      - install
+      - upgrade
+      - uninstall
+
+  install_source:
+    description:
+      - Path to the IBM Storage Protect Server installation media or extracted installer.
+      - Required when C(action=install) or C(action=upgrade).
+    required: false
+    type: str
+
+  install_dir:
+    description:
+      - Target directory where the IBM Storage Protect Server binaries should be installed.
+      - If not provided, the platform default installation path is used.
+    required: false
+    type: str
+
+  version:
+    description:
+      - Target version of IBM Storage Protect Server to install or upgrade to.
+      - Used for validation and idempotency checks.
+    required: false
+    type: str
+
+  rollback_version:
+    description:
+      - Version of IBM Storage Protect Server to roll back to.
+      - Used only when C(action=rollback).
+    required: false
+    type: str
+
+  force:
+    description:
+      - Forces the requested operation even if pre-checks detect existing installations
+        or version mismatches.
+      - Use with caution, especially during uninstall or rollback.
+    required: false
+    type: bool
+    default: false
+
+  log_level:
+    description:
+      - Logging verbosity for the module execution.
+    required: false
+    type: str
+    default: "INFO"
+
+  log_file:
+    description:
+      - Full path to a file where detailed execution logs should be written.
+    required: false
+    type: str
+
+author:
+  - IBM Automation Engineering <ibm-automation@lists.ibm.com>
+
+notes:
+  - This module manages only the server software lifecycle and does not configure
+    users, directories, DB2 instances, databases, services, or macros.
+  - The module is designed to be idempotent where possible by detecting existing
+    installations and installed versions.
+  - Rollback support depends on the availability of rollback media or previously
+    installed versions on the target system.
+  - Platform-specific installers and commands are handled internally for Windows
+    and Linux systems.
+
+seealso:
+  - module: sp_server_configure
+  - module: sp_baclient_install
+  - https://github.com/IBM/ansible-storage-protect
+  - IBM Storage Protect documentation
+
+"""
+
+EXAMPLES = """
+    - name: Run SP orchestration (Linux)
+        ansible.builtin.command: >
+            {{ sp_python_exe }} "{{ sp_server_install_dest_lin }}/sp_server.py"
+            --mode={{ sp_mode }}
+            --serverpassword="{{ sp_pwd }}"
+            --componentname="server"
+            {% if sp_mode == "install" or sp_mode == "upgrade" %}
+            --newversion={{ sp_server_version }}
+            {% endif %}
+            --log-level={{ sp_log_level }}
+        args:
+            chdir: "{{ sp_server_install_dest_lin }}"
+        register: sp_linux_output
+        no_log: false
+
+    - name: Run SP orchestration (Windows)
+        ansible.windows.win_command: >
+            {{ sp_python_exe }} "{{ sp_server_install_dest_win }}\\sp_server.py"
+            --mode={{ sp_mode }}
+            --serverpassword="{{ sp_pwd }}"
+            --componentname="server"
+            {% if sp_mode == "install" or sp_mode == "upgrade" %}
+            --newversion={{ sp_server_version }}
+            {% endif %}
+            --log-level={{ sp_log_level }}
+        args:
+            chdir: "{{ sp_server_install_dest_win }}"
+        register: sp_windows_output
+        no_log: false
+
+"""
+
 ARTIFACT_PATTERNS = {
     # Example: 1.2.1.0-ORGI-SPOC-WindowsX64.exe
     "windows": r"^\d+\.\d+\.\d+\.\d+-IBM-SPOC-WindowsX64\.exe$",

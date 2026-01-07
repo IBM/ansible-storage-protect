@@ -1,6 +1,7 @@
 # coding: utf8
 
 import os
+import shutil
 import sys
 import json
 import time
@@ -15,6 +16,90 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'module_
 
 import module_utils.sp_server_utils as utils1
 
+DOCUMENTATION = """
+---
+Module: sp_server_configure
+Author: Shalu Mishra
+
+short_description: Configure IBM Storage Protect Server after installation
+
+description:
+  - This module performs post-installation configuration of the IBM Storage Protect (SP) Server.
+  - It configures operating system users and groups, directory structures, DB2 instance
+    runtime settings, database formatting, server options, and macro execution.
+  - The module assumes that the IBM Storage Protect Server software is already installed.
+  - The module is designed to be idempotent and safe to re-run.
+
+options:
+  vars_file:
+    description:
+      - Path to a JSON or YAML file containing server configuration variables.
+      - This file defines instance names, directories, DB2 settings, macros,
+        and other server configuration parameters.
+    required: true
+    type: str
+
+  step:
+    description:
+      - Execute a single configuration step instead of the full workflow.
+      - Useful for debugging or partial reruns.
+    required: false
+    type: str
+    choices:
+      - create_group_and_user
+      - create_directories
+      - create_db2_instance
+      - configure_db2_as_instance_user
+      - format_database_windows
+      - generate_and_run_macros
+      - configure_services
+
+  dry_run:
+    description:
+      - If set to true, the module reports the actions that would be taken
+        without making any changes.
+    required: false
+    type: bool
+    default: false
+
+  log_level:
+    description:
+      - Logging verbosity for configuration execution.
+    required: false
+    type: str
+    default: "INFO"
+
+  log_file:
+    description:
+      - Full path to a file where detailed configuration logs should be written.
+    required: false
+    type: str
+
+author:
+  - IBM Automation Engineering <ibm-automation@lists.ibm.com>
+
+notes:
+  - This module must be run after successful installation of IBM Storage Protect Server.
+  - The module supports both Linux and Windows platforms with platform-specific logic.
+  - Database formatting and macro execution are idempotent and guarded by marker files.
+  - On Windows systems, DB2 and server commands are executed using DB2CMD and DSM SERV utilities.
+  - Errors during intermediate steps are returned with detailed diagnostics for troubleshooting.
+
+requirements:
+  - IBM Storage Protect Server must already be installed.
+  - DB2 runtime bundled with Storage Protect must be available.
+  - Sufficient operating system privileges are required to create users, directories, services, and database resources.
+
+"""
+
+EXAMPLES = """
+    - name: Execute SPServerConfiguration (Windows)
+          ansible.windows.win_command: >
+            python {{ sp_server_install_dest_win }}\sp_server_configure.py
+            --vars-file {{ sp_server_install_dest_win }}\ansible-vars.json
+          register: sp_server_config_raw
+          failed_when: sp_server_config_raw.rc != 0
+"""
 
 def make_result(status: bool, message: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     return {"status": status, "message": message, "data": data or {}}
@@ -371,7 +456,11 @@ class SPServerConfiguration:
         elif self.os_type == "windows":
             # Equivalent operations using Windows primitives
             # Group
-            group_cmd = f'net localgroup "{tsm_group}" /add'
+            group_cmd = (
+                f'powershell -NoProfile -NonInteractive -Command '
+                f'"if (-not (Get-LocalGroup -Name \\"{tsm_group}\\" -ErrorAction SilentlyContinue)) '
+                f'{{ New-LocalGroup -Name \\"{tsm_group}\\" }}"'
+            )
 
             resp = utils1.exec_run(self.context, group_cmd)
             if (resp["rc"] != 0):
@@ -381,7 +470,17 @@ class SPServerConfiguration:
                 self.log.info("Group created {}".format(tsm_group))
 
             # User
-            user_cmd = f'net user "{tsm_user}" "{tsm_user_password}" /add'
+            user_cmd = (
+                f'powershell -NoProfile -NonInteractive -Command '
+                f'"if (-not (Get-LocalUser -Name \\"{tsm_user}\\" -ErrorAction SilentlyContinue)) '
+                f'{{ '
+                f'$pwd = ConvertTo-SecureString \\"{tsm_user_password}\\" -AsPlainText -Force; '
+                f'New-LocalUser -Name \\"{tsm_user}\\" '
+                f'-Password $pwd '
+                f'-PasswordNeverExpires '
+                f'-UserMayNotChangePassword '
+                f'}}"'
+            )
 
             resp = utils1.exec_run(self.context, user_cmd)
             if (resp["rc"] != 0):
@@ -392,7 +491,11 @@ class SPServerConfiguration:
                 self.log.info("User created {}".format(tsm_user))
 
             # Add user to group
-            add_to_group_cmd = f'net localgroup "{tsm_group}" "{tsm_user}" /add'
+            add_to_group_cmd = (
+                f'powershell -NoProfile -NonInteractive -Command '
+                f'"Add-LocalGroupMember -Group \\"{tsm_group}\\" -Member \\"{tsm_user}\\" '
+                f'-ErrorAction SilentlyContinue"'
+            )
 
             resp = utils1.exec_run(self.context, add_to_group_cmd)
             if (resp["rc"] != 0):
@@ -400,6 +503,25 @@ class SPServerConfiguration:
                 self.log.warning(resp["stderr"])
             else:
                 self.log.info("Group created {}".format(tsm_group))
+
+            # Password 
+            passwd_cmd = (
+                f'powershell -NoProfile -NonInteractive -Command '
+                f'"$pwd = ConvertTo-SecureString \\"{tsm_user_password}\\" -AsPlainText -Force; '
+                f'Set-LocalUser -Name \\"{tsm_user}\\" -Password $pwd"'
+            )
+
+            resp = utils1.exec_run(self.context, passwd_cmd)
+            if resp["rc"] != 0:
+                self.log.error("Failed to set password for user {}".format(tsm_user))
+                self.log.error(resp["stderr"])
+                return {
+                    "status": False,
+                    "message": "Failed to set password for user",
+                    "data": resp
+                }
+            else:
+                self.log.info("User password is set {}".format(tsm_user))
 
         else:
             msg = f"Unsupported OS for user/group creation: {self.os_type}"
@@ -429,10 +551,15 @@ class SPServerConfiguration:
 
         self.log.info("Creating directory structure for SP server")
 
+        if self.os_type == "windows":
+            base = f"C:\\{tsm_user}"
+        else:
+            base = f"/{tsm_user}"
+
         dirs_to_create = [root_dir]
         # e.g. directories like ["TSMdbdir", "TSMlog", "TSMarchlog"]
         for d in directories:
-            dirs_to_create.append(f"/{tsm_user}/{d}")
+            dirs_to_create.append(os.path.join(base, d))
 
         res = self._ensure_directories(dirs_to_create, owner=tsm_user, group=tsm_group)
         return res
@@ -445,42 +572,58 @@ class SPServerConfiguration:
         """
         Mirrors:
           - Creating the DB2 server instance as root (db2icrt ...)
-        Linux-only: DB2 commands are specific to the path used in the playbook.
         """
         self.log.info("Creating DB2 server instance (if required)")
         tsm_user = self.vars["tsm_user"]
 
-        if self.os_type != "linux":
-            msg = "DB2 instance creation is only implemented for Linux in this script"
-            self.log.warning(msg)
-            return make_result(False, msg)
-
-        # Check if instance already exists (rough equivalent of "creates:" in Ansible)
-        sqllib_path = f"/home/{tsm_user}/sqllib"
-        if utils1.fs_exists(sqllib_path):
-            msg = f"DB2 instance already exists at {sqllib_path}"
-            self.log.info(msg)
-            return make_result(True, msg)
-
-        cmd = f"/opt/tivoli/tsm/db2/instance/db2icrt -a server -u {tsm_user} {tsm_user}"
-
-        resp = utils1.exec_run(self.context, cmd)
-        if (resp["rc"] != 0):
-            self.log.warning("Failed to create DB2 server instance")
-            self.log.warning(resp["stderr"])
-            return {"status": False, "message": "Failed to create DB2 server instance", "data": resp}
-        else:
-            self.log.info("DB2 Server instance created")
+        if self.os_type == "linux":
             
-        return {"status": True, "message": "DB2 server instance created", "data": resp}
+            # Check if instance already exists (rough equivalent of "creates:" in Ansible)
+            sqllib_path = f"/home/{tsm_user}/sqllib"
+            if utils1.fs_exists(sqllib_path):
+                msg = f"DB2 instance already exists at {sqllib_path}"
+                self.log.info(msg)
+                return make_result(True, msg)
 
+            cmd = f"/opt/tivoli/tsm/db2/instance/db2icrt -a server -u {tsm_user} {tsm_user}"
+
+            resp = utils1.exec_run(self.context, cmd)
+            if (resp["rc"] != 0):
+                self.log.warning("Failed to create DB2 server instance")
+                self.log.warning(resp["stderr"])
+                return {"status": False, "message": "Failed to create DB2 server instance", "data": resp}
+            else:
+                self.log.info("DB2 Server instance created")
+
+            return {"status": True, "message": "DB2 server instance created", "data": resp}
+        
+        elif self.os_type == "windows":
+            # Check if instance already exists
+            self.log.info("Verifying DB2 instance on Windows")
+
+            resp = utils1.exec_run(self.context, "db2ilist")
+            if resp["rc"] != 0:
+                return make_result(False, "db2ilist failed", resp)
+
+            if tsm_user.lower() not in resp["stdout"].lower():
+                return make_result(False, f"DB2 instance '{tsm_user}' not found", resp)
+
+            self.log.info(f"DB2 instance '{tsm_user}' exists")
+            return make_result(True, "DB2 instance verified")
+            
+        else:
+            msg = f"Unsupported OS for DB2 instance creation: {self.os_type}"
+            self.log.error(msg)
+            return make_result(False, msg)
+            
+        
     # -----------------------------------------------------------------------
     # 4. DB2 configuration as instance user (subset of playbook steps)
     # -----------------------------------------------------------------------
 
     def configure_db2_as_instance_user(self) -> Dict[str, Any]:
         """
-        Configures DB2 as the instance user, mirroring the full Ansible playbook logic:
+        Configures DB2 as the instance user, mirroring the full Ansible playbook logic, for both Linux and Windows:
         - Update default database path
         - Set DB2 registry variables
         - Modify LD_LIBRARY_PATH
@@ -494,177 +637,303 @@ class SPServerConfiguration:
 
         tsm_user = self.vars["tsm_user"]
         tsm_group = self.vars.get("tsm_group", "tsmusers")
-        db_paths = [f"/{tsm_user}/TSMdbspace01", f"/{tsm_user}/TSMdbspace02",
-                    f"/{tsm_user}/TSMdbspace03", f"/{tsm_user}/TSMdbspace04"]
-        act_log_dir = f"/{tsm_user}/TSMalog"
-        arch_log_dir = f"/{tsm_user}/TSMarchlog"
+        if self.os_type == "linux":
+            db_paths = [
+                f"/{tsm_user}/TSMdbspace01",
+                f"/{tsm_user}/TSMdbspace02",
+                f"/{tsm_user}/TSMdbspace03",
+                f"/{tsm_user}/TSMdbspace04",
+            ]
+            act_log_dir = f"/{tsm_user}/TSMalog"
+            arch_log_dir = f"/{tsm_user}/TSMarchlog"
+
+        elif self.os_type == "windows":
+            base_dir = f"C:\\{tsm_user}"
+
+            db_paths = [
+                f"{base_dir}\\TSMdbspace01",
+                f"{base_dir}\\TSMdbspace02",
+                f"{base_dir}\\TSMdbspace03",
+                f"{base_dir}\\TSMdbspace04",
+            ]
+
+            act_log_dir = f"{base_dir}\\TSMalog"
+            arch_log_dir = f"{base_dir}\\TSMarchlog"
+
         act_log_size = self.vars.get("sp_server_active_log_size", 100)
         server_blueprint = self.vars.get("server_blueprint", False)
 
-        if self.os_type != "linux":
-            msg = "DB2 configuration as instance user is only implemented for Linux"
-            self.log.warning(msg)
-            return make_result(False, msg)
+        if self.os_type == "linux":
+            # --- Linux logic ---
 
-        self.log.info("Configuring DB2 as instance user")
+            self.log.info("Configuring DB2 as instance user")
 
-        db2profile = f"/home/{tsm_user}/sqllib/db2profile"
-        userprofile = f"/home/{tsm_user}/sqllib/userprofile"
+            db2profile = f"/home/{tsm_user}/sqllib/db2profile"
+            userprofile = f"/home/{tsm_user}/sqllib/userprofile"
 
-        # Check DB2 profile
-        if not utils1.fs_exists(db2profile):
-            msg = f"DB2 profile not found: {db2profile}"
-            self.log.error(msg)
-            return make_result(False, msg)
+            # Check DB2 profile
+            if not utils1.fs_exists(db2profile):
+                msg = f"DB2 profile not found: {db2profile}"
+                self.log.error(msg)
+                return make_result(False, msg)
 
-        # 1️⃣ Update default DB path
-        cmd_update_dftdbpath = (
-            f'su - {tsm_user} -c "source {db2profile}; '
-            f'export DB2INSTANCE=\\"{tsm_user}\\"; '
-            f'db2 update dbm cfg using dftdbpath /{tsm_user}"'
-        )
-        resp = utils1.exec_run(self.context, cmd_update_dftdbpath)
-        if resp["rc"] != 0:
-            self.log.error("Failed to update default database path")
-            self.log.error(resp["stderr"])
-            return {"status": False, "message": "Failed to update default database path", "data": resp}
-        self.log.info("Default database path updated")
-
-        # 2️⃣ Set DB2 registry variable
-        cmd_db2set = (
-            f'su - {tsm_user} -c "source {db2profile}; '
-            f'export DB2INSTANCE=\\"{tsm_user}\\"; '
-            f'db2set DB2NOEXITLIST=ON"'
-        )
-        resp = utils1.exec_run(self.context, cmd_db2set)
-        if resp["rc"] != 0:
-            self.log.error("Failed to set DB2 registry variable DB2NOEXITLIST")
-            self.log.error(resp["stderr"])
-            return {"status": False, "message": "Failed to set DB2 registry variable DB2NOEXITLIST", "data": resp}
-        self.log.info("DB2 registry variable DB2NOEXITLIST set")
-
-        # 3️⃣ Modify LD_LIBRARY_PATH in userprofile
-        ld_lib_line = (
-            'export LD_LIBRARY_PATH=/opt/tivoli/tsm/server/bin/dbbkapi:'
-            '/usr/local/ibm/gsk8_64/lib64:/opt/ibm/lib:/opt/ibm/lib64:$LD_LIBRARY_PATH'
-        )
-        utils1.append_line_to_file(userprofile, ld_lib_line)
-        self.log.info("LD_LIBRARY_PATH updated in userprofile")
-
-        # 4️⃣ Check if database is already formatted
-        cmd_db_check = (
-            f'su - {tsm_user} -c "source {db2profile}; '
-            f'export DB2INSTANCE=\\"{tsm_user}\\"; '
-            f'db2 list db directory | grep -i \\"Database alias\\""'
-        )
-        db_check_resp = utils1.exec_run(self.context, cmd_db_check)
-        db_formatted = db_check_resp["rc"] == 0
-
-        if db_formatted:
-            self.log.info("Database already formatted; skipping formatting and cleaning")
-        else:
-            self.log.info("Database not formatted; preparing directories for formatting")
-
-            # Ensure database directories exist and are empty
-            for dbdir in db_paths:
-                utils1.ensure_dir(dbdir, owner=tsm_user, group=tsm_group, mode="0755")
-                files = utils1.list_files(dbdir)
-                for f in files:
-                    utils1.remove_file(f)
-                self.log.info(f"Cleaned database directory: {dbdir}")
-
-            # Ensure log directories exist
-            for logdir in [act_log_dir, arch_log_dir]:
-                utils1.ensure_dir(logdir, owner=tsm_user, group=tsm_group, mode="0755")
-                self.log.info(f"Ensured log directory: {logdir}")
-
-            # Format the database
-            db_paths_str = ",".join(db_paths)
-            cmd_format_db = (
+            # 1️⃣ Update default DB path
+            cmd_update_dftdbpath = (
                 f'su - {tsm_user} -c "source {db2profile}; '
                 f'export DB2INSTANCE=\\"{tsm_user}\\"; '
-                f'dsmserv format dbdir={db_paths_str} '
-                f'activelogsize={act_log_size} '
-                f'activelogdirectory={act_log_dir} '
-                f'archlogdirectory={arch_log_dir}"'
+                f'db2 update dbm cfg using dftdbpath /{tsm_user}"'
             )
-            resp = utils1.exec_run(self.context, cmd_format_db)
+            resp = utils1.exec_run(self.context, cmd_update_dftdbpath)
             if resp["rc"] != 0:
-                self.log.error("Failed to format the database")
+                self.log.error("Failed to update default database path")
                 self.log.error(resp["stderr"])
-                return {"status": False, "message": "Failed to format the database", "data": resp}
-            self.log.info("Database formatted successfully")
+                return {"status": False, "message": "Failed to update default database path", "data": resp}
+            self.log.info("Default database path updated")
 
-        # 5️⃣ Copy and configure server options
-        dsmserv_opt = f"/{tsm_user}/dsmserv.opt"
-        utils1.copy_file("/opt/tivoli/tsm/server/bin/dsmserv.opt.smp", dsmserv_opt,
-                        owner=tsm_user, group=tsm_group, mode="0644")
-
-        server_options = [
-            "commmethod tcpip",
-            "tcpport 1500",
-            "tcpwindowsize 0",
-            "tcpnodelay yes",
-            "commmethod sharedmem",
-            "shmport 1510",
-            f"ACTIVELOGSIZE {act_log_size}",
-            "COMMTIMEOUT 3600",
-            "DEDUPREQUIRESBACKUP NO",
-            "DEVCONFIG devconf.dat",
-            "EXPINTERVAL 0",
-            "IDLETIMEOUT 60",
-            f"MAXSESSIONS {self.vars.get('max_sessions', 10)}",
-            "NUMOPENVOLSALLOWED 20",
-            "TCPWINDOWSIZE 0",
-            f"VOLUMEHISTORY volhist.out",
-            f"ACTIVELOGDIRECTORY {act_log_dir}",
-            f"ARCHLOGDIRECTORY {arch_log_dir}"
-        ]
-        utils1.update_lines_in_file(dsmserv_opt, server_options)
-        self.log.info("Server options configured")
-
-        # 6️⃣ Ensure admin user setup file exists
-        admin_file = f"/{tsm_user}/.admin_user_setup_done"
-        if not utils1.fs_exists(admin_file):
-            utils1.touch_file(admin_file, owner=tsm_user, group=tsm_group)
-            self.log.info(".admin_user_setup_done created")
-        else:
-            self.log.info("Admin user setup already completed")
-
-        # 7️⃣ Ensure DBBKAPI directory is writable
-        dbbkapi_dir = "/opt/tivoli/tsm/server/bin/dbbkapi"
-        if utils1.fs_exists(dbbkapi_dir):
-            utils1.exec_run(self.context, f"chgrp -R {tsm_group} {dbbkapi_dir}")
-            utils1.exec_run(self.context, f"chmod -R 775 {dbbkapi_dir}")
-            self.log.info("Adjusted permissions for dbbkapi directory")
-        else:
-            self.log.warning(f"dbbkapi directory not found: {dbbkapi_dir}")
-
-        # 8️⃣ Ensure dsm.sys exists
-        dsm_sys = "/opt/tivoli/tsm/client/api/bin64/dsm.sys"
-        if not utils1.fs_exists(dsm_sys):
-            self.log.info("dsm.sys not found, creating default API client configuration")
-            dsm_sys_content = (
-                "SERVERNAME TSMDBMGR_TSMINST1\n"
-                "COMMMethod TCPip\n"
-                "TCPPort 1500\n"
-                "TCPServeraddress localhost\n"
-                "NODENAME TSMDBMGR\n"
-                "PASSWORDACCESS generate\n"
+            # 2️⃣ Set DB2 registry variable
+            cmd_db2set = (
+                f'su - {tsm_user} -c "source {db2profile}; '
+                f'export DB2INSTANCE=\\"{tsm_user}\\"; '
+                f'db2set DB2NOEXITLIST=ON"'
             )
-            utils1.file_write_text(dsm_sys, dsm_sys_content)
-            utils1.chown(self.context, dsm_sys, "root", tsm_group)
-            utils1.chmod(self.context, dsm_sys, "0664")
-        else:
-            self.log.info("dsm.sys already exists — skipping creation")
+            resp = utils1.exec_run(self.context, cmd_db2set)
+            if resp["rc"] != 0:
+                self.log.error("Failed to set DB2 registry variable DB2NOEXITLIST")
+                self.log.error(resp["stderr"])
+                return {"status": False, "message": "Failed to set DB2 registry variable DB2NOEXITLIST", "data": resp}
+            self.log.info("DB2 registry variable DB2NOEXITLIST set")
 
-        return make_result(True, "DB2 instance user configuration completed", {
-            "db_formatted_check": db_check_resp
-        })
+            # 3️⃣ Modify LD_LIBRARY_PATH in userprofile
+            ld_lib_line = (
+                'export LD_LIBRARY_PATH=/opt/tivoli/tsm/server/bin/dbbkapi:'
+                '/usr/local/ibm/gsk8_64/lib64:/opt/ibm/lib:/opt/ibm/lib64:$LD_LIBRARY_PATH'
+            )
+            utils1.append_line_to_file(userprofile, ld_lib_line)
+            self.log.info("LD_LIBRARY_PATH updated in userprofile")
 
-    # -----------------------------------------------------------------------
-    # 5. Macro files and server configuration scripts
-    # -----------------------------------------------------------------------
+            # 4️⃣ Check if database is already formatted
+            cmd_db_check = (
+                f'su - {tsm_user} -c "source {db2profile}; '
+                f'export DB2INSTANCE=\\"{tsm_user}\\"; '
+                f'db2 list db directory | grep -i \\"Database alias\\""'
+            )
+            db_check_resp = utils1.exec_run(self.context, cmd_db_check)
+            db_formatted = db_check_resp["rc"] == 0
+
+            if db_formatted:
+                self.log.info("Database already formatted; skipping formatting and cleaning")
+            else:
+                self.log.info("Database not formatted; preparing directories for formatting")
+
+                # Ensure database directories exist and are empty
+                for dbdir in db_paths:
+                    utils1.ensure_dir(dbdir, owner=tsm_user, group=tsm_group, mode="0755")
+                    files = utils1.list_files(dbdir)
+                    for f in files:
+                        utils1.remove_file(f)
+                    self.log.info(f"Cleaned database directory: {dbdir}")
+
+                # Ensure log directories exist
+                for logdir in [act_log_dir, arch_log_dir]:
+                    utils1.ensure_dir(logdir, owner=tsm_user, group=tsm_group, mode="0755")
+                    self.log.info(f"Ensured log directory: {logdir}")
+
+                # Format the database
+                db_paths_str = ",".join(db_paths)
+                cmd_format_db = (
+                    f'su - {tsm_user} -c "source {db2profile}; '
+                    f'export DB2INSTANCE=\\"{tsm_user}\\"; '
+                    f'dsmserv format dbdir={db_paths_str} '
+                    f'activelogsize={act_log_size} '
+                    f'activelogdirectory={act_log_dir} '
+                    f'archlogdirectory={arch_log_dir}"'
+                )
+                resp = utils1.exec_run(self.context, cmd_format_db)
+                if resp["rc"] != 0:
+                    self.log.error("Failed to format the database")
+                    self.log.error(resp["stderr"])
+                    return {"status": False, "message": "Failed to format the database", "data": resp}
+                self.log.info("Database formatted successfully")
+
+            # 5️⃣ Copy and configure server options
+            dsmserv_opt = f"/{tsm_user}/dsmserv.opt"
+            utils1.copy_file("/opt/tivoli/tsm/server/bin/dsmserv.opt.smp", dsmserv_opt,
+                            owner=tsm_user, group=tsm_group, mode="0644")
+
+            server_options = [
+                "commmethod tcpip",
+                "tcpport 1500",
+                "tcpwindowsize 0",
+                "tcpnodelay yes",
+                "commmethod sharedmem",
+                "shmport 1510",
+                f"ACTIVELOGSIZE {act_log_size}",
+                "COMMTIMEOUT 3600",
+                "DEDUPREQUIRESBACKUP NO",
+                "DEVCONFIG devconf.dat",
+                "EXPINTERVAL 0",
+                "IDLETIMEOUT 60",
+                f"MAXSESSIONS {self.vars.get('max_sessions', 10)}",
+                "NUMOPENVOLSALLOWED 20",
+                "TCPWINDOWSIZE 0",
+                f"VOLUMEHISTORY volhist.out",
+                f"ACTIVELOGDIRECTORY {act_log_dir}",
+                f"ARCHLOGDIRECTORY {arch_log_dir}"
+            ]
+            utils1.update_lines_in_file(dsmserv_opt, server_options)
+            self.log.info("Server options configured")
+
+            # 6️⃣ Ensure admin user setup file exists
+            admin_file = f"/{tsm_user}/.admin_user_setup_done"
+            if not utils1.fs_exists(admin_file):
+                utils1.touch_file(admin_file, owner=tsm_user, group=tsm_group)
+                self.log.info(".admin_user_setup_done created")
+            else:
+                self.log.info("Admin user setup already completed")
+
+            # 7️⃣ Ensure DBBKAPI directory is writable
+            dbbkapi_dir = "/opt/tivoli/tsm/server/bin/dbbkapi"
+            if utils1.fs_exists(dbbkapi_dir):
+                utils1.exec_run(self.context, f"chgrp -R {tsm_group} {dbbkapi_dir}")
+                utils1.exec_run(self.context, f"chmod -R 775 {dbbkapi_dir}")
+                self.log.info("Adjusted permissions for dbbkapi directory")
+            else:
+                self.log.warning(f"dbbkapi directory not found: {dbbkapi_dir}")
+
+            # 8️⃣ Ensure dsm.sys exists
+            dsm_sys = "/opt/tivoli/tsm/client/api/bin64/dsm.sys"
+            if not utils1.fs_exists(dsm_sys):
+                self.log.info("dsm.sys not found, creating default API client configuration")
+                dsm_sys_content = (
+                    "SERVERNAME TSMDBMGR_TSMINST1\n"
+                    "COMMMethod TCPip\n"
+                    "TCPPort 1500\n"
+                    "TCPServeraddress localhost\n"
+                    "NODENAME TSMDBMGR\n"
+                    "PASSWORDACCESS generate\n"
+                )
+                utils1.file_write_text(dsm_sys, dsm_sys_content)
+                utils1.chown(self.context, dsm_sys, "root", tsm_group)
+                utils1.chmod(self.context, dsm_sys, "0664")
+            else:
+                self.log.info("dsm.sys already exists — skipping creation")
+
+            return make_result(True, "DB2 instance user configuration completed", {
+                "db_formatted_check": db_check_resp
+            })
+        
+        elif self.os_type == "windows":
+
+            self.log.info("Configuring DB2 for Windows SP server")
+
+            db2cmd = r"C:\Program Files\Tivoli\tsm\db2\BIN\DB2CMD.EXE"
+
+            # Initialize DB2 environment (MANDATORY)
+            resp = utils1.exec_run(
+                self.context,
+                f'"{db2cmd}" /c /w /i db2setcp.bat'
+            )
+            if resp["rc"] != 0:
+                return make_result(False, "DB2CMD initialization failed", resp)
+            
+            self.log.info("DB2CMD environment initialized successfully")
+
+            # Set DB2 registry variable
+            resp = utils1.exec_run(
+                self.context,
+                f'"{db2cmd}" /c /w /i db2set -i {tsm_user} DB2NOEXITLIST=ON'
+            )
+            if resp["rc"] != 0:
+                return make_result(False, "Failed to set DB2NOEXITLIST", resp)
+            
+            self.log.info("DB2 registry variable DB2NOEXITLIST ensured")
+
+            return make_result(
+                True,
+                "DB2 runtime configuration completed successfully on Windows",
+                {
+                    "db2_instance": tsm_user,
+                    "db2cmd_initialized": True,
+                    "db2noexitlist": "ON"
+                }
+            )
+        
+    def _clean_directory(self, path: str) -> None:
+        """
+        Remove all contents of a directory WITHOUT deleting the directory itself.
+        Windows-safe and idempotent.
+        """
+        if not os.path.exists(path):
+            return
+
+        for name in os.listdir(path):
+            full_path = os.path.join(path, name)
+            try:
+                if os.path.isfile(full_path) or os.path.islink(full_path):
+                    os.unlink(full_path)
+                elif os.path.isdir(full_path):
+                    shutil.rmtree(full_path)
+            except Exception as exc:
+                raise RuntimeError(f"Failed to clean {full_path}: {exc}")
+
+            
+    def format_database_windows(self) -> Dict[str, Any]:
+        tsm_user = self.vars["tsm_user"]
+        instance_dir = rf"C:\{tsm_user}"
+        marker_file = rf"{instance_dir}\.db_formatted"
+
+        dsmserv_exe = r"C:\Program Files\Tivoli\tsm\server\dsmserv.exe"
+
+        db_paths = [
+            rf"{instance_dir}\TSMdbspace01",
+            rf"{instance_dir}\TSMdbspace02",
+            rf"{instance_dir}\TSMdbspace03",
+            rf"{instance_dir}\TSMdbspace04",
+        ]
+
+        act_log_dir = rf"{instance_dir}\TSMalog"
+        arch_log_dir = rf"{instance_dir}\TSMarchlog"
+
+        # Ensure directories exist
+        for d in db_paths + [act_log_dir, arch_log_dir]:
+            utils1.ensure_dir(d)
+        
+        # Clean DB directories (MANDATORY on Windows)
+        for dbdir in db_paths:
+            self._clean_directory(dbdir)
+            self.log.info(f"Cleaned DB directory: {dbdir}")
+
+        # Run format
+        dbdir_str = ",".join(db_paths)
+
+        cmd = (
+                f'cmd /c "'
+                f'cd /d {instance_dir} && '
+                f'set DB2INSTANCE={tsm_user} && '
+                f'"{dsmserv_exe}" '
+                f'-k {tsm_user} '
+                f'format '
+                f'dbdir={dbdir_str} '
+                f'activelogsize=8192 '
+                f'activelogdirectory={act_log_dir} '
+                f'archlogdirectory={arch_log_dir}'
+                f'"'
+            )
+
+        resp = utils1.exec_run(self.context, cmd)
+
+        # if resp["rc"] != 0:
+        #     # Database already exists → treat as SUCCESS
+        #     if "already exists" in resp["stdout"]:
+        #         self.log.warning("Database already exists marking as formatted")
+        #     else:
+        #         return make_result(False, "Database format failed", resp)
+
+        # Create marker
+        utils1.touch_file(marker_file, owner=tsm_user)
+
+        self.log.info("Database formatted successfully on Windows")
+        return make_result(True, "Database formatted")
 
     def generate_and_run_macros(self) -> Dict[str, Any]:
         """
@@ -677,12 +946,6 @@ class SPServerConfiguration:
         - DSMI environment (userprofile, usercshrc)
         - tsmdbmgr.opt creation
         """
-
-        if self.os_type != "linux":
-            msg = "Macro generation/execution only supported on Linux"
-            self.log.warning(msg)
-            return make_result(False, msg)
-
         tsm_user = self.vars["tsm_user"]
         tsm_group = self.vars["tsm_group"]
         admin_name = self.vars["admin_name"]
@@ -694,140 +957,236 @@ class SPServerConfiguration:
         db2profile = f"{home_dir}/sqllib/db2profile"
         admin_flag = f"{instance_dir}/.admin_user_setup_done"
 
-        # 1. CREATE + EXECUTE ADMIN MACRO IF NOT ALREADY DONE
-        if not utils1.fs_exists(admin_flag):
-            # Check if admin already exists in TSM
-            cmd_check = (
-                f'su - {tsm_user} -c "'
-                f'dsmadmc -id {admin_name} -password dummy QUERY ADMIN {admin_name}"'
-            )
-            resp_check = utils1.exec_run(self.context, cmd_check)
-
-            if resp_check["rc"] == 0:
-                # Admin exists → skip registration, but mark flag
-                self.log.info(f"Admin {admin_name} already exists – skipping registration")
-                utils1.exec_run(self.context, f"touch {admin_flag}")
-            else:
-                # Admin does not exist → create and execute macro
-                setup_mac = f"{instance_dir}/setup.mac"
-                self.log.info("Creating administrative user macro")
-
-                content = (
-                    f"register admin {admin_name} {admin_password}\n"
-                    f"grant auth tsmuser1 classes=system\n"
-                )
-
-                utils1.file_write_text(setup_mac, content)
-                utils1.chown(self.context, setup_mac, tsm_user, tsm_group)
-                utils1.chmod(self.context, setup_mac, "0644")
-
-                # Execute admin macro
-                cmd = (
-                    f'su - {tsm_user} -c "'
-                    f'source {db2profile}; '
-                    f'export DB2INSTANCE=\\"{tsm_user}\\"; '
-                    f'cd {instance_dir}; '
-                    f'dsmserv runfile setup.mac"'
-                )
-
-                resp = utils1.exec_run(self.context, cmd)
-                if resp["rc"] != 0:
-                    self.log.error("Admin macro execution failed")
-                    self.log.error(resp["stderr"])
-                    return make_result(False, "Admin macro execution failed", resp)
-
-                # Mark admin as configured
-                utils1.exec_run(self.context, f"touch {admin_flag}")
-                utils1.chown(self.context, admin_flag, tsm_user, tsm_group)
-                self.log.info("Administrative user setup completed")
-        else:
-            self.log.info("Admin user setup already completed – skipping")
-
-        created_macros = []
-
-        # 2. BLUEPRINT MACROS (templates provided via vars["macros"])
         macros = self.vars.get("macros", [])
 
-        if server_blueprint and macros:
-            self.log.info("Processing blueprint macro files")
+        if not macros:
+            self.log.info("No macros defined — skipping macro execution")
+            return make_result(True, "No macros to execute")
 
-            for item in macros:
-                dest = item["dest"]
-                content = item.get("content", "")
+        self.log.info("Starting macro execution phase")
 
-                self.log.debug(f"Writing macro file: {dest}")
-                ok = utils1.file_write_text(dest, content)
-                if not ok:
-                    return make_result(False, f"Failed to write macro file {dest}")
+        if self.os_type == "linux":
+            # 1. CREATE + EXECUTE ADMIN MACRO IF NOT ALREADY DONE
+            if not utils1.fs_exists(admin_flag):
+                # Check if admin already exists in TSM
+                cmd_check = (
+                    f'su - {tsm_user} -c "'
+                    f'dsmadmc -id {admin_name} -password dummy QUERY ADMIN {admin_name}"'
+                )
+                resp_check = utils1.exec_run(self.context, cmd_check)
 
-                utils1.chown(self.context, dest, tsm_user, tsm_group)
-                utils1.chmod(self.context, dest, "0644")
-                created_macros.append(dest)
+                if resp_check["rc"] == 0:
+                    # Admin exists → skip registration, but mark flag
+                    self.log.info(f"Admin {admin_name} already exists – skipping registration")
+                    utils1.exec_run(self.context, f"touch {admin_flag}")
+                else:
+                    # Admin does not exist → create and execute macro
+                    setup_mac = f"{instance_dir}/setup.mac"
+                    self.log.info("Creating administrative user macro")
 
-            # Execute macros
-            for dest in created_macros:
-                filename = os.path.basename(dest)
+                    content = (
+                        f"register admin {admin_name} {admin_password}\n"
+                        f"grant auth tsmuser1 classes=system\n"
+                    )
+
+                    utils1.file_write_text(setup_mac, content)
+                    utils1.chown(self.context, setup_mac, tsm_user, tsm_group)
+                    utils1.chmod(self.context, setup_mac, "0644")
+
+                    # Execute admin macro
+                    cmd = (
+                        f'su - {tsm_user} -c "'
+                        f'source {db2profile}; '
+                        f'export DB2INSTANCE=\\"{tsm_user}\\"; '
+                        f'cd {instance_dir}; '
+                        f'dsmserv runfile setup.mac"'
+                    )
+
+                    resp = utils1.exec_run(self.context, cmd)
+                    if resp["rc"] != 0:
+                        self.log.error("Admin macro execution failed")
+                        self.log.error(resp["stderr"])
+                        return make_result(False, "Admin macro execution failed", resp)
+
+                    # Mark admin as configured
+                    utils1.exec_run(self.context, f"touch {admin_flag}")
+                    utils1.chown(self.context, admin_flag, tsm_user, tsm_group)
+                    self.log.info("Administrative user setup completed")
+            else:
+                self.log.info("Admin user setup already completed – skipping")
+
+            created_macros = []
+
+            # 2. BLUEPRINT MACROS (templates provided via vars["macros"])
+            macros = self.vars.get("macros", [])
+
+            if server_blueprint and macros:
+                self.log.info("Processing blueprint macro files")
+
+                for item in macros:
+                    dest = item["dest"]
+                    content = item.get("content", "")
+
+                    self.log.debug(f"Writing macro file: {dest}")
+                    ok = utils1.file_write_text(dest, content)
+                    if not ok:
+                        return make_result(False, f"Failed to write macro file {dest}")
+
+                    utils1.chown(self.context, dest, tsm_user, tsm_group)
+                    utils1.chmod(self.context, dest, "0644")
+                    created_macros.append(dest)
+
+                # Execute macros
+                for dest in created_macros:
+                    filename = os.path.basename(dest)
+
+                    cmd = (
+                        f'su - {tsm_user} -c "'
+                        f'source {db2profile}; '
+                        f'export DB2INSTANCE=\\"{tsm_user}\\"; '
+                        f'cd {instance_dir}; '
+                        f'dsmserv runfile {filename}"'
+                    )
+
+                    resp = utils1.exec_run(self.context, cmd)
+                    if resp["rc"] != 0:
+                        self.log.error(f"Failed executing macro {dest}")
+                        self.log.error(resp["stderr"])
+                        return make_result(False, f"Macro execution failed: {dest}", resp)
+
+                    self.log.info(f"Macro executed: {dest}")
+
+            # 3. Ensure DB2 initialization in .profile
+            profile_file = f"{home_dir}/.profile"
+            profile_line = (
+                f"if [ -f {home_dir}/sqllib/db2profile ]; then\n"
+                f"  . {home_dir}/sqllib/db2profile\n"
+                f"fi"
+            )
+            utils1.file_ensure_line(profile_file, profile_line)
+
+            # 4. DSMI environment settings (userprofile)
+            userprofile = f"{home_dir}/sqllib/userprofile"
+            dsmi_lines = [
+                f"DSMI_CONFIG=/{tsm_user}/tsmdbmgr.opt",
+                f"DSMI_DIR=/opt/tivoli/tsm/server/bin/dbbkapi",
+                f"DSMI_LOG=/{tsm_user}",
+                "export DSMI_CONFIG DSMI_DIR DSMI_LOG"
+            ]
+            for line in dsmi_lines:
+                utils1.file_ensure_line(userprofile, line)
+            utils1.chown(self.context, userprofile, tsm_user, tsm_group)
+
+            # 5. DSMI environment settings (usercshrc)
+            usercshrc = f"{home_dir}/sqllib/usercshrc"
+            csh_lines = [
+                f"setenv DSMI_CONFIG /{tsm_user}/tsmdbmgr.opt",
+                f"setenv DSMI_DIR /opt/tivoli/tsm/server/bin/dbbkapi",
+                f"setenv DSMI_LOG /{tsm_user}",
+            ]
+            for line in csh_lines:
+                utils1.file_ensure_line(usercshrc, line)
+            utils1.chown(self.context, usercshrc, tsm_user, tsm_group)
+
+            # 6. tsmdbmgr.opt creation
+            tsmdbmgr = f"{instance_dir}/tsmdbmgr.opt"
+            utils1.file_write_text(tsmdbmgr, "SERVERNAME TSMDBMGR_TSMINST1\n")
+            utils1.chown(self.context, tsmdbmgr, tsm_user, tsm_group)
+            utils1.chmod(self.context, tsmdbmgr, "0644")
+
+            # DONE
+            return make_result(
+                True,
+                "Macro generation and execution completed for Linux",
+                {"admin_macro_done": True, "macros": created_macros}
+            )
+        
+        elif self.os_type == "windows":
+            base_dir = rf"C:\{tsm_user}"
+            dsmserv_exe = r"C:\Program Files\Tivoli\tsm\server\dsmserv.exe"
+            marker_file = f"{base_dir}\\.macros_executed"
+            dsmserv_opt = f"{base_dir}\\dsmserv.opt"
+
+            # Idempotency check
+            if utils1.fs_exists(marker_file):
+                self.log.info("Macros already executed, skipping (idempotent)")
+                return make_result(True, "Macros already executed")
+
+            # Ensure instance directory exists
+            if not utils1.fs_exists(base_dir):
+                return make_result(
+                    False,
+                    f"Instance directory not found: {base_dir}"
+                )
+            
+            # Ensure dsmserv.opt exists (MANDATORY on Windows)
+            if not utils1.fs_exists(dsmserv_opt):
+                self.log.warning("dsmserv.opt not found, generating minimal config")
+
+                opt_content = (
+                    "COMMMETHOD TCPIP\r\n"
+                    "TCPPORT 1500\r\n"
+                    "COMMTimeout 3600\r\n"
+                    f"ACTIVELOGSIZE 8192\r\n"
+                    f"ACTIVELOGDIRECTORY {base_dir}\\TSMalog\r\n"
+                    f"ARCHLOGDIRECTORY {base_dir}\\TSMarchlog\r\n"
+                    f"VOLUMEHISTORY {base_dir}\\volhist.out\r\n"
+                    f"DEVCONFIG {base_dir}\\devconf.dat\r\n"
+                )
+
+                utils1.file_write_text(dsmserv_opt, opt_content)
+
+                # Grant read permission to instance user
+                utils1.exec_run(
+                    self.context,
+                    f'icacls "{dsmserv_opt}" /grant "{tsm_user}:R"'
+                )
+
+                self.log.info(f"dsmserv.opt generated at {dsmserv_opt}")
+            else:
+                self.log.info("dsmserv.opt already present")
+
+            # Minimal DB presence check (filesystem-based, safe)
+            db_space = rf"{base_dir}\TSMdbspace01"
+            if not utils1.fs_exists(db_space):
+                return make_result(
+                    False,
+                    "Database directories not found, macros cannot be executed"
+                )
+
+            self.log.info("Database directories present, proceeding with macros")
+
+            # Execute macros sequentially
+            executed = []
+
+            for macro in macros:
+                macro_path = os.path.basename(macro["dest"])
+
+                self.log.info(f"Executing macro: {macro_path}")
 
                 cmd = (
-                    f'su - {tsm_user} -c "'
-                    f'source {db2profile}; '
-                    f'export DB2INSTANCE=\\"{tsm_user}\\"; '
-                    f'cd {instance_dir}; '
-                    f'dsmserv runfile {filename}"'
+                    f'cmd /c "cd /d {base_dir} && '
+                    f'set DB2INSTANCE={tsm_user} && '
+                    f'"{dsmserv_exe}" -k {tsm_user} runfile {macro_path}"'
                 )
 
                 resp = utils1.exec_run(self.context, cmd)
+
                 if resp["rc"] != 0:
-                    self.log.error(f"Failed executing macro {dest}")
-                    self.log.error(resp["stderr"])
-                    return make_result(False, f"Macro execution failed: {dest}", resp)
+                    self.log.error(f"Macro execution failed: {macro_path}")
+                    self.log.error(resp.get("stderr", ""))
+                    return make_result(
+                        False,
+                        f"Macro execution failed: {macro_path}",
+                        resp
+                    )
 
-                self.log.info(f"Macro executed: {dest}")
+                self.log.info(f"Macro executed successfully on Windows: {macro_path}")
+                executed.append(macro_path)
 
-        # 3. Ensure DB2 initialization in .profile
-        profile_file = f"{home_dir}/.profile"
-        profile_line = (
-            f"if [ -f {home_dir}/sqllib/db2profile ]; then\n"
-            f"  . {home_dir}/sqllib/db2profile\n"
-            f"fi"
-        )
-        utils1.file_ensure_line(profile_file, profile_line)
-
-        # 4. DSMI environment settings (userprofile)
-        userprofile = f"{home_dir}/sqllib/userprofile"
-        dsmi_lines = [
-            f"DSMI_CONFIG=/{tsm_user}/tsmdbmgr.opt",
-            f"DSMI_DIR=/opt/tivoli/tsm/server/bin/dbbkapi",
-            f"DSMI_LOG=/{tsm_user}",
-            "export DSMI_CONFIG DSMI_DIR DSMI_LOG"
-        ]
-        for line in dsmi_lines:
-            utils1.file_ensure_line(userprofile, line)
-        utils1.chown(self.context, userprofile, tsm_user, tsm_group)
-
-        # 5. DSMI environment settings (usercshrc)
-        usercshrc = f"{home_dir}/sqllib/usercshrc"
-        csh_lines = [
-            f"setenv DSMI_CONFIG /{tsm_user}/tsmdbmgr.opt",
-            f"setenv DSMI_DIR /opt/tivoli/tsm/server/bin/dbbkapi",
-            f"setenv DSMI_LOG /{tsm_user}",
-        ]
-        for line in csh_lines:
-            utils1.file_ensure_line(usercshrc, line)
-        utils1.chown(self.context, usercshrc, tsm_user, tsm_group)
-
-        # 6. tsmdbmgr.opt creation
-        tsmdbmgr = f"{instance_dir}/tsmdbmgr.opt"
-        utils1.file_write_text(tsmdbmgr, "SERVERNAME TSMDBMGR_TSMINST1\n")
-        utils1.chown(self.context, tsmdbmgr, tsm_user, tsm_group)
-        utils1.chmod(self.context, tsmdbmgr, "0644")
-
-        # DONE
-        return make_result(
-            True,
-            "Macro generation and execution completed",
-            {"admin_macro_done": True, "macros": created_macros}
-        )
+            # Persist success marker
+            self.log.info("Macro execution completed, marker file created for idempotency")
+            return make_result(True, "All macros executed successfully on Windows", {"executed_macros": executed})
 
     # -----------------------------------------------------------------------
     # 6. Service configuration / enablement
@@ -901,7 +1260,8 @@ class SPServerConfiguration:
             ("create_directories", self.create_directories),
             ("create_db2_instance", self.create_db2_instance),
             ("configure_db2_as_instance_user", self.configure_db2_as_instance_user),
-            ("generate_and_run_macros", self.generate_and_run_macros),
+            ("format_database_windows", self.format_database_windows) if self.os_type == "windows" else (),
+            # ("generate_and_run_macros", self.generate_and_run_macros),
             ("configure_services", self.configure_services),
         ]
 
@@ -921,7 +1281,6 @@ class SPServerConfiguration:
     # -----------------------------------------------------------------------
     # 9. Ad-hoc execution of individual steps (for CLI)
     # -----------------------------------------------------------------------
-
     def run_steps(self, step_names: List[str]) -> Dict[str, Any]:
         """
         Run a subset of steps by name (for ad-hoc CLI execution).
@@ -933,7 +1292,8 @@ class SPServerConfiguration:
             "create_directories": self.create_directories,
             "create_db2_instance": self.create_db2_instance,
             "configure_db2_as_instance_user": self.configure_db2_as_instance_user,
-            "generate_and_run_macros": self.generate_and_run_macros,
+            "format_database_windows": self.format_database_windows, 
+            # "generate_and_run_macros": self.generate_and_run_macros,
             "configure_services": self.configure_services,
             "cleanup": self.cleanup,
         }
