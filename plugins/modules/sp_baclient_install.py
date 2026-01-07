@@ -25,7 +25,7 @@ except Exception:
 DOCUMENTATION = '''
 ---
 Module Name: ibm.storage_protect.sp_baclient_install
-Author: Shalu Mishrax
+Author: Shalu Mishra
 
 Short Description:
   Install, upgrade or remove the IBM Storage Protect Backup-Archive (BA) Client on Linux and Windows hosts.

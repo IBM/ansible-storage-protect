@@ -1,6 +1,6 @@
 ---
 - name: Configuring SP Server using Python implementation
-  hosts: sp_server_linux
+  hosts: sp_server_linux, sp_server_windows
   become: true
   gather_facts: true
 
@@ -11,9 +11,8 @@
 
     sp_source_module_dir: "{{ sp_source_module_dir | default('/path/to/repo/IBM/ansible-storage-protect/plugins') }}"
 
-
     # Path to your Python implementation of SPServerConfiguration
-    sp_config_script: "{{ sp_server_install_dest_lin }}/sp_baserver_configure.py"
+    sp_config_script: "{{ sp_server_install_dest_lin }}/sp_server_configure.py"
 
     # JSON (or other) vars file consumed by the Python script
     sp_config_vars_file: "{{ sp_server_install_dest_lin }}/ansible-vars.json"
@@ -30,11 +29,20 @@
         owner: root
         group: root
         mode: "0755"
+      when : ansible_os_family != "Windows"
+      
+    - name: Ensure SP Server log directory exists (Windows)
+      ansible.windows.win_file:
+        path: "{{ sp_config_log_dir }}"
+        state: directory
+      when: ansible_os_family == "Windows"
 
   tasks:
+    # ==========================================================
+    # LINUX BLOCK
+    # ==========================================================
     - name: Run SP Server configuration (all steps) via Python
       block:
-
         - name: Ensure working dir exists
           ansible.builtin.file:
             path: "{{ sp_server_install_dest_lin }}"
@@ -49,8 +57,8 @@
 
         - name: Copy modules to Linux target
           ansible.builtin.copy:
-            src: "{{ sp_source_module_dir }}/modules/sp_baserver_configure.py"
-            dest: "{{ sp_server_install_dest_lin }}/sp_baserver_configure.py"
+            src: "{{ sp_source_module_dir }}/modules/sp_server_configure.py"
+            dest: "{{ sp_server_install_dest_lin }}/sp_server_configure.py"
             mode: "0644"
           when: sp_sync_scripts | bool
 
@@ -173,3 +181,75 @@
 
         - name: Stop execution of the play
           ansible.builtin.meta: end_play
+
+      when: ansible_os_family != "Windows"
+
+    # ==========================================================
+    # WINDOWS BLOCK
+    # ==========================================================
+    - name: Configure SP Server on Windows
+      block:
+
+        - name: Ensure working dir exists (Windows)
+          ansible.windows.win_file:
+            path: "{{ sp_server_install_dest_win }}"
+            state: directory
+
+        - name: Ensure module_utils dir exists (Windows)
+          ansible.windows.win_file:
+            path: "{{ sp_server_install_dest_win }}\\module_utils"
+            state: directory
+
+        - name: Copy SP config script (Windows)
+          ansible.windows.win_copy:
+            src: "{{ sp_source_module_dir }}/modules/sp_server_configure.py"
+            dest: "{{ sp_server_install_dest_win }}\\sp_server_configure.py"
+          when: sp_sync_scripts | bool
+
+        - name: Copy module_utils files (Windows)
+          ansible.windows.win_copy:
+            src: "{{ sp_source_module_dir }}/module_utils/{{ item }}"
+            dest: "{{ sp_server_install_dest_win }}\\module_utils\\{{ item }}"
+          loop:
+            - sp_server_utils.py
+            - sp_server_constants.py
+          when: sp_sync_scripts | bool
+
+        - name: Convert vars/sp_server.yml to JSON and save on target (Windows)
+          ansible.windows.win_copy:
+            dest: "{{ sp_server_install_dest_win }}\\ansible-vars.json"
+            content: >-
+              {{
+                (lookup('template', 'vars/sp_server.yml')
+                | regex_replace('(?m)^\\s*#.*$', '')
+                | regex_replace('(?m)\\s+#.*$', '')
+                | trim
+                | from_yaml)
+                | to_nice_json
+              }}
+
+        - name: Execute SPServerConfiguration (Windows)
+          ansible.windows.win_command: >
+            python {{ sp_server_install_dest_win }}\sp_server_configure.py
+            --vars-file {{ sp_server_install_dest_win }}\ansible-vars.json
+          register: sp_server_config_raw
+          failed_when: sp_server_config_raw.rc != 0
+
+        - name: Extract clean final JSON block from stdout
+          ansible.builtin.set_fact:
+            sp_server_config_json: >-
+              {{
+                sp_server_config_raw.stdout
+                | regex_search('(\{[\s\S]*\})$', multiline=True)
+                | trim
+              }}
+
+      rescue:
+        - name: Windows cleanup
+          ansible.windows.win_command: >
+            python {{ sp_server_install_dest_win }}\sp_server_configure.py
+            --vars-file {{ sp_server_install_dest_win }}\ansible-vars.json
+            --step cleanup
+          failed_when: false
+
+      when: ansible_os_family == "Windows"

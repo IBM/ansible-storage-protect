@@ -28,8 +28,8 @@
 
     - name: Copy modules to Windows target
       ansible.windows.win_copy:
-        src: "{{ sp_source_module_dir }}/modules/sp_baserver.py"
-        dest: "{{ sp_server_install_dest_win }}/sp_baserver.py"
+        src: "{{ sp_source_module_dir }}/modules/sp_server.py"
+        dest: "{{ sp_server_install_dest_win }}/sp_server.py"
       when: sp_sync_scripts | bool
 
     - name: Copy module_utils files
@@ -58,7 +58,7 @@
 
     - name: Run SP orchestration (Windows)
       ansible.windows.win_command: >
-        {{ sp_python_exe }} "{{ sp_server_install_dest_win }}\\sp_baserver.py"
+        {{ sp_python_exe }} "{{ sp_server_install_dest_win }}\\sp_server.py"
         --mode={{ sp_mode }}
         --serverpassword="{{ sp_pwd }}"
         --componentname="server"
@@ -106,8 +106,8 @@
 
     - name: Copy modules to Linux target
       ansible.builtin.copy:
-        src: "{{ sp_source_module_dir }}/modules/sp_baserver.py"
-        dest: "{{ sp_server_install_dest_lin }}/sp_baserver.py"
+        src: "{{ sp_source_module_dir }}/modules/sp_server.py"
+        dest: "{{ sp_server_install_dest_lin }}/sp_server.py"
         mode: "0644"
       when: sp_sync_scripts | bool
 
@@ -139,7 +139,7 @@
 
     - name: Run SP orchestration (Linux)
       ansible.builtin.command: >
-        {{ sp_python_exe }} "{{ sp_server_install_dest_lin }}/sp_baserver.py"
+        {{ sp_python_exe }} "{{ sp_server_install_dest_lin }}/sp_server.py"
         --mode={{ sp_mode }}
         --serverpassword="{{ sp_pwd }}"
         --componentname="server"
