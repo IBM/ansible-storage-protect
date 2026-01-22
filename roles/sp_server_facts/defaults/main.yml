@@ -1,13 +1,14 @@
 # Defaults for sp_server_facts role
 sp_server_facts_flags:
-  q_status: false
-  q_monitorsettings: false
+  q_status: true
+  q_monitorsettings: true
   q_db: false
   q_dbspace: false
   q_log: false
   q_domain: false
   q_copygroup: false
-  q_replrule: false
+  q_replrule: true
   q_devclass: false
-  q_mgmtclass: false
-  q_stgpool: false
+  q_mgmtclass: true
+  q_stgpool: true
+
