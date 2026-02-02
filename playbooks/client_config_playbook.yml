@@ -1,0 +1,81 @@
+---
+- name: Create dsm.sys file with TSM configuration
+  hosts: server3
+  become: yes
+ 
+  tasks:
+    - name: Ensure target directory exists
+      file:
+        path: /opt/tivoli/tsm/client/ba/bin
+        state: directory
+        mode: '0755'
+ 
+    - name: Create dsm.sys with required content
+      copy:
+        dest: /opt/tivoli/tsm/client/ba/bin/dsm.sys
+        content: |
+          SERVERNAME TSMDBMGR_TSMINST1
+          TCPSERVERADDRESS bonjovi-vm166.storage.tucson.ibm.com
+          COMMMETHOD tcpip
+          TCPPORT 1500
+        owner: root
+        group: root
+        mode: '0644'
+ 
+    - name: Create dsm.opt with required content
+      copy:
+        dest: /opt/tivoli/tsm/client/ba/bin/dsm.opt
+        content: |
+          SERVERNAME TSMDBMGR_TSMINST1
+          PASSWORD tsmuser1@@123456789
+        owner: root
+        group: root
+        mode: '0600'
+ 
+    - name: Add TSM server certificate
+      command: >
+        dsmcert -add -server TSMDBMGR_TSMINST1
+        -file /opt/tivoli/tsm/client/ba/bin/cert256.arm
+      args:
+        chdir: /opt/tivoli/tsm/client/ba/bin
+      register: dsmcert_result
+      changed_when: "'successfully' in dsmcert_result.stdout | lower"
+      failed_when: dsmcert_result.rc != 0
+ 
+    - name: Wait for port 1500 to be available
+      wait_for:
+        host: "bonjovi-vm166.storage.tucson.ibm.com"
+        port: 1500
+        state: started
+        timeout: 300
+        delay: 0
+
+    - name: Register TSM node
+      command: >
+        dsmadmc
+        -servername=TSMDBMGR_TSMINST1
+        -id=tsmuser1
+        -pass=tsmuser1@@123456789
+        register node vitamina7.storage.tucson.ibm.com tsmuser1@@123456789
+      register: register_node_result
+      changed_when: "'registered' in register_node_result.stdout | lower"
+      failed_when: >
+        register_node_result.rc != 0 and
+        'already exists' not in register_node_result.stdout | lower
+ 
+    - name: Query TSM server status
+      command: >
+        dsmadmc
+        -servername=TSMDBMGR_TSMINST1
+        -id=tsmuser1
+        -pass=tsmuser1@@123456789
+        -dataonly=yes
+        -commadelimited
+        q status
+      register: tsm_status_result
+      changed_when: false
+      failed_when: tsm_status_result.rc != 0
+
+    - name: Show TSM server status
+      debug:
+        var: tsm_status_result.stdout

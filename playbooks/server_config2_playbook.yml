@@ -9,6 +9,19 @@
     service_name: tsminst1
 
   tasks:
+    - name: Add tsminst1 to root group
+      user:
+        name: tsminst1
+        groups: root
+        append: yes
+
+    - name: Allow tsminst1 passwordless sudo
+      lineinfile:
+        path: /etc/sudoers
+        state: present
+        regexp: '^tsminst1 '
+        line: 'tsminst1 ALL=(ALL) NOPASSWD: ALL'
+        validate: '/usr/sbin/visudo -cf %s'
 
     - name: Load db2profile for tsminst1 (does nothing permanent)
       shell: "source /home/{{ instance_user }}/sqllib/db2profile"
@@ -64,3 +77,26 @@
       systemd:
         name: "{{ service_name }}"
         state: restarted
+
+- name: Copy the certificate from the IBM Storage Protect server
+  hosts: server1
+  become: yes
+
+  tasks:
+    - name: Fetch the certificate file
+      fetch:
+        src: /tsminst1/cert256.arm
+        dest: /tmp/
+        flat: yes
+
+- name: Distribute certificate to clients.
+  hosts: server3
+  gather_facts: no
+  tasks:
+    - name: Copy the certificate to the client machine.
+      copy:
+        src: "/tmp/cert256.arm"
+        dest: /opt/tivoli/tsm/client/ba/bin/
+        owner: root
+        group: root
+        mode: '0644'
