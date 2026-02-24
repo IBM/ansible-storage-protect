@@ -9,6 +9,7 @@ import argparse
 import logging
 import logging.handlers
 from pathlib import Path
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'module_utils')))
@@ -95,8 +96,8 @@ requirements:
 EXAMPLES = """
     - name: Execute SPServerConfiguration (Windows)
           ansible.windows.win_command: >
-            python {{ sp_server_install_dest_win }}\sp_server_configure.py
-            --vars-file {{ sp_server_install_dest_win }}\ansible-vars.json
+            python {{ sp_server_install_dest_win }}/sp_server_configure.py
+            --vars-file {{ sp_server_install_dest_win }}/ansible-vars.json
           register: sp_server_config_raw
           failed_when: sp_server_config_raw.rc != 0
 """
@@ -413,6 +414,67 @@ class SPServerConfiguration:
 
         self.log.info("Creating group and user for the server instance")
 
+        if self.os_name.lower() == "aix":
+            # Group - AIX uses mkgroup
+            group_cmd_parts = [f"mkgroup"]
+            if tsm_group_gid:
+                group_cmd_parts.append(f"id={tsm_group_gid}")
+            group_cmd_parts.append(tsm_group)
+            group_cmd = " ".join(group_cmd_parts)
+            
+            resp = utils1.exec_run(self.context, group_cmd)
+            # AIX mkgroup returns non-zero if group exists, check stderr
+            self.log.info("-----")
+            self.log.info(resp["rc"])
+            self.log.info(resp["stdout"].lower())
+            self.log.info("-----")
+            self.log.info(resp["stderr"].lower())
+            self.log.info("-----")
+
+            if (resp["rc"] != 0 and ("exists" in resp["stderr"].lower() or "exists" in resp["stdout"].lower())):
+                self.log.info("Group already exists: {}".format(tsm_group))
+            if (resp["rc"] != 0 and "already exists" not in resp["stderr"].lower()):
+                self.log.error("Failed to create group {}".format(tsm_group))
+                self.log.error(resp["stderr"])
+                return {"status": False, "message": "Failed to create group", "data": resp}
+            else:
+                self.log.info("Group created or already exists: {}".format(tsm_group))
+            
+            # User - AIX uses mkuser
+            user_cmd_parts = [f"mkuser"]
+            user_cmd_parts.append(f"pgrp={tsm_group}")
+            user_cmd_parts.append(f"groups={tsm_group}")
+            user_cmd_parts.append("home=/home/{}".format(tsm_user))
+            if tsm_user_uid:
+                user_cmd_parts.append(f"id={tsm_user_uid}")
+            user_cmd_parts.append(tsm_user)
+            user_cmd = " ".join(user_cmd_parts)
+            
+            resp = utils1.exec_run(self.context, user_cmd)
+            if (resp["rc"] != 0 and "already exists" not in resp["stderr"].lower()):
+                self.log.error("Failed to create user {}".format(tsm_user))
+                self.log.error(resp["stderr"])
+                return {"status": False, "message": "Failed to create user", "data": resp}
+            else:
+                self.log.info("User created or already exists: {}".format(tsm_user))
+            
+            # Create home directory if it doesn't exist
+            mkdir_cmd = f"mkdir -p /home/{tsm_user} && chown {tsm_user}:{tsm_group} /home/{tsm_user}"
+            resp = utils1.exec_run(self.context, mkdir_cmd)
+            if (resp["rc"] != 0):
+                self.log.warning("Failed to create home directory for user {}".format(tsm_user))
+                self.log.warning(resp["stderr"])
+            
+            # Password - AIX uses echo piped to passwd differently
+            passwd_cmd = f'echo "{tsm_user}:{tsm_user_password}" | chpasswd -c'
+            
+            resp = utils1.exec_run(self.context, passwd_cmd)
+            if (resp["rc"] != 0):
+                self.log.warning("Failed to set password for user {}".format(tsm_user))
+                self.log.warning(resp["stderr"])
+                return {"status": False, "message": "Failed to set password for user", "data": resp}
+            else:
+                self.log.info("User password is set for {}".format(tsm_user))
         if self.os_type == "linux":
             # Group
             group_cmd = f"groupadd -f {tsm_group}"
@@ -458,8 +520,8 @@ class SPServerConfiguration:
             # Group
             group_cmd = (
                 f'powershell -NoProfile -NonInteractive -Command '
-                f'"if (-not (Get-LocalGroup -Name \\"{tsm_group}\\" -ErrorAction SilentlyContinue)) '
-                f'{{ New-LocalGroup -Name \\"{tsm_group}\\" }}"'
+                f'"if (-not (Get-LocalGroup -Name \"{tsm_group}\" -ErrorAction SilentlyContinue)) '
+                f'{{ New-LocalGroup -Name \"{tsm_group}\" }}"'
             )
 
             resp = utils1.exec_run(self.context, group_cmd)
@@ -472,10 +534,10 @@ class SPServerConfiguration:
             # User
             user_cmd = (
                 f'powershell -NoProfile -NonInteractive -Command '
-                f'"if (-not (Get-LocalUser -Name \\"{tsm_user}\\" -ErrorAction SilentlyContinue)) '
+                f'"if (-not (Get-LocalUser -Name \"{tsm_user}\" -ErrorAction SilentlyContinue)) '
                 f'{{ '
-                f'$pwd = ConvertTo-SecureString \\"{tsm_user_password}\\" -AsPlainText -Force; '
-                f'New-LocalUser -Name \\"{tsm_user}\\" '
+                f'$pwd = ConvertTo-SecureString \"{tsm_user_password}\" -AsPlainText -Force; '
+                f'New-LocalUser -Name \"{tsm_user}\" '
                 f'-Password $pwd '
                 f'-PasswordNeverExpires '
                 f'-UserMayNotChangePassword '
@@ -493,7 +555,7 @@ class SPServerConfiguration:
             # Add user to group
             add_to_group_cmd = (
                 f'powershell -NoProfile -NonInteractive -Command '
-                f'"Add-LocalGroupMember -Group \\"{tsm_group}\\" -Member \\"{tsm_user}\\" '
+                f'"Add-LocalGroupMember -Group \"{tsm_group}\" -Member \"{tsm_user}\" '
                 f'-ErrorAction SilentlyContinue"'
             )
 
@@ -507,8 +569,8 @@ class SPServerConfiguration:
             # Password 
             passwd_cmd = (
                 f'powershell -NoProfile -NonInteractive -Command '
-                f'"$pwd = ConvertTo-SecureString \\"{tsm_user_password}\\" -AsPlainText -Force; '
-                f'Set-LocalUser -Name \\"{tsm_user}\\" -Password $pwd"'
+                f'"$pwd = ConvertTo-SecureString \"{tsm_user_password}\" -AsPlainText -Force; '
+                f'Set-LocalUser -Name \"{tsm_user}\" -Password $pwd"'
             )
 
             resp = utils1.exec_run(self.context, passwd_cmd)
@@ -575,6 +637,7 @@ class SPServerConfiguration:
         """
         self.log.info("Creating DB2 server instance (if required)")
         tsm_user = self.vars["tsm_user"]
+        tsm_userpassword = self.vars["tsm_user_password"]
 
         if self.os_type == "linux":
             
@@ -599,17 +662,28 @@ class SPServerConfiguration:
         
         elif self.os_type == "windows":
             # Check if instance already exists
-            self.log.info("Verifying DB2 instance on Windows")
-
+            self.log.info("Checking DB2 instance on Windows")
+            
             resp = utils1.exec_run(self.context, "db2ilist")
+            if resp["rc"] == 0 and tsm_user.lower() in resp["stdout"].lower():
+                msg = f"DB2 instance '{tsm_user}' already exists"
+                self.log.info(msg)
+                return make_result(True, msg)
+            
+            # Create the instance (Windows equivalent command)
+            self.log.info(f"Creating DB2 instance '{tsm_user}' on Windows")
+            
+            # Example Windows DB2 instance creation command:
+            cmd = f"db2icrt /u {tsm_user},{tsm_userpassword} {tsm_user}"
+            
+            resp = utils1.exec_run(self.context, cmd, stdin_input=tsm_userpassword)
             if resp["rc"] != 0:
-                return make_result(False, "db2ilist failed", resp)
-
-            if tsm_user.lower() not in resp["stdout"].lower():
-                return make_result(False, f"DB2 instance '{tsm_user}' not found", resp)
-
-            self.log.info(f"DB2 instance '{tsm_user}' exists")
-            return make_result(True, "DB2 instance verified")
+                self.log.warning("Failed to create DB2 instance on Windows")
+                self.log.warning(resp["stderr"])
+                return make_result(False, "Failed to create DB2 instance", resp)
+            
+            self.log.info(f"DB2 instance '{tsm_user}' created successfully")
+            return make_result(True, "DB2 instance created", resp)
             
         else:
             msg = f"Unsupported OS for DB2 instance creation: {self.os_type}"
@@ -783,6 +857,15 @@ class SPServerConfiguration:
             utils1.update_lines_in_file(dsmserv_opt, server_options)
             self.log.info("Server options configured")
 
+            # Database maintenance options (matches YAML lines 235-242)
+            maintenance_options = [
+                "allowreorgindex yes",
+                "reorgbegintime 20:30",
+                "reorgduration 4"
+            ]
+            utils1.update_lines_in_file(dsmserv_opt, maintenance_options)
+            self.log.info("Database maintenance options configured")
+
             # 6️⃣ Ensure admin user setup file exists
             admin_file = f"/{tsm_user}/.admin_user_setup_done"
             if not utils1.fs_exists(admin_file):
@@ -800,23 +883,47 @@ class SPServerConfiguration:
             else:
                 self.log.warning(f"dbbkapi directory not found: {dbbkapi_dir}")
 
-            # 8️⃣ Ensure dsm.sys exists
-            dsm_sys = "/opt/tivoli/tsm/client/api/bin64/dsm.sys"
+            # 8️⃣ Ensure dsm.sys exists and is configured (matches YAML lines 222-233)
+            dsm_sys = "/opt/tivoli/tsm/server/bin/dbbkapi/dsm.sys"
             if not utils1.fs_exists(dsm_sys):
-                self.log.info("dsm.sys not found, creating default API client configuration")
-                dsm_sys_content = (
-                    "SERVERNAME TSMDBMGR_TSMINST1\n"
-                    "COMMMethod TCPip\n"
-                    "TCPPort 1500\n"
-                    "TCPServeraddress localhost\n"
-                    "NODENAME TSMDBMGR\n"
-                    "PASSWORDACCESS generate\n"
-                )
+                self.log.info("dsm.sys not found, creating with full configuration")
+                dsm_sys_lines = [
+                    "servername TSMDBMGR_TSMINST1",
+                    "commmethod tcpip",
+                    "tcpserveraddr localhost",
+                    "tcpport 1500",
+                    f"errorlogname /{tsm_user}/tsmdbmgr.log",
+                    "nodename $$_TSMDBMGR_$$"
+                ]
+                dsm_sys_content = "\n".join(dsm_sys_lines) + "\n"
                 utils1.file_write_text(dsm_sys, dsm_sys_content)
                 utils1.chown(self.context, dsm_sys, "root", tsm_group)
-                utils1.chmod(self.context, dsm_sys, "0664")
+                utils1.chmod(self.context, dsm_sys, "0644")
+                self.log.info("dsm.sys created with configuration")
             else:
-                self.log.info("dsm.sys already exists — skipping creation")
+                # Update existing dsm.sys to ensure all lines are present
+                self.log.info("dsm.sys exists, ensuring configuration lines are present")
+                dsm_sys_lines = [
+                    "servername TSMDBMGR_TSMINST1",
+                    "commmethod tcpip",
+                    "tcpserveraddr localhost",
+                    "tcpport 1500",
+                    f"errorlogname /{tsm_user}/tsmdbmgr.log",
+                    "nodename $$_TSMDBMGR_$$"
+                ]
+                utils1.update_lines_in_file(dsm_sys, dsm_sys_lines)
+                self.log.info("dsm.sys configuration updated")
+
+            # 9️⃣ Ensure DB2 environment initialization in .profile (matches YAML lines 192-197)
+            profile_file = f"/home/{tsm_user}/.profile"
+            profile_lines = [
+                f"if [ -f /home/{tsm_user}/sqllib/db2profile ]; then",
+                f"  . /home/{tsm_user}/sqllib/db2profile",
+                "fi"
+            ]
+            profile_block = "\n".join(profile_lines)
+            utils1.file_ensure_line(profile_file, profile_block)
+            self.log.info("DB2 profile initialization added to .profile")
 
             return make_result(True, "DB2 instance user configuration completed", {
                 "db_formatted_check": db_check_resp
@@ -878,62 +985,65 @@ class SPServerConfiguration:
 
             
     def format_database_windows(self) -> Dict[str, Any]:
-        tsm_user = self.vars["tsm_user"]
-        instance_dir = rf"C:\{tsm_user}"
-        marker_file = rf"{instance_dir}\.db_formatted"
+        if self.os_type != "windows":
+            return make_result(status=True, message="Skipping this step for non-windows")
+        elif self.os_type == "windows":
+            tsm_user = self.vars["tsm_user"]
+            instance_dir = rf"C:\{tsm_user}"
+            marker_file = rf"{instance_dir}\.db_formatted"
 
-        dsmserv_exe = r"C:\Program Files\Tivoli\tsm\server\dsmserv.exe"
+            dsmserv_exe = r"C:\Program Files\Tivoli\tsm\server\dsmserv.exe"
 
-        db_paths = [
-            rf"{instance_dir}\TSMdbspace01",
-            rf"{instance_dir}\TSMdbspace02",
-            rf"{instance_dir}\TSMdbspace03",
-            rf"{instance_dir}\TSMdbspace04",
-        ]
+            db_paths = [
+                rf"{instance_dir}\TSMdbspace01",
+                rf"{instance_dir}\TSMdbspace02",
+                rf"{instance_dir}\TSMdbspace03",
+                rf"{instance_dir}\TSMdbspace04",
+            ]
 
-        act_log_dir = rf"{instance_dir}\TSMalog"
-        arch_log_dir = rf"{instance_dir}\TSMarchlog"
+            act_log_dir = rf"{instance_dir}\TSMalog"
+            arch_log_dir = rf"{instance_dir}\TSMarchlog"
 
-        # Ensure directories exist
-        for d in db_paths + [act_log_dir, arch_log_dir]:
-            utils1.ensure_dir(d)
-        
-        # Clean DB directories (MANDATORY on Windows)
-        for dbdir in db_paths:
-            self._clean_directory(dbdir)
-            self.log.info(f"Cleaned DB directory: {dbdir}")
+            # Ensure directories exist
+            for d in db_paths + [act_log_dir, arch_log_dir]:
+                utils1.ensure_dir(d)
+            
+            # Clean DB directories (MANDATORY on Windows)
+            for dbdir in db_paths:
+                self._clean_directory(dbdir)
+                self.log.info(f"Cleaned DB directory: {dbdir}")
 
-        # Run format
-        dbdir_str = ",".join(db_paths)
+            # Run format
+            dbdir_str = ",".join(db_paths)
 
-        cmd = (
-                f'cmd /c "'
-                f'cd /d {instance_dir} && '
-                f'set DB2INSTANCE={tsm_user} && '
-                f'"{dsmserv_exe}" '
-                f'-k {tsm_user} '
-                f'format '
-                f'dbdir={dbdir_str} '
-                f'activelogsize=8192 '
-                f'activelogdirectory={act_log_dir} '
-                f'archlogdirectory={arch_log_dir}'
-                f'"'
-            )
+            cmd = (
+                    f'cmd /c "'
+                    f'cd /d {instance_dir} && '
+                    f'set DB2INSTANCE={tsm_user} && '
+                    f'"{dsmserv_exe}" '
+                    f'-k {tsm_user} '
+                    f'format '
+                    f'dbdir={dbdir_str} '
+                    f'activelogsize=8192 '
+                    f'activelogdirectory={act_log_dir} '
+                    f'archlogdirectory={arch_log_dir}'
+                    f'"'
+                )
 
-        resp = utils1.exec_run(self.context, cmd)
+            resp = utils1.exec_run(self.context, cmd)
 
-        # if resp["rc"] != 0:
-        #     # Database already exists → treat as SUCCESS
-        #     if "already exists" in resp["stdout"]:
-        #         self.log.warning("Database already exists marking as formatted")
-        #     else:
-        #         return make_result(False, "Database format failed", resp)
+            # if resp["rc"] != 0:
+            #     # Database already exists → treat as SUCCESS
+            #     if "already exists" in resp["stdout"]:
+            #         self.log.warning("Database already exists marking as formatted")
+            #     else:
+            #         return make_result(False, "Database format failed", resp)
 
-        # Create marker
-        utils1.touch_file(marker_file, owner=tsm_user)
+            # Create marker
+            utils1.touch_file(marker_file, owner=tsm_user)
 
-        self.log.info("Database formatted successfully on Windows")
-        return make_result(True, "Database formatted")
+            self.log.info("Database formatted successfully on Windows")
+            return make_result(True, "Database formatted")
 
     def generate_and_run_macros(self) -> Dict[str, Any]:
         """
@@ -997,7 +1107,7 @@ class SPServerConfiguration:
                     cmd = (
                         f'su - {tsm_user} -c "'
                         f'source {db2profile}; '
-                        f'export DB2INSTANCE=\\"{tsm_user}\\"; '
+                        f'export DB2INSTANCE=\"{tsm_user}\"; '
                         f'cd {instance_dir}; '
                         f'dsmserv runfile setup.mac"'
                     )
@@ -1043,7 +1153,7 @@ class SPServerConfiguration:
                     cmd = (
                         f'su - {tsm_user} -c "'
                         f'source {db2profile}; '
-                        f'export DB2INSTANCE=\\"{tsm_user}\\"; '
+                        f'export DB2INSTANCE=\"{tsm_user}\"; '
                         f'cd {instance_dir}; '
                         f'dsmserv runfile {filename}"'
                     )
@@ -1198,9 +1308,28 @@ class SPServerConfiguration:
           - Ensure server service is enabled and started
           - Any other service-level tasks using utils1.svc_start/svc_stop.
         """
-        service_name = self.vars.get("service_name", "dsmserv")
+        service_name = self.vars.get("service_name", "tsminst1_svc")
 
         self.log.info(f"Ensuring service {service_name} is configured and started")
+
+        # Pre-service creation steps for tsminst1
+        if (self.os_type == "linux"):
+            utils1.copy_file(src="/opt/tivoli/tsm/server/bin/dsmserv.rc", dest="/opt/tivoli/tsm/server/bin/" + service_name)
+            utils1.replace_text_in_file(file_path=f"/opt/tivoli/tsm/server/bin/{service_name}", old_text="^instance_dir=", new_text=f"instance_dir=\"{service_name}\"", use_regex=True, replace_line=True)
+
+        # create service
+        execstart = "NOT-DEFINED"
+        execstop = "NOT-DEFINED"
+        execreload = "NOT-DEFINED"
+        if (self.os_type == "linux"):
+            execstart = "/opt/tivoli/tsm/server/bin/tsminst1 start"
+            execstop="/opt/tivoli/tsm/server/bin/tsminst1 stop"
+            execreload="/opt/tivoli/tsm/server/bin/tsminst1 restart"
+        elif (self.os_type == "windows"):
+            execstart = f"C:/Program Files/Tivoli/TSM/server/dsmserv -k {service_name}"
+
+        utils1.svc_create(context=self.context, name=service_name, execstart=execstart, execstop=execstop, execreload=execreload)
+
 
         try:
             svc_start_res = utils1.svc_start(self.context, service_name)
@@ -1260,7 +1389,7 @@ class SPServerConfiguration:
             ("create_directories", self.create_directories),
             ("create_db2_instance", self.create_db2_instance),
             ("configure_db2_as_instance_user", self.configure_db2_as_instance_user),
-            ("format_database_windows", self.format_database_windows) if self.os_type == "windows" else (),
+            ("format_database_windows", self.format_database_windows),
             # ("generate_and_run_macros", self.generate_and_run_macros),
             ("configure_services", self.configure_services),
         ]
@@ -1375,10 +1504,10 @@ def setup_logger(name: str, level: str, log_file: Path) -> logging.Logger:
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
 
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(getattr(logging, level.upper(), logging.INFO))
-    ch.setFormatter(fmt)
-    logger.addHandler(ch)
+    # ch = logging.StreamHandler(sys.stdout)
+    # ch.setLevel(getattr(logging, level.upper(), logging.INFO))
+    # ch.setFormatter(fmt)
+    # logger.addHandler(ch)
 
     log_file.parent.mkdir(parents=True, exist_ok=True)
     fh = logging.handlers.RotatingFileHandler(
@@ -1413,7 +1542,6 @@ def main() -> None:
         "data": {}
     }
     
-    print(context)
 
     # Build vars dict – in real use you’d probably load from a JSON/YAML/ini
     if args.vars_file:
@@ -1429,7 +1557,7 @@ def main() -> None:
             "tsm_user_password": "ChangeMe!",
             "root_dir": "/tsminst1",
             "directories": ["TSMdbdir", "TSMlog", "TSMarchlog"],
-            "service_name": "dsmserv",
+            "service_name": "tsminst1",
             "macros": [],      # fill with your macro definitions
             "cleanup_dirs": [],  # fill with lists of temporary dirs
         }
@@ -1443,7 +1571,12 @@ def main() -> None:
 
     # Print a simple JSON representation to stdout for automation
     import json
-    print(json.dumps(result, indent=2))
+    print(json.dumps(result))
+
+    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # filename = f"/tmp/output_{timestamp}.json"
+    # with open(filename, "w", encoding="utf-8") as f:
+    #     json.dump(result, f, indent=2)
 
     # Exit code based on status
     import sys

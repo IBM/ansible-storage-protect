@@ -19,6 +19,7 @@ Naming convention: <area>_<action>
 """
 
 import os
+import re
 import sys
 import json
 import getpass
@@ -328,17 +329,23 @@ def extract_binary_package(src, dest, *, context: Optional[dict[str, Any]] = Non
 
         else:
             if (str(dest).strip() != "" and str(dest).strip() != "/" and os.path.exists(dest)):
-                cmd = f"sudo rm -rf {dest}"
+                cmd = f"rm -rf {dest}"
                 exec_run(context=context, cmd=cmd)
 
             _info(context=context, msg="Providing execute permissions to binary: " + str(src))
-            cmd = f"sudo chmod +x {src}"
+            cmd = f"chmod +x {src}"
             prem_resp = exec_run(context=context, cmd=cmd)
             _info(context=context, msg=prem_resp)
-            cmd=f"{src} -q -d {dest}"
+            cmd=f"yes | {src} -q -d {dest}"
+
+            if platform.system().lower() == 'aix':
+                _debug(context=context, msg="pre-pending ulimits for aix")
+                cmd = "ulimit -f unlimited && ulimit -c unlimited && ulimit -n unlimited && " + cmd
+                _debug(context=context, msg="Command: " + str(cmd))
             
         
         try:
+            _info(context=context, msg=cmd)
             resp = exec_run(context=context, cmd=cmd)
             return resp["rc"] == 0
         except Exception as e:
@@ -407,13 +414,66 @@ def file_read_text(path: str | Path, default: str = "", *, context: Optional[dic
             _info(context, "Unable to read %s (%s); using default", p, e)
         return default
 
-def replace_text_in_file(file_path: str, old_text: str, new_text: str) -> bool:
+def replace_text_in_file(
+    file_path: str, 
+    old_text: str, 
+    new_text: str, 
+    use_regex: bool = False,
+    replace_line: bool = False
+) -> bool:
+    """
+    Replace text in a file with support for plain text and regex patterns.
+    
+    Args:
+        file_path: Path to the file
+        old_text: Text or regex pattern to search for
+        new_text: Replacement text
+        use_regex: If True, treat old_text as a regex pattern (default: False)
+        replace_line: If True, replace entire line when pattern matches (default: False)
+                     Only applicable when use_regex=True
+    
+    Returns:
+        bool: True if replacement was successful, False otherwise
+    
+    Examples:
+        # Plain text replacement (existing behavior)
+        replace_text_in_file("config.txt", "old", "new")
+        
+        # Regex replacement
+        replace_text_in_file("config.txt", r"^#hello=.*", "hello=newvalue", 
+                           use_regex=True, replace_line=True)
+        
+        # Regex pattern replacement without replacing entire line
+        replace_text_in_file("config.txt", r"port=\d+", "port=8080", use_regex=True)
+    """
     try:
         content = file_read_text(path=file_path)
-        updated_content = content.replace(old_text, new_text)
-
+        
+        if not use_regex:
+            # Original behavior: plain text replacement
+            updated_content = content.replace(old_text, new_text)
+        else:
+            # Regex-based replacement
+            if replace_line:
+                # Replace entire line when pattern matches
+                lines = content.split('\n')
+                updated_lines = []
+                pattern = re.compile(old_text)
+                
+                for line in lines:
+                    if pattern.match(line):
+                        # Replace entire line
+                        updated_lines.append(new_text)
+                    else:
+                        updated_lines.append(line)
+                
+                updated_content = '\n'.join(updated_lines)
+            else:
+                # Replace only the matched pattern
+                updated_content = re.sub(old_text, new_text, content)
+        
         file_write_text(path=file_path, content=updated_content)
-
+        
         return True
     except Exception:
         return False
@@ -453,21 +513,57 @@ def read_json_file(path: str | Path, default: str = None, *, context: Optional[d
 # -----------------------------
 
 def exec_run(context: dict[str, Any], cmd: list[str] | str, *, shell: bool = False, timeout: Optional[int] = None,
-             check: bool = False, capture_output: bool = True) -> dict[str, Any]:
+             check: bool = False, capture_output: bool = True, user: Optional[str] = None, 
+             stdin_input: Optional[str] = None) -> dict[str, Any]:
     # split for linux
     os_name = os_oskey(context=context)["os"]
-    if (os_name.lower() == "linux" and type(cmd) is not List):
-        cmd = shlex.split(cmd)
-        # cmd = cmd.split(" ")
-    if (os_name.lower() != "linux" and type(cmd) is List):
-        cmd = " ".join(cmd)
+    original_cmd = cmd
 
     log = _get_log(context)
+    
+    # AIX needs special handling - treat it separately from Linux
+    is_aix = os_name.lower() == "aix" or "aix" in os_name.lower()
+    is_linux = os_name.lower() == "linux" and not is_aix
+    is_windows = os_name.lower() == "windows" or os_name.lower() == "win"
+    
+    # For AIX, prefer shell=True with string commands
+    if is_aix:
+        if type(cmd) is list:
+            cmd = " ".join(cmd)
+        shell = True  # Force shell=True for AIX
+    elif is_linux and type(cmd) is not list:
+        cmd = shlex.split(cmd)
+    elif is_windows and type(cmd) is list:
+        cmd = " ".join(cmd)
+
+    log.debug(cmd)
+
+    # Handle running as different user
+    if user is not None:
+        if is_linux or is_aix:
+            # For Linux/AIX, use sudo -u
+            if type(cmd) is list:
+                cmd = ["sudo", "-u", user] + cmd
+            else:
+                cmd = f"sudo -u {user} {cmd}"
+        else:
+            # For Windows, use runas (requires different approach)
+            _warning(context, "Running as different user on Windows requires alternative methods")
+            if type(cmd) is list:
+                cmd = ["runas", f"/user:{user}"] + cmd
+            else:
+                cmd = f"runas /user:{user} {cmd}"
+
     if context.get("dry_run"):
         if log:
             log.info("[DRY-RUN] Would run: %s", cmd)
         return {"rc": 0, "stdout": "", "stderr": "", "cmd": cmd, "dry_run": True}
     try:
+        # Prepare stdin input if provided
+        input_data = None
+        if stdin_input is not None:
+            input_data = stdin_input if stdin_input.endswith('\n') else stdin_input + '\n'
+        
         completed = subprocess.run(
             cmd,
             shell=shell,
@@ -475,6 +571,7 @@ def exec_run(context: dict[str, Any], cmd: list[str] | str, *, shell: bool = Fal
             check=check,
             capture_output=capture_output,
             text=True,
+            input=input_data,
         )
         if completed.returncode == 0:
             _info(context, "Exec OK: %s", cmd)
@@ -520,6 +617,123 @@ def winreg_query_value(root: str, subkey: str, name: str, *, context: Optional[d
 # Service helpers (basic)
 # -----------------------------
 
+def svc_create(context: dict[str, Any], name: str, **kwargs) -> bool:
+    """
+    Create a new service.
+    
+    Args:
+        context: Execution context
+        name: Service name
+        **kwargs: Service parameters:
+            - execstart: Command to start the service (required)
+            - execstop: Command to stop the service (optional)
+            - execreload: Command to reload the service (optional)
+            - description: Service description (optional)
+            - display_name: Display name for Windows (optional)
+            - start_type: Windows start type - auto, demand, disabled (optional, default: demand)
+            - type: Linux service type - simple, forking, oneshot, etc. (optional, default: simple)
+    
+    Returns:
+        bool: True if service was created successfully
+    """
+    execstart = kwargs.get("execstart")
+    if not execstart:
+        _warning(context, "execstart parameter is required for service %s", name)
+        return False
+    
+    if platform.system().lower() == "windows":
+        # Build sc create command
+        cmd = f'sc create "{name}" binPath= "{execstart}"'
+        
+        # Add optional parameters
+        if "display_name" in kwargs:
+            cmd += f' DisplayName= "{kwargs["display_name"]}"'
+        
+        start_type = kwargs.get("start_type", "demand")
+        cmd += f' start= {start_type}'
+        
+        
+        r = exec_run(context, cmd)
+        ok = r["rc"] == 0
+        
+        # Add description if provided (requires separate command)
+        if ok and "description" in kwargs:
+            exec_run(context, f'sc description "{name}" "{kwargs["description"]}"')
+        
+        if not ok:
+            _warning(context, "Failed to create service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    # Linux: Create systemd unit file
+    unit_content = "[Unit]\n"
+    unit_content += f"Description={kwargs.get('description', name)}\n"
+    unit_content += "\n[Service]\n"
+    unit_content += f"ExecStart={execstart}\n"
+    
+    if "execstop" in kwargs:
+        unit_content += f"ExecStop={kwargs['execstop']}\n"
+    
+    if "execreload" in kwargs:
+        unit_content += f"ExecReload={kwargs['execreload']}\n"
+    
+    unit_content += f"Type={kwargs.get('type', 'simple')}\n"
+    unit_content += "\n[Install]\n"
+    unit_content += "WantedBy=multi-user.target\n"
+    
+    unit_path = f"/etc/systemd/system/{name}.service"
+    try:
+        with open(unit_path, "w") as f:
+            f.write(unit_content)
+        r = exec_run(context, "systemctl daemon-reload")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to create service %s (rc=%s)", name, r["rc"])
+        return ok
+    except Exception as e:
+        _warning(context, "Failed to create service %s: %s", name, str(e))
+        return False
+
+
+def svc_delete(context: dict[str, Any], name: str) -> bool:
+    """
+    Delete a service.
+    
+    Args:
+        context: Execution context
+        name: Service name
+    
+    Returns:
+        bool: True if service was deleted successfully
+    """
+    if platform.system().lower() == "windows":
+        # Stop the service first (ignore errors if already stopped)
+        exec_run(context, f'sc stop "{name}"')
+        
+        # Delete the service
+        r = exec_run(context, f'sc delete "{name}"')
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to delete service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    # Linux: Stop and disable service first, then remove unit file
+    exec_run(context, f"systemctl stop {name}")
+    exec_run(context, f"systemctl disable {name}")
+    
+    unit_path = f"/etc/systemd/system/{name}.service"
+    try:
+        import os
+        if os.path.exists(unit_path):
+            os.remove(unit_path)
+        r = exec_run(context, "systemctl daemon-reload")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to delete service %s (rc=%s)", name, r["rc"])
+        return ok
+    except Exception as e:
+        _warning(context, "Failed to delete service %s: %s", name, str(e))
+        return False
+
 def svc_stop(context: dict[str, Any], name: str) -> bool:
     if platform.system().lower() == "windows":
         r = exec_run(context, "sc stop " + str(name))
@@ -546,6 +760,78 @@ def svc_start(context: dict[str, Any], name: str) -> bool:
     if not ok:
         _warning(context, "Failed to start service %s (rc=%s)", name, r["rc"])
     return ok
+
+
+def svc_enable(context: dict[str, Any], name: str) -> bool:
+    """Enable service to start at boot"""
+    if platform.system().lower() == "windows":
+        r = exec_run(context, f"sc config {name} start=auto")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to enable service %s (rc=%s)", name, r["rc"])
+        return ok
+    r = exec_run(context, f"systemctl enable {name}")
+    ok = r["rc"] == 0
+    if not ok:
+        _warning(context, "Failed to enable service %s (rc=%s)", name, r["rc"])
+    return ok
+
+
+def svc_disable(context: dict[str, Any], name: str) -> bool:
+    """Disable service from starting at boot"""
+    if platform.system().lower() == "windows":
+        r = exec_run(context, f"sc config {name} start=disabled")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to disable service %s (rc=%s)", name, r["rc"])
+        return ok
+    r = exec_run(context, f"systemctl disable {name}")
+    ok = r["rc"] == 0
+    if not ok:
+        _warning(context, "Failed to disable service %s (rc=%s)", name, r["rc"])
+    return ok
+
+
+def svc_restart(context: dict[str, Any], name: str) -> bool:
+    """Restart a service"""
+    if platform.system().lower() == "windows":
+        # Windows doesn't have a direct restart, so stop then start
+        exec_run(context, f"sc stop {name}")
+        r = exec_run(context, f"sc start {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to restart service %s (rc=%s)", name, r["rc"])
+        return ok
+    r = exec_run(context, f"systemctl restart {name}")
+    ok = r["rc"] == 0
+    if not ok:
+        _warning(context, "Failed to restart service %s (rc=%s)", name, r["rc"])
+    return ok
+
+
+def svc_status(context: dict[str, Any], name: str) -> dict[str, Any]:
+    """Get service status information"""
+    if platform.system().lower() == "windows":
+        r = exec_run(context, f"sc query {name}")
+        running = "RUNNING" in r.get("stdout", "")
+        # Check if service is set to auto-start
+        config_r = exec_run(context, f"sc qc {name}")
+        enabled = "AUTO_START" in config_r.get("stdout", "")
+        return {
+            "running": running,
+            "enabled": enabled,
+            "status": "running" if running else "stopped",
+            "raw": r
+        }
+    r = exec_run(context, f"systemctl status {name}")
+    enabled_r = exec_run(context, f"systemctl is-enabled {name}")
+    return {
+        "running": r["rc"] == 0,
+        "enabled": enabled_r["rc"] == 0,
+        "status": "running" if r["rc"] == 0 else "stopped",
+        "raw": r
+    }
+
 
 # -----------------------------
 # Package helpers (RPM example)
@@ -615,13 +901,14 @@ def find_installer(
     print(ok)
     if ok in ("windows", "win"):
         ext = ".exe"
-    elif ok in ("linux", "lin"):
+    elif ok in ("linux", "lin", "aix"):
         ext = ".bin"
     elif ok in ("rhel", "centos"):
         ext = ".bin"
     else:
         ext = oskey if oskey.startswith(".") else f".{oskey}"
 
+    print(ext)
     base_path = Path(base_dir)
     if not base_path.is_dir():
         return {
@@ -1316,4 +1603,3 @@ class AgentInputXMLBuilder:
                 # Unknown offering name -> skip silently for resilience
                 continue
             self.add_offering(parent_block, meta, selected=selected)
-

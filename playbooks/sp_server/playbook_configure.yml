@@ -1,6 +1,6 @@
 ---
 - name: Configuring SP Server using Python implementation
-  hosts: sp_server_linux, sp_server_windows
+  hosts: sp_server_linux, sp_server_aix, sp_server_windows
   become: true
   gather_facts: true
 
@@ -8,6 +8,8 @@
     - vars/sp_server.yml
 
   vars:
+
+    sp_python_exe: "python"
 
     sp_source_module_dir: "{{ sp_source_module_dir | default('/path/to/repo/IBM/ansible-storage-protect/plugins') }}"
 
@@ -22,20 +24,27 @@
     sp_config_log_file: "{{ sp_config_log_dir }}/sp_server_configuration.log"
 
   pre_tasks:
-    - name: Ensure SP Server log directory exists
+    - name: Set platform-specific root group
+      ansible.builtin.set_fact:
+        sp_root_group: >-
+          {{ 'system' if ansible_os_family == 'AIX'
+            else 'root' }}
+
+    - name: Ensure SP Server log directory exists (Unix)
       ansible.builtin.file:
         path: "{{ sp_config_log_dir }}"
         state: directory
         owner: root
-        group: root
+        group: "{{ sp_root_group }}"
         mode: "0755"
-      when : ansible_os_family != "Windows"
-      
+      when: ansible_os_family != "Windows"
+
     - name: Ensure SP Server log directory exists (Windows)
       ansible.windows.win_file:
         path: "{{ sp_config_log_dir }}"
         state: directory
       when: ansible_os_family == "Windows"
+
 
   tasks:
     # ==========================================================
@@ -90,7 +99,7 @@
 
         - name: Execute SPServerConfiguration.configure_all()
           ansible.builtin.command: >
-            python3.12 {{ sp_config_script }}
+            {{ sp_python_exe }} {{ sp_config_script }}
             --vars-file {{ sp_config_vars_file }}
           register: sp_server_config_raw
           changed_when: sp_server_config_raw.rc == 0
@@ -141,7 +150,7 @@
 
         - name: Attempt Python-based cleanup (SPServerConfiguration.cleanup)
           ansible.builtin.command: >
-            python3.12 {{ sp_config_script }}
+            {{ sp_python_exe }} {{ sp_config_script }}
             --vars-file {{ sp_config_vars_file }}
             --step cleanup
           register: sp_server_cleanup_raw
@@ -150,6 +159,12 @@
         - name: Log Python cleanup attempt output
           ansible.builtin.debug:
             var: sp_server_cleanup_raw
+
+        - name: Set platform-specific root group
+          ansible.builtin.set_fact:
+            sp_root_group: >-
+              {{ 'system' if ansible_os_family == 'AIX'
+                else 'root' }}
 
         - name: Persist cleanup output to log file
           ansible.builtin.copy:
@@ -165,7 +180,7 @@
               {{ sp_server_cleanup_raw.stderr | default('') }}
 
             owner: root
-            group: root
+            group: "{{ sp_root_group }}"
             mode: "0644"
           when: sp_server_cleanup_raw is defined
 
