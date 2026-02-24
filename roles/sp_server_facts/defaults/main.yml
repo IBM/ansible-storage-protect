@@ -2,13 +2,13 @@
 sp_server_facts_flags:
   q_status: true
   q_monitorsettings: true
-  q_db: false
-  q_dbspace: false
-  q_log: false
-  q_domain: false
-  q_copygroup: false
+  q_db: true
+  q_dbspace: true
+  q_log: true
+  q_domain: true
+  q_copygroup: true
   q_replrule: true
-  q_devclass: false
+  q_devclass: true
   q_mgmtclass: true
   q_stgpool: true
 

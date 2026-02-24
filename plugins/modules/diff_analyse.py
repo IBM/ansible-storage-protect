@@ -6,6 +6,7 @@ drift_report_generator.py
 import json
 import hashlib
 import argparse
+import zipfile
 from pathlib import Path
 from datetime import datetime, timezone
 from html import escape
@@ -17,8 +18,23 @@ BASELINE = REPORT_DIR / "baseline.json"
 CURRENT = REPORT_DIR / "current.json"
 DRIFT_JSON = REPORT_DIR / "drift_report.json"
 DRIFT_HTML = REPORT_DIR / "drift_report.html"
+DRIFT_ZIP = REPORT_DIR / "drift_report_bundle.zip"
 
 VOLATILE_KEYS = {"timestamp", "last_checked"}
+
+CLASSIFICATION_MAP = {
+    "q_copygroup": "Policies",
+    "q_replrule": "Policies",
+    "q_domain": "Domains",
+    "q_mgmtclass": "Management Classes",
+    "q_devclass": "Device classes",
+    "q_stgpool": "Storage hierarchies",
+    "q_status": "Node configurations",
+    "q_monitorsettings": "Node configurations",
+    "q_db": "Node configurations",
+    "q_dbspace": "Node configurations",
+    "q_log": "Node configurations",
+}
 
 # -------------------------------------------------
 # Helpers
@@ -35,6 +51,12 @@ def sha256_of(path: Path):
     if not path.exists():
         return None
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def build_report_bundle(bundle_path, html_path, json_path, current_path, baseline_path):
+    with zipfile.ZipFile(bundle_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for p in (html_path, json_path, current_path, baseline_path):
+            if p.exists():
+                zf.write(p, arcname=p.name)
 
 def clean_dict(obj):
     if isinstance(obj, dict):
@@ -112,6 +134,9 @@ def flatten_changes(module, obj, mode):
 def jdump(v):
     return escape(json.dumps(v, indent=2, ensure_ascii=False)) if v is not None else "null"
 
+def classify_module(module_name):
+    return CLASSIFICATION_MAP.get(module_name, "Node configurations")
+
 def render_table(title, rows):
     if not rows:
         return ""
@@ -121,14 +146,15 @@ def render_table(title, rows):
     html = [f"<div class='card'><h2>{title}</h2><table>"]
 
     if is_changed:
-        html.append("<tr><th>Module</th><th>Field</th><th>Previous</th><th>Current</th></tr>")
+        html.append("<tr><th>Classification</th><th>Module</th><th>Field</th><th>Previous</th><th>Current</th></tr>")
     else:
-        html.append("<tr><th>Module</th><th>Previous</th><th>Current</th></tr>")
+        html.append("<tr><th>Classification</th><th>Module</th><th>Previous</th><th>Current</th></tr>")
 
     last_module = None
     for mod, field, old, new in rows:
         html.append("<tr>")
 
+        html.append(f"<td>{escape(classify_module(mod))}</td>")
         if mod != last_module:
             html.append(f"<td><b>{escape(mod)}</b></td>")
             last_module = mod
@@ -148,10 +174,33 @@ def render_table(title, rows):
     html.append("</table></div>")
     return "\n".join(html)
 
+def render_coverage_table(coverage):
+    if not coverage:
+        return ""
+
+    per_query = coverage.get("per_query_field_counts", {})
+
+    html = ["<div class='card'><h2>Coverage</h2><table>"]
+    html.append("<tr><th>Metric</th><th>Value</th></tr>")
+    html.append(f"<tr><td>Total Queries</td><td>{escape(str(coverage.get('total_queries', '')))}</td></tr>")
+    html.append(f"<tr><td>Enabled Queries</td><td>{escape(str(coverage.get('enabled_queries', '')))}</td></tr>")
+    html.append(f"<tr><td>Query Coverage %</td><td>{escape(str(coverage.get('query_coverage_pct', '')))}</td></tr>")
+    html.append(f"<tr><td>Total Returned Fields</td><td>{escape(str(coverage.get('total_returned_fields', '')))}</td></tr>")
+    html.append("</table></div>")
+
+    if per_query:
+        html.append("<div class='card'><h2>Per Query Field Counts</h2><table>")
+        html.append("<tr><th>Query</th><th>Count</th></tr>")
+        for k, v in sorted(per_query.items()):
+            html.append(f"<tr><td>{escape(str(k))}</td><td>{escape(str(v))}</td></tr>")
+        html.append("</table></div>")
+
+    return "\n".join(html)
+
 # -------------------------------------------------
 # HTML generation
 # -------------------------------------------------
-def generate_html(rows, counts, meta):
+def generate_html(rows, counts, meta, html_uri, json_uri, zip_uri, coverage=None):
     html = [
         "<!doctype html><html><head><meta charset='utf-8'>",
         "<style>",
@@ -165,9 +214,13 @@ def generate_html(rows, counts, meta):
         f"<p><b>Changed:</b> {counts['changed']} | "
         f"<b>Added:</b> {counts['added']} | "
         f"<b>Removed:</b> {counts['removed']}</p>",
+        f"<p><a href='{html_uri}'>Open HTML report</a> | "
+        f"<a href='{json_uri}'>Open JSON report</a> | "
+        f"<a href='{zip_uri}' download>Download report bundle (.zip)</a></p>",
         f"<p>{meta}</p></div>",
     ]
 
+    html.append(render_coverage_table(coverage))
     html.append(render_table("Changed", rows["Changed"]))
     html.append(render_table("Added", rows["Added"]))
     html.append(render_table("Removed", rows["Removed"]))
@@ -186,6 +239,11 @@ def count_modules(rows):
 # -------------------------------------------------
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--current", default=str(CURRENT), help="Path to current snapshot JSON")
+    parser.add_argument("--baseline", default=str(BASELINE), help="Path to baseline JSON")
+    parser.add_argument("--drift-json", default=str(DRIFT_JSON), help="Path to drift JSON output")
+    parser.add_argument("--drift-html", default=str(DRIFT_HTML), help="Path to drift HTML output")
+    parser.add_argument("--drift-zip", default=str(DRIFT_ZIP), help="Path to drift ZIP output")
     parser.add_argument(
         "--accept",
         action="store_true",
@@ -193,30 +251,40 @@ def main():
     )
     args = parser.parse_args()
 
-    current = load_json(CURRENT)
+    current_path = Path(args.current)
+    baseline_path = Path(args.baseline)
+    drift_json_path = Path(args.drift_json)
+    drift_html_path = Path(args.drift_html)
+    drift_zip_path = Path(args.drift_zip)
+
+    for p in (current_path, baseline_path, drift_json_path, drift_html_path, drift_zip_path):
+        p.parent.mkdir(parents=True, exist_ok=True)
+
+    current = load_json(current_path)
     if not current:
-        print(" current.json missing")
+        print(f" {current_path} missing")
         return
 
     # ---------------- ACCEPT MODE ----------------
     if args.accept:
-        write_json(BASELINE, current)
+        write_json(baseline_path, current)
         print("Changes accepted. Baseline updated.")
 
         approval = {
             "approved_at": datetime.now(timezone.utc).isoformat(),
-            "baseline_sha": sha256_of(BASELINE),
+            "baseline_sha": sha256_of(baseline_path),
         }
-        write_json(REPORT_DIR / "baseline_approval.json", approval)
+        write_json(baseline_path.parent / f"baseline_approval_{baseline_path.stem}.json", approval)
         return
 
     # -------------- NORMAL DIFF MODE -------------
-    if not BASELINE.exists():
-        write_json(BASELINE, current)
+    if not baseline_path.exists():
+        write_json(baseline_path, current)
         print(" Baseline created")
         return
 
-    baseline = load_json(BASELINE)
+    baseline = load_json(baseline_path)
+    coverage = current.get("coverage", {})
 
     prev = clean_dict(baseline["data"]["ansible_module_results"])
     curr = clean_dict(current["data"]["ansible_module_results"])
@@ -243,15 +311,25 @@ def main():
     drift = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "counts": counts,
-        "baseline_sha": sha256_of(BASELINE),
-        "current_sha": sha256_of(CURRENT),
+        "baseline_sha": sha256_of(baseline_path),
+        "current_sha": sha256_of(current_path),
+        "coverage": coverage,
     }
 
-    write_json(DRIFT_JSON, drift)
-    DRIFT_HTML.write_text(
-        generate_html(rows, counts, f"Baseline: {BASELINE.name} | Current: {CURRENT.name}"),
+    write_json(drift_json_path, drift)
+    drift_html_path.write_text(
+        generate_html(
+            rows,
+            counts,
+            f"Baseline: {baseline_path.name} | Current: {current_path.name}",
+            html_uri=drift_html_path.resolve().as_uri(),
+            json_uri=drift_json_path.resolve().as_uri(),
+            zip_uri=drift_zip_path.resolve().as_uri(),
+            coverage=coverage,
+        ),
         encoding="utf-8",
     )
+    build_report_bundle(drift_zip_path, drift_html_path, drift_json_path, current_path, baseline_path)
 
     print(" Drift report generated")
 
