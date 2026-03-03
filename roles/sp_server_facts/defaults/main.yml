@@ -8,7 +8,7 @@ sp_server_facts_flags:
   q_domain: true
   q_copygroup: true
   q_replrule: true
-  q_devclass: true
+  q_devclass: false
   q_mgmtclass: true
   q_stgpool: true
 

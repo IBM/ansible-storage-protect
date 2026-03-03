@@ -74,6 +74,7 @@
       resource: sp_server
       collected_by: sp_server_facts
       collected_from: "{{ inventory_hostname }}"
+      collected_address: "{{ hostvars[inventory_hostname].ansible_host | default(inventory_hostname) }}"
       timestamp: "{{ ansible_facts['date_time']['utc'] | default(ansible_facts['date_time']['iso8601']) }}"
       coverage:
         total_queries: 11
@@ -132,19 +133,72 @@
   args:
     chdir: "{{ playbook_dir }}"
 
-- name: Prompt to accept drift changes
+- name: Prompt acceptance mode for baseline update
   delegate_to: localhost
   run_once: true
   pause:
-    prompt: "Accept drift changes and update baseline_<host>.json files? (yes/no)"
-  register: accept_drift_prompt
+    prompt: >-
+      Accept drift changes mode for hosts [{{ ansible_play_hosts_all | join(', ') }}]:
+      enter 'all', 'selected', or 'none'
+  register: accept_mode_prompt
+
+- name: Normalize acceptance mode
+  delegate_to: localhost
+  run_once: true
+  set_fact:
+    accept_mode: "{{ accept_mode_prompt.user_input | default('none') | lower | trim }}"
+
+- name: Validate acceptance mode
+  delegate_to: localhost
+  run_once: true
+  fail:
+    msg: "Invalid accept mode '{{ accept_mode }}'. Allowed values: all, selected, none."
+  when: accept_mode not in ['all', 'selected', 'none']
+
+- name: Prompt selected hosts for baseline update
+  delegate_to: localhost
+  run_once: true
+  pause:
+    prompt: "Enter comma-separated hostnames to accept (example: v1,v3)"
+  register: selected_hosts_prompt
+  when: accept_mode == 'selected'
+
+- name: Build target host list for baseline update
+  delegate_to: localhost
+  run_once: true
+  set_fact:
+    hosts_to_accept: >-
+      {{
+        ansible_play_hosts_all
+        if accept_mode == 'all'
+        else (
+          (selected_hosts_prompt.user_input | default(''))
+          .split(',')
+          | map('trim')
+          | reject('equalto', '')
+          | list
+        )
+        if accept_mode == 'selected'
+        else []
+      }}
+
+- name: Validate selected hosts are in play scope
+  delegate_to: localhost
+  run_once: true
+  vars:
+    invalid_hosts: "{{ hosts_to_accept | difference(ansible_play_hosts_all) }}"
+  fail:
+    msg: "Invalid selected hosts: {{ invalid_hosts | join(', ') }}. Valid hosts: {{ ansible_play_hosts_all | join(', ') }}"
+  when:
+    - accept_mode == 'selected'
+    - (invalid_hosts | length) > 0
 
 - name: Accept drift changes (update baseline)
   delegate_to: localhost
   run_once: true
   become: false
-  when: accept_drift_prompt.user_input | lower == "yes"
-  loop: "{{ ansible_play_hosts_all }}"
+  when: (hosts_to_accept | length) > 0
+  loop: "{{ hosts_to_accept }}"
   loop_control:
     label: "{{ item }}"
   command: >-
@@ -157,3 +211,23 @@
     --drift-zip reports/drift_report_bundle_{{ item }}.zip
   args:
     chdir: "{{ playbook_dir }}"
+
+- name: Show accepted host-baseline mapping
+  delegate_to: localhost
+  run_once: true
+  when: (hosts_to_accept | length) > 0
+  debug:
+    msg: >-
+      Accepted drift changes for hosts: {{ hosts_to_accept | join(', ') }}.
+      Updated files: {{
+        hosts_to_accept
+        | map('regex_replace', '^(.*)$', 'reports/baseline_\\1.json')
+        | list
+      }}
+
+- name: Show no baseline update selected
+  delegate_to: localhost
+  run_once: true
+  when: (hosts_to_accept | length) == 0
+  debug:
+    msg: "No baseline updates were accepted."

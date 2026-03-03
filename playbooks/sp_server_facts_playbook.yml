@@ -5,9 +5,9 @@
   vars:
     pythonbin: "{{ lookup('env','PYTHONBIN') | default('python3', true) }}"
   environment:
-    STORAGE_PROTECT_SERVERNAME: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') | default('TSMDBMGR_TSMINST1', true)}}"
-    STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') | default('tsmuser1', true) }}"
-    STORAGE_PROTECT_PASSWORD: "{{ lookup('env', 'STORAGE_PROTECT_PASSWORD')| default('tsmuser1@@123456789', true) }}"
+    STORAGE_PROTECT_SERVERNAME: "{{ lookup('env','STORAGE_PROTECT_SERVERNAME') }}"
+    STORAGE_PROTECT_USERNAME: "{{ lookup('env','STORAGE_PROTECT_USERNAME') }}"
+    STORAGE_PROTECT_PASSWORD: "{{ lookup('env','STORAGE_PROTECT_PASSWORD') }}"
   roles:
     - role: ibm.storage_protect.sp_server_facts  
 

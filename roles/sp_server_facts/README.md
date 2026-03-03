@@ -3,11 +3,12 @@
 This Ansible role retrieves IBM Storage Protect Server facts using the `sp_server_facts` module and performs per-host configuration drift reporting.
 
 It now supports:
-- fact collection controlled by `sp_server_facts_flags`
-- per-host snapshot generation
-- baseline/current drift comparison
-- coverage metrics (enabled queries, per-query field counts, totals)
-- downloadable per-host report bundles
+- Fact collection controlled by `sp_server_facts_flags`
+- Per-host snapshot generation
+- Baseline/current drift comparison with robust type handling
+- Coverage metrics (enabled queries, per-query field counts, totals)
+- Downloadable per-host report bundles
+- Flexible baseline acceptance modes: `all`, `selected`, or `none`
 
 ## Requirements
 
@@ -135,7 +136,48 @@ ansible-playbook -i inventory.ini ibm.storage_protect.sp_server_facts_playbook.y
 
 ## Baseline Acceptance
 
-After drift generation, the role prompts:
-- `Accept drift changes and update baseline_<host>.json files? (yes/no)`
+After drift generation, the role prompts for acceptance mode with three options:
 
-If `yes`, the baseline is updated for each host in the play.
+### Acceptance Modes
+
+1. **`all`** - Accept drift changes for all hosts in the play
+   - Updates `baseline_<host>.json` for every host
+   
+2. **`selected`** - Accept drift changes for specific hosts only
+   - Prompts for comma-separated hostnames (e.g., `v1,v3`)
+   - Only updates baselines for the selected hosts
+   - Validates that selected hosts are in the current play scope
+   
+3. **`none`** - Do not accept any drift changes
+   - No baseline files are updated
+   - Drift reports remain available for review
+
+### Example Workflow
+
+```
+Accept drift changes mode for hosts [v1, v2, v3]: enter 'all', 'selected', or 'none'
+> selected
+
+Enter comma-separated hostnames to accept (example: v1,v3)
+> v1,v2
+
+Accepted drift changes for hosts: v1, v2.
+Updated files: reports/baseline_v1.json, reports/baseline_v2.json
+```
+
+## Drift Detection Script
+
+The drift detection is performed by `plugins/modules/diff_analyse.py`, which:
+- Compares current snapshot against baseline
+- Handles nested structures, lists, and dictionaries robustly
+- Generates HTML and JSON drift reports
+- Creates downloadable ZIP bundles with all artifacts
+- Supports the `--accept` flag to update baselines
+
+### Recent Improvements
+
+**v1.1.0** - Enhanced type handling in drift detection:
+- Fixed `AttributeError` when comparing list values in changed dictionaries
+- Added robust type checking for nested structures
+- Improved handling of complex data types (dicts, lists, primitives)
+- Better error resilience for unexpected data structures

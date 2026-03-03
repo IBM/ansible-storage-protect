@@ -58,6 +58,26 @@ def build_report_bundle(bundle_path, html_path, json_path, current_path, baselin
             if p.exists():
                 zf.write(p, arcname=p.name)
 
+def get_host_name(snapshot, current_path):
+    return snapshot.get("collected_from") or current_path.stem.replace("current_", "")
+
+def get_host_address(snapshot, host_name):
+    return snapshot.get("collected_address") or host_name
+
+def host_label(host_name, host_address=None):
+    name = host_name or "unknown"
+    addr = host_address or name
+    if addr == name:
+        return f"Host: {name}"
+    return f"Host: {name} ({addr})"
+
+def get_query_keys(snapshot):
+    data = snapshot.get("data", {})
+    module_results = data.get("ansible_module_results", {})
+    if isinstance(module_results, dict):
+        return sorted(module_results.keys())
+    return []
+
 def clean_dict(obj):
     if isinstance(obj, dict):
         out = {}
@@ -122,7 +142,23 @@ def flatten_changes(module, obj, mode):
 
     if mode == "changed":
         for k, v in obj.items():
-            walk(k, v.get("old"), v.get("new"))
+            if isinstance(v, dict):
+                # Check if this is a simple change dict with "old" and "new"
+                if "old" in v and "new" in v:
+                    walk(k, v["old"], v["new"])
+                else:
+                    # It's a nested structure - recurse into it
+                    for nested_k, nested_v in v.items():
+                        nested_path = f"{k}.{nested_k}" if k else nested_k
+                        if isinstance(nested_v, dict) and "old" in nested_v and "new" in nested_v:
+                            walk(nested_path, nested_v["old"], nested_v["new"])
+                        else:
+                            # Even deeper nesting or unexpected structure
+                            walk(nested_path, nested_v, nested_v)
+            else:
+                # v is not a dict (could be list, string, etc.)
+                # This shouldn't normally happen in "changed" mode, but handle it gracefully
+                walk(k, None, v)
     else:
         walk("", None if mode == "added" else obj, obj if mode == "added" else None)
 
@@ -200,7 +236,7 @@ def render_coverage_table(coverage):
 # -------------------------------------------------
 # HTML generation
 # -------------------------------------------------
-def generate_html(rows, counts, meta, html_uri, json_uri, zip_uri, coverage=None):
+def generate_html(rows, counts, meta, html_uri, json_uri, zip_uri, coverage=None, host_name=None):
     html = [
         "<!doctype html><html><head><meta charset='utf-8'>",
         "<style>",
@@ -211,6 +247,7 @@ def generate_html(rows, counts, meta, html_uri, json_uri, zip_uri, coverage=None
         "pre{max-height:180px;overflow:auto;white-space:pre-wrap;word-break:break-word}",
         "</style></head><body>",
         "<div class='card'><h1>Config Drift Report</h1>",
+        f"<p><b>{escape(host_name or 'Host: unknown')}</b></p>",
         f"<p><b>Changed:</b> {counts['changed']} | "
         f"<b>Added:</b> {counts['added']} | "
         f"<b>Removed:</b> {counts['removed']}</p>",
@@ -264,15 +301,27 @@ def main():
     if not current:
         print(f" {current_path} missing")
         return
+    host_name = get_host_name(current, current_path)
+    host_address = get_host_address(current, host_name)
+    accepted_queries = get_query_keys(current)
 
     # ---------------- ACCEPT MODE ----------------
     if args.accept:
         write_json(baseline_path, current)
-        print("Changes accepted. Baseline updated.")
+        coverage = current.get("coverage", {})
+        print(
+            f"Changes accepted for {host_label(host_name, host_address)}. "
+            f"Accepted query sections ({len(accepted_queries)}): "
+            f"{', '.join(accepted_queries) if accepted_queries else 'none'}"
+        )
 
         approval = {
             "approved_at": datetime.now(timezone.utc).isoformat(),
             "baseline_sha": sha256_of(baseline_path),
+            "host": host_name,
+            "host_address": host_address,
+            "accepted_queries": accepted_queries,
+            "coverage": coverage,
         }
         write_json(baseline_path.parent / f"baseline_approval_{baseline_path.stem}.json", approval)
         return
@@ -310,6 +359,9 @@ def main():
 
     drift = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "host": host_name,
+        "host_address": host_address,
+        "queries_in_snapshot": accepted_queries,
         "counts": counts,
         "baseline_sha": sha256_of(baseline_path),
         "current_sha": sha256_of(current_path),
@@ -326,12 +378,13 @@ def main():
             json_uri=drift_json_path.resolve().as_uri(),
             zip_uri=drift_zip_path.resolve().as_uri(),
             coverage=coverage,
+            host_name=host_label(host_name, host_address),
         ),
         encoding="utf-8",
     )
     build_report_bundle(drift_zip_path, drift_html_path, drift_json_path, current_path, baseline_path)
 
-    print(" Drift report generated")
+    print(f" Drift report generated for {host_label(host_name, host_address)}")
 
 if __name__ == "__main__":
     main()
