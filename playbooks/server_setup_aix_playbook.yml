@@ -1,0 +1,110 @@
+---
+- name: Setup IBM Storage Protect Server instance
+  hosts: server1
+  become: yes
+  vars:
+    instance_user: tsminst1
+    instance_dir: /tsminst1
+    server_bin: /opt/tivoli/tsm/server/bin
+    service_name: tsminst1
+  tasks:
+    - name: Add tsminst1 to root group
+      user:
+        name: tsminst1
+        groups: root
+        append: yes
+
+    - name: Allow tsminst1 passwordless sudo
+      lineinfile:
+        path: /etc/sudoers
+        state: present
+        regexp: '^tsminst1 '
+        line: 'tsminst1 ALL=(ALL) NOPASSWD: ALL'
+        validate: '/usr/sbin/visudo -cf %s'
+
+    - name: Load db2profile for tsminst1 (does nothing permanent)
+      shell: "source /home/{{ instance_user }}/sqllib/db2profile"
+      become_user: "{{ instance_user }}"
+      args:
+        executable: /bin/bash
+      changed_when: false  # Prevents unnecessary change report
+
+    - name: Copy dsmserv.rc to instance script
+      become_user: "root"
+      copy:
+        src: "/opt/tivoli/tsm/server/bin/dsmserv.rc"
+        dest: "/opt/tivoli/tsm/server/bin/{{ service_name }}"
+        mode: '0755'
+        remote_src: yes
+
+    - name: Ensure instance_dir variable is set in instance script
+      lineinfile:
+        path: "/opt/tivoli/tsm/server/bin/{{ service_name }}"
+        regexp: '^instance_dir='
+        line: "instance_dir=\"{{ instance_dir }}\""
+
+    - name: Create systemd service file
+      copy:
+        dest: "/etc/systemd/system/{{ service_name }}.service"
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=IBM Storage Protect Server instance {{ service_name }}
+          After=network.target
+          [Service]
+          Type=oneshot
+          RemainAfterExit=true
+          ExecStart={{ server_bin }}/{{ service_name }} start
+          ExecStop={{ server_bin }}/{{ service_name }} stop
+          ExecReload={{ server_bin }}/{{ service_name }} restart
+          TasksMax=infinity
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable service
+      systemd:
+        name: "{{ service_name }}"
+        enabled: yes
+
+    - name: Check if dsmserv is already running
+      shell: ps -ef | grep -i dsmserv | grep -v grep
+      register: dsmserv_running
+      failed_when: false
+      changed_when: false
+
+    - name: Restart service
+      systemd:
+        name: "{{ service_name }}"
+        state: restarted
+      when: dsmserv_running.rc != 0
+
+    - name: Skip restart - dsmserv already running
+      debug:
+        msg: "dsmserv is already running - skipping restart"
+      when: dsmserv_running.rc == 0
+
+- name: Copy the certificate from the IBM Storage Protect server
+  hosts: server1
+  become: yes
+  tasks:
+    - name: Fetch the certificate file
+      fetch:
+        src: /tsminst1/cert256.arm
+        dest: /tmp/
+        flat: yes
+
+- name: Distribute certificate to clients.
+  hosts: server3
+  gather_facts: no
+  tasks:
+    - name: Copy the certificate to the client machine.
+      copy:
+        src: "/tmp/cert256.arm"
+        dest: /usr/tivoli/tsm/client/ba/bin64/  # AIX path (original was /opt/tivoli/tsm/client/ba/bin/)
+        owner: root
+        group: system  # AIX uses system not root
+        mode: '0644'
