@@ -6,13 +6,13 @@ import platform
 import re
 import shutil
 import subprocess
-from distutils.version import LooseVersion
+from distutils.version import LooseVersion  # type: ignore
 
 IS_WINDOWS = platform.system().lower().startswith("win")
 
 if not IS_WINDOWS:
     # Linux / normal Ansible environment
-    from ansible.module_utils.basic import AnsibleModule
+    from ansible.module_utils.basic import AnsibleModule  # type: ignore
 else:
     # Windows-safe fallback for when Ansible isn't available
     class AnsibleModule:
@@ -58,7 +58,12 @@ class BAClientHelper:
             pass
 
     def file_exists(self, path):
-        return os.path.exists(path)
+        if self.is_windows():
+            cmd = f'cmd /c if exist "{path}" (exit 0) else (exit 1)'
+            rc, out, err = self.run_cmd(cmd, check_rc=False)
+            return rc == 0
+        else:
+            return os.path.exists(path)
 
     def is_windows(self):
         return platform.system().lower().startswith("win")
@@ -72,7 +77,7 @@ class BAClientHelper:
     def check_installed(self):
         if self.is_windows():
             try:
-                cmd = 'reg query "HKLM\\SOFTWARE\\IBM\\ADSM\\CurrentVersion\Api64" /v PtfLevel'
+                cmd = 'reg query "HKLM\\SOFTWARE\\IBM\\ADSM\\CurrentVersion\\Api64" /v PtfLevel'
                 rc, out, err = self.run_cmd(cmd, check_rc=False)
                 if rc == 0 and "PtfLevel" in out:
                     version = out.split()[-1]
@@ -241,7 +246,7 @@ class BAClientHelper:
         print("BA Client installation completed successfully")
         return True
     
-    def rollback(self, action="install"):
+    def rollback(self, action="install", previous_version=None):
         """
         Rollback mechanism for BA Client operations.
         - action='install' → uninstall packages
@@ -251,7 +256,7 @@ class BAClientHelper:
         print(f"Initiating rollback for action={action}")
 
         if self.is_windows():
-            return self._rollback_windows(action)
+            return self._rollback_windows(action, previous_version)
         else:
             return self._rollback_linux(action)
         
@@ -371,7 +376,7 @@ class BAClientHelper:
 
 
     # WINDOWS ROLLBACK
-    def _rollback_windows(self, action):
+    def _rollback_windows(self, action, previous_version=None):
         results = []
 
         # ---------------- INSTALL FAILURE -----------------
@@ -394,7 +399,8 @@ class BAClientHelper:
         # ---------------- UNINSTALL FAILURE -----------------
         elif action == "uninstall":
             self.module.log("Rollback: reinstalling BA Client on Windows after uninstall failure.")
-            installer_path = os.path.join(self.install_dir, "TSMClient", "install.exe")
+            install_dir = getattr(self, 'install_dir', r"C:\Program Files\Tivoli\tsm\client\ba\bin")
+            installer_path = os.path.join(install_dir, "TSMClient", "install.exe")
             if os.path.exists(installer_path):
                 cmd = f'"{installer_path}" /qn REINSTALL=ALL REINSTALLMODE=vomus'
                 rc, out, err = self.run_cmd(cmd, check_rc=False)
@@ -422,9 +428,17 @@ class BAClientHelper:
                     results.append({"file_restored": orig, "status": "backup_missing"})
 
             # Step 2: Reinstall previous version from backup
-            installer_path = os.path.join(backup_dir, "8.1.25.0-TIV-TSMBAC-WinX64.exe")
-            if os.path.exists(installer_path):
-                cmd = f'"{installer_path}" /qn INSTALLDIR="{self.install_dir}"'
+            if previous_version:
+                installer_name = f"{previous_version}-TIV-TSMBAC-WinX64.exe"
+                installer_path = os.path.join(backup_dir, installer_name)
+            else:
+                results.append({"package": "BA Client", "error": "Previous version unknown"})
+                installer_name = ""
+                installer_path = ""
+
+            if installer_name and os.path.exists(installer_path):
+                install_dir = getattr(self, 'install_dir', r"C:\Program Files\Tivoli\tsm\client\ba\bin")
+                cmd = f'"{installer_path}" /qn INSTALLDIR="{install_dir}"'
                 rc, out, err = self.run_cmd(cmd, check_rc=False)
                 results.append({"package": "BA Client", "rc": rc, "stderr": err.strip()})
             else:
@@ -470,8 +484,11 @@ class BAClientHelper:
             "ba_client_version": ba_client_version
         }
 
-    def configure_ba_client(self):
-        config_dir = "/opt/tivoli/tsm/client/ba/bin"
+    def configure_ba_client(self) -> None:
+        if self.is_windows():
+            config_dir = r"C:\Program Files\Tivoli\tsm\client\ba\bin"
+        else:
+            config_dir = "/opt/tivoli/tsm/client/ba/bin"
         dsm_opt = f"{config_dir}/dsm.opt"
         dsm_sys = f"{config_dir}/dsm.sys"
 
@@ -522,13 +539,28 @@ class BAClientHelper:
             return {"daemon_enabled": False}
 
         if self.is_windows():
-            services = ["TSM Client Scheduler", "TSM Client Acceptor"]
+            # On Windows BA Client usually does not auto-create a service.
+            # We should verify existence before starting.
+
+            rc, out, err = self.run_cmd(
+                'powershell -Command "Get-Service | Where-Object {$_.Name -like \'*dsm*\' } | Select -ExpandProperty Name"',
+                check_rc=False
+            )
+
+            services = [s.strip() for s in out.splitlines() if s.strip()]
+
+            if not services:
+                self.module.warn("No BA Client Windows service found. Skipping daemon start.")
+                return {"daemon_enabled": False}
+
             for svc in services:
-                rc, out, err = self.run_cmd(f'net start "{svc}"', check_rc=False)
-                if rc != 0 and "already running" not in out.lower():
-                    self.module.warn(f"Failed to start Windows service '{svc}': {err.strip()}")
-                else:
+                rc_start, out_start, err_start = self.run_cmd(f'net start "{svc}"', check_rc=False)
+
+                if rc_start == 0:
                     self.module.warn(f"Windows service '{svc}' started successfully.")
+                else:
+                    self.module.warn(f"Failed to start Windows service '{svc}': {err_start.strip()}")
+
             return {"daemon_enabled": True}
 
         else:

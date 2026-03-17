@@ -7,20 +7,27 @@ import subprocess
 # Try to import the real Ansible module (Linux / normal use)
 HAS_ANSIBLE = False
 try:
-    from ansible.module_utils.basic import AnsibleModule
+    from ansible.module_utils.basic import AnsibleModule  # type: ignore
     HAS_ANSIBLE = True
 except Exception:
     # On Windows (or no-ansible environment) we'll fall back to a shim
-    AnsibleModule = None
+    AnsibleModule = None  # type: ignore
 
-# Try to import your existing helper. On Windows you may have to adjust the import path.
 try:
-    from ..module_utils.ba_client_utils import BAClientHelper
-except Exception:
-    # If this import style doesn't work on Windows, you can change it to an absolute import
-    # or put the helper beside this script and do: from ba_client_utils import BAClientHelper
-    # For now we'll re-raise because your actual helper is project-specific.
-    raise
+    # When running as real Ansible module (Linux)
+    from ..module_utils.ba_client_utils import BAClientHelper  # type: ignore
+except ImportError:
+    # When running as standalone script (Windows via win_command)
+    import sys
+    import os
+
+    CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+    UTILS_PATH = os.path.abspath(os.path.join(CURRENT_DIR, "..", "module_utils"))
+
+    sys.path.insert(0, UTILS_PATH)
+
+    from ba_client_utils import BAClientHelper  # type: ignore
+
 
 DOCUMENTATION = '''
 ---
@@ -51,7 +58,7 @@ Options:
     type: str
     required: false
     default (Linux): /opt/tivoli/tsm/client/ba/bin
-    default (Windows): C:\Program Files\IBM\TSM\baclient
+    default (Windows): C:\\Program Files\\IBM\\TSM\\baclient
     description:
       Target installation directory of BA Client binaries.
 
@@ -97,13 +104,13 @@ EXAMPLES = '''
 
   - name: Execute Python module on Windows
       win_command: >
-        python C:\temp\sp_baclient_install.py
+        python C:\\temp\\sp_baclient_install.py
         --state absent
         --ba-client-version {{ ba_client_version }}
         --package-source {{ windows_package_source }}
         --version {{ ba_client_version }}
-        --install-path "C:\Program Files\Tivoli\tsm\client\ba\bin"
-        --temp-dir C:\temp\baClient
+        --install-path "C:\\Program Files\\Tivoli\\tsm\\client\\ba\\bin"
+        --temp-dir C:\\temp\\baClient
       when: ansible_os_family == "Windows"
 '''
 
@@ -192,6 +199,9 @@ def build_windows_like_module():
             # basic log to stderr
             print(f"[ba_client] {msg}", file=sys.stderr)
 
+        def warn(self, msg):
+            print(f"[Windows WARN] {msg}")
+
     return WinModuleShim(args)
 
 
@@ -212,7 +222,7 @@ def get_module():
             temp_dir=dict(type='str', default='/opt/baClient'),
             start_daemon=dict(type='bool', default=True),
         )
-        return AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
+        return AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)  # type: ignore
     else:
         # Windows / no ansible
         return build_windows_like_module()
@@ -226,8 +236,8 @@ def normalize_version(ver):
 
 
 def main():
-    module = get_module()
-    utils = BAClientHelper(module)
+    module = get_module()  # type: ignore
+    utils = BAClientHelper(module)  # type: ignore
 
     state = module.params['state']
     ba_client_version = module.params['ba_client_version']
@@ -244,12 +254,16 @@ def main():
     installed_version_list = normalize_version(installed_version) if installed_version else []
     user_version_list = normalize_version(ba_client_version) if ba_client_version else []
 
+    utils.log(f"Installed: {installed}")
+    utils.log(f"Installed version: {installed_version}")
+    utils.log(f"Version available (file_exists): {version_available}")
+    utils.log(f"Package source: {package_source}")
+
     # 2. Determine action
-    if installed_version and user_version_list > installed_version_list and version_available:
-        utils.log(f"Upgrade needed: current={installed_version}, desired={ba_client_version}")
-        action = "upgrade"
-    elif not installed_version and version_available:
+    if not installed and version_available:
         action = "install"
+    elif installed and user_version_list > installed_version_list and version_available:
+        action = "upgrade"
     else:
         action = "none"
 
@@ -294,10 +308,11 @@ def main():
 
         except Exception as install_error:
             module.log(f"Installation failed: {install_error}")
-            rollback_info = utils.rollback(action="install")
+            rollback_info = utils.rollback(action="install", previous_version=installed_version)  # type: ignore
+            rollback_status = rollback_info.get('status', 'unknown') if rollback_info else 'rollback failed'
             module.exit_json(
                 changed=False,
-                msg=f"Installation failed and rollback executed: {install_error}. {rollback_info['status']}"
+                msg=f"Installation failed and rollback executed: {install_error}. {rollback_status}"
             )
 
     elif action == 'upgrade':
@@ -312,7 +327,7 @@ def main():
             module.exit_json(**upgrade_result)
         except Exception as upgrade_error:
             module.log(f"Upgrade failed: {upgrade_error}")
-            utils.rollback(action="upgrade")  # <-- ROLLBACK upgrade
+            utils.rollback(action="upgrade", previous_version=installed_version)  # <-- ROLLBACK upgrade
             module.exit_json(changed=False, msg=f"Upgrade failed and rollback executed: {upgrade_error}")
 
     elif state == 'absent':
@@ -327,7 +342,7 @@ def main():
                 module.exit_json(changed=False, msg="BA Client was not installed, nothing to uninstall")
         except Exception as uninstall_error:
             module.log(f"Uninstallation failed: {uninstall_error}")
-            utils.rollback(action="uninstall")  # <-- ROLLBACK uninstall
+            utils.rollback(action="uninstall", previous_version=installed_version)  # <-- ROLLBACK uninstall
             module.exit_json(
                 changed=False,
                 msg=f"Uninstallation failed and rollback executed: {uninstall_error}"

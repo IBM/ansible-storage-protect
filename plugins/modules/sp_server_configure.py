@@ -149,13 +149,62 @@ class SPServerConfiguration:
         self.log.info("Starting storage preparation workflow")
 
         # -----------------------------------------
-        # Ensure Linux
+        # Windows vs Linux storage preparation
         # -----------------------------------------
-        if self.os_type != "linux":
-            msg = "Storage preparation is only supported on Linux"
+        if self.os_type == "windows":
+            return self._prepare_storage_windows()
+        elif self.os_type == "linux":
+            return self._prepare_storage_linux()
+        else:
+            msg = f"Storage preparation not supported on OS: {self.os_type}"
             self.log.error(msg)
             return make_result(False, msg)
 
+    def _prepare_storage_windows(self) -> Dict[str, Any]:
+        """
+        Windows storage preparation - creates directories for TSM instance
+        """
+        self.log.info("Preparing storage for Windows")
+        
+        try:
+            instance_dir = self.vars.get("instance_dir", "C:\\tsminst1")
+            
+            # Create required directories for Windows
+            directories = [
+                f"{instance_dir}\\TSMalog",
+                f"{instance_dir}\\TSMarchlog",
+                f"{instance_dir}\\TSMdbspace01",
+                f"{instance_dir}\\TSMdbspace02",
+                f"{instance_dir}\\TSMdbspace03",
+                f"{instance_dir}\\TSMdbspace04"
+            ]
+            
+            for dir_path in directories:
+                if not utils1.fs_exists(dir_path):
+                    cmd = f'mkdir "{dir_path}"'
+                    resp = self._run_cmd(cmd, f"Creating directory {dir_path}", fail_ok=True)
+                    if resp["status"]:
+                        self.log.info(f"Created directory: {dir_path}")
+                    else:
+                        self.log.warning(f"Directory may already exist: {dir_path}")
+                else:
+                    self.log.info(f"Directory already exists: {dir_path}")
+            
+            self.log.info("Windows storage preparation completed successfully")
+            return make_result(True, "Windows storage preparation successful", {
+                "instance_dir": instance_dir,
+                "directories": directories
+            })
+            
+        except Exception as exc:
+            msg = f"Unexpected error during Windows storage preparation: {exc}"
+            self.log.error(msg)
+            return make_result(False, msg)
+
+    def _prepare_storage_linux(self) -> Dict[str, Any]:
+        """
+        Linux storage preparation - original implementation
+        """
         try:
             # Required vars from playbook
             storage_prepare_size = self.vars["storage_prepare_size"]
@@ -380,16 +429,39 @@ class SPServerConfiguration:
             else:
                 self.log.info("Group created {}".format(tsm_group))
 
-            # User
-            user_cmd = f'net user "{tsm_user}" "{tsm_user_password}" /add'
-
-            resp = utils1.exec_run(self.context, user_cmd)
-            if (resp["rc"] != 0):
-                self.log.error("Failed to create user {}".format(tsm_user))
-                self.log.error(resp["stderr"])
-                return {"status": False, "message": "Failed to create user", "data": resp}
+            # User - check if user already exists first
+            check_user_cmd = f'net user "{tsm_user}"'
+            check_resp = utils1.exec_run(self.context, check_user_cmd)
+            
+            if check_resp["rc"] == 0:
+                # User already exists, just ensure password is set correctly
+                self.log.info("User {} already exists, ensuring password is correct".format(tsm_user))
+                # Update password without prompts
+                update_cmd = f'net user "{tsm_user}" "{tsm_user_password}"'
+                resp = utils1.exec_run(self.context, update_cmd)
+                if resp["rc"] != 0:
+                    self.log.warning("Failed to update password for user {}: {}".format(tsm_user, resp["stderr"]))
+                else:
+                    self.log.info("Password updated for user {}".format(tsm_user))
             else:
-                self.log.info("User created {}".format(tsm_user))
+                # User doesn't exist, create it
+                # Use PowerShell to create user (avoids password length prompt)
+                user_cmd = f'powershell -Command "net user \'{tsm_user}\' \'{tsm_user_password}\' /add /Y"'
+                resp = utils1.exec_run(self.context, user_cmd)
+                
+                # If /Y flag doesn't work, try alternative approach
+                if resp["rc"] != 0 and "syntax" in resp["stderr"].lower():
+                    self.log.warning("Trying alternative user creation method...")
+                    # Use echo through PowerShell
+                    user_cmd = f'powershell -Command "echo Y | net user \'{tsm_user}\' \'{tsm_user_password}\' /add"'
+                    resp = utils1.exec_run(self.context, user_cmd)
+                
+                if resp["rc"] != 0:
+                    self.log.error("Failed to create user {}".format(tsm_user))
+                    self.log.error(resp["stderr"])
+                    return {"status": False, "message": "Failed to create user", "data": resp}
+                else:
+                    self.log.info("User created {}".format(tsm_user))
 
             # Add user to group
             add_to_group_cmd = f'net localgroup "{tsm_group}" "{tsm_user}" /add'
@@ -445,16 +517,34 @@ class SPServerConfiguration:
         """
         Mirrors:
           - Creating the DB2 server instance as root (db2icrt ...)
-        Linux-only: DB2 commands are specific to the path used in the playbook.
+        Windows: Sets up DB2INSTANCE environment variable
+        Linux: Uses db2icrt command
         """
-        self.log.info("Creating DB2 server instance (if required)")
+        self.log.info("Creating/configuring DB2 server instance")
         tsm_user = self.vars["tsm_user"]
 
-        if self.os_type != "linux":
-            msg = "DB2 instance creation is only implemented for Linux in this script"
-            self.log.warning(msg)
-            return make_result(False, msg)
+        if self.os_type == "windows":
+            # On Windows, set DB2INSTANCE environment variable
+            self.log.info("Setting DB2INSTANCE environment variable for Windows")
+            
+            # Set system-wide environment variable
+            cmd = f'setx DB2INSTANCE "{tsm_user.upper()}" /M'
+            resp = self._run_cmd(cmd, "Setting DB2INSTANCE environment variable", fail_ok=True)
+            
+            if resp["status"]:
+                self.log.info(f"DB2INSTANCE set to {tsm_user.upper()}")
+                return make_result(True, f"DB2INSTANCE environment variable set to {tsm_user.upper()}")
+            else:
+                # Try without /M flag (user-level)
+                self.log.warning("Failed to set system-wide, trying user-level")
+                cmd = f'setx DB2INSTANCE "{tsm_user.upper()}"'
+                resp = self._run_cmd(cmd, "Setting DB2INSTANCE (user-level)", fail_ok=True)
+                if resp["status"]:
+                    return make_result(True, f"DB2INSTANCE set at user level to {tsm_user.upper()}")
+                else:
+                    return make_result(False, "Failed to set DB2INSTANCE environment variable", resp["data"])
 
+        # Linux implementation
         # Check if instance already exists (rough equivalent of "creates:" in Ansible)
         sqllib_path = f"/home/{tsm_user}/sqllib"
         if utils1.fs_exists(sqllib_path):
@@ -481,32 +571,193 @@ class SPServerConfiguration:
     def configure_db2_as_instance_user(self) -> Dict[str, Any]:
         """
         Configures DB2 as the instance user, mirroring the full Ansible playbook logic:
-        - Update default database path
-        - Set DB2 registry variables
-        - Modify LD_LIBRARY_PATH
-        - Check if the DB is already formatted
-        - Clean and format DB directories if not formatted
-        - Copy and configure server options
-        - Ensure admin user setup flag
-        - Ensure DBBKAPI directory is writable
-        - Ensure dsm.sys exists and configured
+        Windows: Creates dsmserv.opt and formats database
+        Linux: Full DB2 configuration with profiles and environment
         """
 
         tsm_user = self.vars["tsm_user"]
         tsm_group = self.vars.get("tsm_group", "tsmusers")
+        act_log_size = self.vars.get("sp_server_active_log_size", 100)
+        server_blueprint = self.vars.get("server_blueprint", False)
+
+        if self.os_type == "windows":
+            return self._configure_db2_windows(tsm_user, tsm_group, act_log_size)
+        elif self.os_type == "linux":
+            return self._configure_db2_linux(tsm_user, tsm_group, act_log_size)
+        else:
+            msg = f"DB2 configuration not supported on OS: {self.os_type}"
+            self.log.error(msg)
+            return make_result(False, msg)
+
+    def _configure_db2_windows(self, tsm_user: str, tsm_group: str, act_log_size: int) -> Dict[str, Any]:
+        """
+        Windows-specific DB2 and SP Server configuration
+        """
+        self.log.info("Configuring SP Server for Windows")
+        
+        # Get instance_dir and normalize for Windows
+        instance_dir_raw = self.vars.get("instance_dir", "C:\\tsminst1")
+        
+        # Convert Linux-style paths to Windows if needed
+        if instance_dir_raw.startswith("/"):
+            # Convert /tsminst1 to C:\tsminst1
+            instance_dir = "C:" + instance_dir_raw.replace("/", "\\")
+        else:
+            instance_dir = instance_dir_raw.replace("/", "\\")
+        
+        self.log.info(f"Using instance directory: {instance_dir}")
+        
+        server_install_dir = self.vars.get("server_install_dir", "C:\\Program Files\\Tivoli\\TSM\\server")
+        
+        # Define paths
+        db_paths = [
+            f"{instance_dir}\\TSMdbspace01",
+            f"{instance_dir}\\TSMdbspace02",
+            f"{instance_dir}\\TSMdbspace03",
+            f"{instance_dir}\\TSMdbspace04"
+        ]
+        act_log_dir = f"{instance_dir}\\TSMalog"
+        arch_log_dir = f"{instance_dir}\\TSMarchlog"
+        dsmserv_opt = f"{instance_dir}\\dsmserv.opt"
+        
+        # 1️⃣ Create dsmserv.opt file (will be used AFTER formatting)
+        self.log.info("Preparing dsmserv.opt configuration file (for post-format use)")
+        
+        server_name = self.vars.get("server_name", "TSMDBMGR_TSMINST1")
+        tcp_port = self.vars.get("tcp_port", 1500)
+        max_sessions = self.vars.get("max_sessions", 10)
+        
+        # Note: dsmserv.opt is NOT used during format command
+        # It's only used when starting the server normally
+        dsmserv_opt_content = f"""COMMMETHOD TCPIP
+TCPPORT {tcp_port}
+TCPWINDOWSIZE 0
+TCPNODELAY YES
+COMMMETHOD SHAREDMEM
+SHMPORT 1510
+COMMTIMEOUT 3600
+DEDUPREQUIRESBACKUP NO
+DEVCONFIG devconf.dat
+EXPINTERVAL 0
+IDLETIMEOUT 60
+MAXSESSIONS {max_sessions}
+NUMOPENVOLSALLOWED 20
+VOLUMEHISTORY volhist.out
+"""
+        
+        # 2️⃣ Check if database is already formatted
+        self.log.info("Checking if database is already formatted")
+        
+        # Check for existence of database files
+        db_formatted = False
+        for db_path in db_paths:
+            db_files = [f"{db_path}\\TSMDB1.BLF", f"{db_path}\\TSMDB1.DBF"]
+            if any(utils1.fs_exists(f) for f in db_files):
+                db_formatted = True
+                break
+        
+        if db_formatted:
+            self.log.info("Database already formatted; skipping formatting")
+        else:
+            self.log.info("Database not formatted; formatting now")
+            
+            # 3️⃣ Format the database
+            db_paths_str = ",".join(db_paths)
+            
+            # Try multiple possible locations for dsmserv.exe
+            possible_paths = [
+                f"{server_install_dir}\\dsmserv.exe",  # Direct in server dir
+                f"{server_install_dir}\\bin\\dsmserv.exe",  # In bin subdir
+                "C:\\Program Files\\Tivoli\\TSM\\server\\dsmserv.exe",  # Standard location
+                f"{instance_dir}\\..\\server\\dsmserv.exe"  # Relative path
+            ]
+            
+            dsmserv_exe = None
+            for path in possible_paths:
+                if utils1.fs_exists(path):
+                    dsmserv_exe = path
+                    self.log.info(f"Found dsmserv.exe at: {dsmserv_exe}")
+                    break
+            
+            if not dsmserv_exe:
+                # Try to find it using where command
+                self.log.warning("dsmserv.exe not found in standard locations, searching...")
+                search_resp = self._run_cmd('where /R "C:\\Program Files\\Tivoli" dsmserv.exe', "Searching for dsmserv.exe", fail_ok=True)
+                if search_resp["status"] and search_resp["data"]["stdout"]:
+                    dsmserv_exe = search_resp["data"]["stdout"].strip().split('\n')[0]
+                    self.log.info(f"Found dsmserv.exe via search: {dsmserv_exe}")
+                else:
+                    msg = f"Cannot find dsmserv.exe. Searched locations: {possible_paths}"
+                    self.log.error(msg)
+                    return make_result(False, msg)
+            
+            # Format database - run from a temp directory to avoid using dsmserv.opt
+            # The format command should NOT read dsmserv.opt file
+            temp_dir = "C:\\Windows\\Temp"
+            
+            format_cmd = (
+                f'cmd /c "set DB2INSTANCE={tsm_user.upper()} && '
+                f'cd /d "{temp_dir}" && '
+                f'"{dsmserv_exe}" format '
+                f'dbdir={db_paths_str} '
+                f'activelogsize={act_log_size} '
+                f'activelogdirectory="{act_log_dir}" '
+                f'archlogdirectory="{arch_log_dir}""'
+            )
+            
+            self.log.info(f"Formatting database with command: {format_cmd}")
+            self.log.info("Note: Running from temp directory to avoid reading dsmserv.opt during format")
+            resp = self._run_cmd(format_cmd, "Formatting SP Server database", fail_ok=False)
+            
+            if not resp["status"]:
+                msg = "Failed to format the database"
+                self.log.error(msg)
+                self.log.error(resp["data"].get("stderr", ""))
+                return make_result(False, msg, resp["data"])
+            
+            self.log.info("Database formatted successfully")
+            
+            # Now create dsmserv.opt AFTER successful format
+            self.log.info("Creating dsmserv.opt file after successful database format")
+            try:
+                utils1.file_write_text(dsmserv_opt, dsmserv_opt_content)
+                self.log.info(f"Created dsmserv.opt at {dsmserv_opt}")
+            except Exception as exc:
+                self.log.warning(f"Failed to create dsmserv.opt (non-critical): {exc}")
+        
+        # 4️⃣ Create dsm.sys for local API client (if needed)
+        dsm_sys_path = f"{server_install_dir}\\..\\client\\api\\bin64\\dsm.sys"
+        if not utils1.fs_exists(dsm_sys_path):
+            self.log.info("Creating dsm.sys for API client")
+            dsm_sys_content = f"""SERVERNAME {server_name}
+COMMMethod TCPip
+TCPPort {tcp_port}
+TCPServeraddress localhost
+NODENAME TSMDBMGR
+PASSWORDACCESS generate
+"""
+            try:
+                utils1.file_write_text(dsm_sys_path, dsm_sys_content)
+                self.log.info(f"Created dsm.sys at {dsm_sys_path}")
+            except Exception as exc:
+                self.log.warning(f"Failed to create dsm.sys (non-critical): {exc}")
+        
+        return make_result(True, "Windows DB2/SP Server configuration completed", {
+            "dsmserv_opt": dsmserv_opt,
+            "db_formatted": not db_formatted,  # True if we just formatted it
+            "instance_dir": instance_dir
+        })
+
+    def _configure_db2_linux(self, tsm_user: str, tsm_group: str, act_log_size: int) -> Dict[str, Any]:
+        """
+        Linux-specific DB2 configuration - original implementation
+        """
+        self.log.info("Configuring DB2 as instance user on Linux")
+        
         db_paths = [f"/{tsm_user}/TSMdbspace01", f"/{tsm_user}/TSMdbspace02",
                     f"/{tsm_user}/TSMdbspace03", f"/{tsm_user}/TSMdbspace04"]
         act_log_dir = f"/{tsm_user}/TSMalog"
         arch_log_dir = f"/{tsm_user}/TSMarchlog"
-        act_log_size = self.vars.get("sp_server_active_log_size", 100)
-        server_blueprint = self.vars.get("server_blueprint", False)
-
-        if self.os_type != "linux":
-            msg = "DB2 configuration as instance user is only implemented for Linux"
-            self.log.warning(msg)
-            return make_result(False, msg)
-
-        self.log.info("Configuring DB2 as instance user")
 
         db2profile = f"/home/{tsm_user}/sqllib/db2profile"
         userprofile = f"/home/{tsm_user}/sqllib/userprofile"
@@ -679,9 +930,11 @@ class SPServerConfiguration:
         """
 
         if self.os_type != "linux":
-            msg = "Macro generation/execution only supported on Linux"
-            self.log.warning(msg)
-            return make_result(False, msg)
+            # On Windows, SP Server configuration is done through dsmserv.opt and other config files
+            # Macros are a Linux-specific automation approach
+            msg = "Macro generation not required on Windows (configuration handled through dsmserv.opt)"
+            self.log.info(msg)
+            return make_result(True, msg)
 
         tsm_user = self.vars["tsm_user"]
         tsm_group = self.vars["tsm_group"]
