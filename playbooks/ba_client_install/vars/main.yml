@@ -12,4 +12,4 @@ windows_package_source: "C:\\temp\\{{ ba_client_version }}-TIV-TSMBAC-WinX64.exe
 windows_temp_dir: "C:\\temp"
 windows_ba_install_dir: "C:\\Program Files\\Tivoli\\tsm\\client\\ba\\bin"
 windows_module_utils_dest: "C:\\temp\\module_utils\\ba_client_utils.py"
-windows_python_module: "C:\\temp\\sp_baclient_install.py"
+windows_python_module: "C:\\temp\\ba_client_install.py"

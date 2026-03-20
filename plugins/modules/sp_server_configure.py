@@ -517,32 +517,71 @@ class SPServerConfiguration:
         """
         Mirrors:
           - Creating the DB2 server instance as root (db2icrt ...)
-        Windows: Sets up DB2INSTANCE environment variable
+        Windows: Uses existing DB2 instance (TESTINST) - db2icrt hangs on Windows
         Linux: Uses db2icrt command
         """
         self.log.info("Creating/configuring DB2 server instance")
         tsm_user = self.vars["tsm_user"]
+        tsm_user_password = self.vars.get("tsm_user_password", "Tsmuser123456789")
 
         if self.os_type == "windows":
-            # On Windows, set DB2INSTANCE environment variable
-            self.log.info("Setting DB2INSTANCE environment variable for Windows")
+            # On Windows, db2icrt.exe hangs indefinitely, so we use existing instances
+            # We'll work around the DBI1306N registry profile error by using DB2 directly
+            self.log.info("Using existing DB2 instance for Windows (db2icrt hangs)")
             
-            # Set system-wide environment variable
-            cmd = f'setx DB2INSTANCE "{tsm_user.upper()}" /M'
-            resp = self._run_cmd(cmd, "Setting DB2INSTANCE environment variable", fail_ok=True)
+            # Find db2ilist.exe to list existing instances
+            db2_install_path = self.vars.get("db2_install_path", "C:\\Program Files\\Tivoli\\TSM\\db2")
+            db2ilist_path = f"{db2_install_path}\\bin\\db2ilist.exe"
             
-            if resp["status"]:
-                self.log.info(f"DB2INSTANCE set to {tsm_user.upper()}")
-                return make_result(True, f"DB2INSTANCE environment variable set to {tsm_user.upper()}")
+            # Check if db2ilist exists
+            if not utils1.fs_exists(db2ilist_path):
+                db2ilist_path = "C:\\Program Files\\Tivoli\\TSM\\db2\\bin\\db2ilist.exe"
+                if not utils1.fs_exists(db2ilist_path):
+                    msg = f"db2ilist.exe not found at {db2ilist_path}"
+                    self.log.error(msg)
+                    return make_result(False, msg)
+            
+            self.log.info(f"Found db2ilist at: {db2ilist_path}")
+            
+            # List existing DB2 instances
+            list_cmd = f'"{db2ilist_path}"'
+            list_resp = self._run_cmd(list_cmd, "Listing DB2 instances", fail_ok=True)
+            
+            if not list_resp["status"]:
+                msg = "Failed to list DB2 instances"
+                self.log.error(msg)
+                return make_result(False, msg, list_resp["data"])
+            
+            # Parse the output to find instances
+            instances = [line.strip() for line in list_resp["data"].get("stdout", "").split('\n') if line.strip()]
+            self.log.info(f"Found DB2 instances: {instances}")
+            
+            # Use TESTINST (we'll work around registry profile issues)
+            instance_name = None
+            if "TESTINST" in instances:
+                instance_name = "TESTINST"
+                self.log.info(f"Using TESTINST DB2 instance: {instance_name}")
+            elif "TSMINST1" in instances:
+                instance_name = "TSMINST1"
+                self.log.info(f"Using TSMINST1 DB2 instance: {instance_name}")
+            elif instances:
+                instance_name = instances[0]
+                self.log.warning(f"Using first available DB2 instance: {instance_name}")
             else:
-                # Try without /M flag (user-level)
-                self.log.warning("Failed to set system-wide, trying user-level")
-                cmd = f'setx DB2INSTANCE "{tsm_user.upper()}"'
-                resp = self._run_cmd(cmd, "Setting DB2INSTANCE (user-level)", fail_ok=True)
-                if resp["status"]:
-                    return make_result(True, f"DB2INSTANCE set at user level to {tsm_user.upper()}")
-                else:
-                    return make_result(False, "Failed to set DB2INSTANCE environment variable", resp["data"])
+                msg = "No DB2 instances found"
+                self.log.error(msg)
+                return make_result(False, msg)
+            
+            # Set DB2INSTANCE environment variable
+            setx_cmd = f'setx DB2INSTANCE "{instance_name}" /M'
+            setx_resp = self._run_cmd(setx_cmd, "Setting DB2INSTANCE environment variable", fail_ok=True)
+            if setx_resp["status"]:
+                self.log.info(f"DB2INSTANCE environment variable set to {instance_name}")
+            
+            # Store the instance name for use in database formatting
+            self.vars["db2_instance_name"] = instance_name
+            
+            return make_result(True, f"Using DB2 instance {instance_name}")
 
         # Linux implementation
         # Check if instance already exists (rough equivalent of "creates:" in Ansible)
@@ -661,7 +700,78 @@ VOLUMEHISTORY volhist.out
         else:
             self.log.info("Database not formatted; formatting now")
             
-            # 3️⃣ Format the database
+            # 3️⃣ Start DB2 and drop existing TSMDB1 database from DB2 catalog (prevents ANR0367W error)
+            self.log.info("Starting DB2 and attempting to drop TSMDB1 database")
+            db2_instance = self.vars.get("db2_instance_name", "TESTINST")
+            db2_install_path = self.vars.get("db2_install_path", "C:\\Program Files\\Tivoli\\TSM\\db2")
+            db2_bin_path = f"{db2_install_path}\\bin"
+            
+            # Start DB2 first (required for drop database to work)
+            start_cmd = (
+                f'cmd /c "set DB2INSTANCE={db2_instance} && '
+                f'set PATH={db2_bin_path};%PATH% && '
+                f'db2start"'
+            )
+            start_resp = self._run_cmd(start_cmd, "Starting DB2 database manager", fail_ok=True)
+            if start_resp["status"]:
+                self.log.info("Successfully started DB2 database manager")
+            else:
+                # DB2 may already be running
+                self.log.warning(f"DB2 start returned non-zero (may already be running): {start_resp['data'].get('stderr', '')}")
+            
+            # Try to uncatalog the database first
+            uncatalog_cmd = (
+                f'cmd /c "set DB2INSTANCE={db2_instance} && '
+                f'set PATH={db2_bin_path};%PATH% && '
+                f'db2 uncatalog database TSMDB1"'
+            )
+            uncatalog_resp = self._run_cmd(uncatalog_cmd, "Uncataloging TSMDB1 database", fail_ok=True)
+            if uncatalog_resp["status"]:
+                self.log.info("Successfully uncataloged TSMDB1 database")
+            else:
+                self.log.warning(f"Failed to uncatalog TSMDB1 (may not exist): {uncatalog_resp['data'].get('stderr', '')}")
+            
+            # Try to drop the database (now that DB2 is started)
+            drop_cmd = (
+                f'cmd /c "set DB2INSTANCE={db2_instance} && '
+                f'set PATH={db2_bin_path};%PATH% && '
+                f'db2 drop database TSMDB1"'
+            )
+            drop_resp = self._run_cmd(drop_cmd, "Dropping TSMDB1 database", fail_ok=True)
+            if drop_resp["status"]:
+                self.log.info("Successfully dropped TSMDB1 database")
+            else:
+                self.log.warning(f"Failed to drop TSMDB1 (may not exist): {drop_resp['data'].get('stderr', '')}")
+            
+            # Stop DB2 after cleanup (dsmserv will start it again)
+            stop_cmd = (
+                f'cmd /c "set DB2INSTANCE={db2_instance} && '
+                f'set PATH={db2_bin_path};%PATH% && '
+                f'db2stop force"'
+            )
+            stop_resp = self._run_cmd(stop_cmd, "Stopping DB2 database manager", fail_ok=True)
+            if stop_resp["status"]:
+                self.log.info("Successfully stopped DB2 database manager")
+            else:
+                self.log.warning(f"Failed to stop DB2 (continuing anyway): {stop_resp['data'].get('stderr', '')}")
+            
+            # 4️⃣ Clean database directories before formatting
+            # Remove any partial files from previous failed attempts
+            self.log.info("Cleaning database directories before formatting")
+            all_dirs = db_paths + [act_log_dir, arch_log_dir]
+            
+            for dir_path in all_dirs:
+                if utils1.fs_exists(dir_path):
+                    self.log.info(f"Cleaning directory: {dir_path}")
+                    # Use PowerShell to forcefully remove all contents
+                    clean_cmd = f'powershell -Command "Remove-Item -Path \\"{dir_path}\\*\\" -Recurse -Force -ErrorAction SilentlyContinue"'
+                    clean_resp = self._run_cmd(clean_cmd, f"Cleaning {dir_path}", fail_ok=True)
+                    if clean_resp["status"]:
+                        self.log.info(f"Successfully cleaned {dir_path}")
+                    else:
+                        self.log.warning(f"Failed to clean {dir_path}, but continuing")
+            
+            # 5️⃣ Format the database
             db_paths_str = ",".join(db_paths)
             
             # Try multiple possible locations for dsmserv.exe
@@ -691,22 +801,31 @@ VOLUMEHISTORY volhist.out
                     self.log.error(msg)
                     return make_result(False, msg)
             
-            # Format database - run from a temp directory to avoid using dsmserv.opt
-            # The format command should NOT read dsmserv.opt file
-            temp_dir = "C:\\Windows\\Temp"
+            # Format database - Accept DBI1306N warnings and proceed anyway
+            # The database drop should have removed TSMDB1 from catalog
+            # Reference: https://www.ibm.com/docs/en/storage-protect/8.1.25?topic=steps-formatting-database-log
             
+            db2_instance = self.vars.get("db2_instance_name", "TESTINST")
+            db2_install_path = self.vars.get("db2_install_path", "C:\\Program Files\\Tivoli\\TSM\\db2")
+            db2_bin_path = f"{db2_install_path}\\bin"
+            
+            # Run from instance directory per IBM docs
+            # Increase activelogsize to 16384 (default) to avoid ANR1908W warning
+            # Accept DBI1306N warnings - they're non-fatal if database was properly dropped
             format_cmd = (
-                f'cmd /c "set DB2INSTANCE={tsm_user.upper()} && '
-                f'cd /d "{temp_dir}" && '
-                f'"{dsmserv_exe}" format '
+                f'cmd /c "set DB2INSTANCE={db2_instance} && '
+                f'set PATH={db2_bin_path};%PATH% && '
+                f'set DB2CLP=**$$** && '
+                f'cd /d "{instance_dir}" && '
+                f'"{dsmserv_exe}" -k {server_name} format '
                 f'dbdir={db_paths_str} '
-                f'activelogsize={act_log_size} '
+                f'activelogsize=16384 '
                 f'activelogdirectory="{act_log_dir}" '
                 f'archlogdirectory="{arch_log_dir}""'
             )
             
             self.log.info(f"Formatting database with command: {format_cmd}")
-            self.log.info("Note: Running from temp directory to avoid reading dsmserv.opt during format")
+            self.log.info(f"Note: Running from instance directory {instance_dir} as per IBM documentation")
             resp = self._run_cmd(format_cmd, "Formatting SP Server database", fail_ok=False)
             
             if not resp["status"]:

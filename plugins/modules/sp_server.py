@@ -231,7 +231,31 @@ class BA_SERVER_SETUP:
         if os_name.lower().strip() == "windows":
             import shutil
             
-            # Stop and remove DB2 services first
+            # First, query all DB2 services (not just DB2TSM1)
+            self.log.info("Detecting and removing all DB2 services...")
+            try:
+                query_cmd = 'sc query state= all | findstr /i "DB2"'
+                result = utils1.exec_run(context=self.ctx, cmd=query_cmd)
+                if result.get('rc') == 0 and result.get('stdout'):
+                    # Extract service names from output
+                    import re
+                    service_names = re.findall(r'SERVICE_NAME:\s+(\S+)', result.get('stdout', ''))
+                    self.log.info(f"Found DB2 services: {service_names}")
+                    
+                    # Stop and remove each DB2 service
+                    for service in service_names:
+                        try:
+                            stop_cmd = f'sc stop "{service}"'
+                            utils1.exec_run(context=self.ctx, cmd=stop_cmd)
+                            delete_cmd = f'sc delete "{service}"'
+                            utils1.exec_run(context=self.ctx, cmd=delete_cmd)
+                            self.log.info(f"Stopped and removed DB2 service: {service}")
+                        except Exception as e:
+                            self.log.debug(f"Could not remove service {service}: {e}")
+            except Exception as e:
+                self.log.debug(f"Could not query DB2 services: {e}")
+            
+            # Also try to remove known DB2TSM1 services explicitly
             db2_services = ["DB2GOVERNOR_DB2TSM1", "DB2LICD_DB2TSM1", "DB2MGMTSVC_DB2TSM1", "DB2REMOTECMD_DB2TSM1"]
             for service in db2_services:
                 try:
@@ -243,32 +267,39 @@ class BA_SERVER_SETUP:
                 except Exception as e:
                     self.log.debug(f"Could not remove service {service}: {e}")
             
-            # Remove DB2 registry keys
-            try:
-                reg_delete_cmd = r'reg delete "HKLM\SOFTWARE\IBM\DB2" /f'
-                utils1.exec_run(context=self.ctx, cmd=reg_delete_cmd)
-                self.log.info("Removed DB2 registry key: HKLM\\SOFTWARE\\IBM\\DB2")
-            except Exception as e:
-                self.log.debug(f"Could not remove DB2 registry key: {e}")
+            # Remove ALL IBM DB2 registry keys (more aggressive)
+            self.log.info("Removing all IBM DB2 registry keys...")
+            registry_keys = [
+                r'HKLM\SOFTWARE\IBM\DB2',
+                r'HKLM\SOFTWARE\WOW6432Node\IBM\DB2',
+                r'HKLM\SOFTWARE\IBM\SQLLIB',
+                r'HKLM\SOFTWARE\WOW6432Node\IBM\SQLLIB',
+                r'HKLM\SYSTEM\CurrentControlSet\Services\DB2'
+            ]
+            for reg_key in registry_keys:
+                try:
+                    reg_delete_cmd = f'reg delete "{reg_key}" /f'
+                    utils1.exec_run(context=self.ctx, cmd=reg_delete_cmd)
+                    self.log.info(f"Removed registry key: {reg_key}")
+                except Exception as e:
+                    self.log.debug(f"Could not remove registry key {reg_key}: {e}")
             
-            try:
-                reg_delete_cmd = r'reg delete "HKLM\SOFTWARE\WOW6432Node\IBM\DB2" /f'
-                utils1.exec_run(context=self.ctx, cmd=reg_delete_cmd)
-                self.log.info("Removed DB2 registry key: HKLM\\SOFTWARE\\WOW6432Node\\IBM\\DB2")
-            except Exception as e:
-                self.log.debug(f"Could not remove DB2 WOW6432Node registry key: {e}")
-            
-            # Remove DB2 directories
+            # Remove DB2 directories (more comprehensive)
+            self.log.info("Removing all DB2 directories...")
             db2_dirs = [
                 r"C:\ProgramData\IBM\DB2",
                 r"C:\Program Files\Tivoli\TSM\db2",
                 r"C:\Program Files\IBM\SQLLIB",
-                r"C:\Program Files (x86)\IBM\SQLLIB"
+                r"C:\Program Files (x86)\IBM\SQLLIB",
+                r"C:\Program Files\IBM\DB2",
+                r"C:\Program Files (x86)\IBM\DB2"
             ]
             for db2_dir in db2_dirs:
                 if os.path.exists(db2_dir):
                     try:
-                        shutil.rmtree(db2_dir)
+                        # Use PowerShell for more forceful removal
+                        ps_cmd = f'powershell -Command "Remove-Item -Path \'{db2_dir}\' -Recurse -Force -ErrorAction SilentlyContinue"'
+                        utils1.exec_run(context=self.ctx, cmd=ps_cmd)
                         self.log.info(f"Removed DB2 directory: {db2_dir}")
                     except Exception as e:
                         self.log.warning(f"Could not remove DB2 directory {db2_dir}: {e}")

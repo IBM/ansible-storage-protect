@@ -1,0 +1,71 @@
+---
+- name: Gather IBM Storage Protect BA Client Facts
+  hosts: ba_clients
+  gather_facts: yes
+
+  vars:
+    # BA Client connection details
+    storage_protect_servername: "TSM_SERVER"
+    storage_protect_nodename: "{{ ansible_hostname }}"
+    storage_protect_node_password: "{{ ba_client_password }}"
+
+  tasks:
+    - name: Gather comprehensive BA Client facts
+      ibm.storage_protect.ba_client_facts:
+        server_name: "{{ storage_protect_servername }}"
+        node_name: "{{ storage_protect_nodename }}"
+        password: "{{ storage_protect_node_password }}"
+        q_version: true
+        q_session: true
+        q_schedule: true
+        q_filespace: true
+        q_backup: false
+        q_archive: false
+        q_inclexcl: true
+        q_systeminfo: true
+        q_options: true
+      register: ba_client_facts
+
+    - name: Display all BA Client facts
+      ansible.builtin.debug:
+        var: ba_client_facts.results
+
+    - name: Display BA Client version
+      ansible.builtin.debug:
+        msg: "BA Client Version: {{ ba_client_facts.results.q_version.client_version }}"
+      when: ba_client_facts.results.q_version is defined
+
+    - name: Display BA Client session information
+      ansible.builtin.debug:
+        msg: |
+          Server: {{ ba_client_facts.results.q_session.server_name }}
+          Node: {{ ba_client_facts.results.q_session.node_name }}
+          Server Address: {{ ba_client_facts.results.q_session.server_address }}:{{ ba_client_facts.results.q_session.server_port }}
+      when: ba_client_facts.results.q_session is defined
+
+    - name: Display filespace information
+      ansible.builtin.debug:
+        msg: "Filespace: {{ item.filespace_name }} | Platform: {{ item.platform }} | Capacity: {{ item.capacity_mb }} MB"
+      loop: "{{ ba_client_facts.results.q_filespace }}"
+      when: ba_client_facts.results.q_filespace is defined
+
+    - name: Display schedule information
+      ansible.builtin.debug:
+        msg: "Schedule: {{ item.schedule_name }} | Action: {{ item.action }} | Next Run: {{ item.next_run }}"
+      loop: "{{ ba_client_facts.results.q_schedule }}"
+      when: ba_client_facts.results.q_schedule is defined
+
+    - name: Check if client version meets minimum requirement
+      ansible.builtin.assert:
+        that:
+          - ba_client_facts.results.q_version.client_version is version('8.1.0', '>=')
+        fail_msg: "BA Client version {{ ba_client_facts.results.q_version.client_version }} is below minimum required version 8.1.0"
+        success_msg: "BA Client version {{ ba_client_facts.results.q_version.client_version }} meets requirements"
+      when: ba_client_facts.results.q_version is defined
+
+    - name: Save BA Client facts to file
+      ansible.builtin.copy:
+        content: "{{ ba_client_facts.results | to_nice_json }}"
+        dest: "/tmp/ba_client_facts_{{ ansible_hostname }}.json"
+      when: ba_client_facts.results is defined
+
