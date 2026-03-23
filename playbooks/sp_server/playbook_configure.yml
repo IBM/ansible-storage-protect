@@ -9,7 +9,7 @@
 
   vars:
 
-    sp_python_exe: "python"
+    sp_python_exe: "python3"
 
     sp_source_module_dir: "{{ sp_source_module_dir | default('/path/to/repo/IBM/ansible-storage-protect/plugins') }}"
 

@@ -632,6 +632,7 @@ def svc_create(context: dict[str, Any], name: str, **kwargs) -> bool:
             - display_name: Display name for Windows (optional)
             - start_type: Windows start type - auto, demand, disabled (optional, default: demand)
             - type: Linux service type - simple, forking, oneshot, etc. (optional, default: simple)
+            - autostart: Enable autostart at boot (optional, default: False)
     
     Returns:
         bool: True if service was created successfully
@@ -641,7 +642,9 @@ def svc_create(context: dict[str, Any], name: str, **kwargs) -> bool:
         _warning(context, "execstart parameter is required for service %s", name)
         return False
     
-    if platform.system().lower() == "windows":
+    system = platform.system().lower()
+    
+    if system == "windows":
         # Build sc create command
         cmd = f'sc create "{name}" binPath= "{execstart}"'
         
@@ -662,6 +665,34 @@ def svc_create(context: dict[str, Any], name: str, **kwargs) -> bool:
         
         if not ok:
             _warning(context, "Failed to create service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    elif system == "aix":
+        # AIX: Create service using SRC (System Resource Controller)
+        # Build mkssys command to register the service
+        cmd = f'mkssys -s {name} -p {execstart} -u 0 -S -n 15 -f 9'
+        
+        r = exec_run(context, cmd)
+        ok = r["rc"] == 0
+        
+        if not ok:
+            _warning(context, "Failed to create AIX service %s (rc=%s)", name, r["rc"])
+            return False
+        
+        # Add to /etc/inittab for autostart if requested
+        autostart = kwargs.get("autostart", False)
+        if ok and autostart:
+            # Check if entry already exists in inittab
+            check_cmd = f'lsitab {name}'
+            check_r = exec_run(context, check_cmd)
+            
+            if check_r["rc"] != 0:
+                # Entry doesn't exist, add it
+                inittab_cmd = f'mkitab "{name}:23456789:respawn:/usr/bin/startsrc -s {name}"'
+                inittab_r = exec_run(context, inittab_cmd)
+                if inittab_r["rc"] != 0:
+                    _warning(context, "Failed to add AIX service %s to inittab (rc=%s)", name, inittab_r["rc"])
+        
         return ok
     
     # Linux: Create systemd unit file
@@ -705,7 +736,9 @@ def svc_delete(context: dict[str, Any], name: str) -> bool:
     Returns:
         bool: True if service was deleted successfully
     """
-    if platform.system().lower() == "windows":
+    system = platform.system().lower()
+    
+    if system == "windows":
         # Stop the service first (ignore errors if already stopped)
         exec_run(context, f'sc stop "{name}"')
         
@@ -714,6 +747,24 @@ def svc_delete(context: dict[str, Any], name: str) -> bool:
         ok = r["rc"] == 0
         if not ok:
             _warning(context, "Failed to delete service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    elif system == "aix":
+        # AIX: Stop service, remove from inittab, and delete from SRC
+        # Stop the service first (ignore errors if already stopped)
+        exec_run(context, f"stopsrc -s {name}")
+        
+        # Remove from inittab if present
+        check_cmd = f'lsitab {name}'
+        check_r = exec_run(context, check_cmd)
+        if check_r["rc"] == 0:
+            exec_run(context, f"rmitab {name}")
+        
+        # Delete the service from SRC
+        r = exec_run(context, f"rmssys -s {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to delete AIX service %s (rc=%s)", name, r["rc"])
         return ok
     
     # Linux: Stop and disable service first, then remove unit file
@@ -735,12 +786,22 @@ def svc_delete(context: dict[str, Any], name: str) -> bool:
         return False
 
 def svc_stop(context: dict[str, Any], name: str) -> bool:
-    if platform.system().lower() == "windows":
+    system = platform.system().lower()
+    
+    if system == "windows":
         r = exec_run(context, "sc stop " + str(name))
         ok = r["rc"] == 0
         if not ok:
             _warning(context, "Failed to stop service %s (rc=%s)", name, r["rc"])
         return ok
+    
+    elif system == "aix":
+        r = exec_run(context, f"stopsrc -s {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to stop AIX service %s (rc=%s)", name, r["rc"])
+        return ok
+    
     r = exec_run(context, "systemctl stop " + str(name))
     ok = r["rc"] == 0
     if not ok:
@@ -749,12 +810,22 @@ def svc_stop(context: dict[str, Any], name: str) -> bool:
 
 
 def svc_start(context: dict[str, Any], name: str) -> bool:
-    if platform.system().lower() == "windows":
+    system = platform.system().lower()
+    
+    if system == "windows":
         r = exec_run(context, "sc start " + str(name))
         ok = r["rc"] == 0
         if not ok:
             _warning(context, "Failed to start service %s (rc=%s)", name, r["rc"])
         return ok
+    
+    elif system == "aix":
+        r = exec_run(context, f"startsrc -s {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to start AIX service %s (rc=%s)", name, r["rc"])
+        return ok
+    
     r = exec_run(context, "systemctl start " + str(name))
     ok = r["rc"] == 0
     if not ok:
@@ -764,12 +835,30 @@ def svc_start(context: dict[str, Any], name: str) -> bool:
 
 def svc_enable(context: dict[str, Any], name: str) -> bool:
     """Enable service to start at boot"""
-    if platform.system().lower() == "windows":
+    system = platform.system().lower()
+    
+    if system == "windows":
         r = exec_run(context, f"sc config {name} start=auto")
         ok = r["rc"] == 0
         if not ok:
             _warning(context, "Failed to enable service %s (rc=%s)", name, r["rc"])
         return ok
+    
+    elif system == "aix":
+        # AIX: Add to inittab for autostart
+        # Check if entry already exists
+        check_cmd = f'lsitab {name}'
+        check_r = exec_run(context, check_cmd)
+        
+        if check_r["rc"] != 0:
+            # Entry doesn't exist, add it
+            r = exec_run(context, f'mkitab "{name}:23456789:respawn:/usr/bin/startsrc -s {name}"')
+            ok = r["rc"] == 0
+            if not ok:
+                _warning(context, "Failed to enable AIX service %s (rc=%s)", name, r["rc"])
+            return ok
+        return True  # Already enabled
+    
     r = exec_run(context, f"systemctl enable {name}")
     ok = r["rc"] == 0
     if not ok:
@@ -779,12 +868,29 @@ def svc_enable(context: dict[str, Any], name: str) -> bool:
 
 def svc_disable(context: dict[str, Any], name: str) -> bool:
     """Disable service from starting at boot"""
-    if platform.system().lower() == "windows":
+    system = platform.system().lower()
+    
+    if system == "windows":
         r = exec_run(context, f"sc config {name} start=disabled")
         ok = r["rc"] == 0
         if not ok:
             _warning(context, "Failed to disable service %s (rc=%s)", name, r["rc"])
         return ok
+    
+    elif system == "aix":
+        # AIX: Remove from inittab to disable autostart
+        check_cmd = f'lsitab {name}'
+        check_r = exec_run(context, check_cmd)
+        
+        if check_r["rc"] == 0:
+            # Entry exists, remove it
+            r = exec_run(context, f"rmitab {name}")
+            ok = r["rc"] == 0
+            if not ok:
+                _warning(context, "Failed to disable AIX service %s (rc=%s)", name, r["rc"])
+            return ok
+        return True  # Already disabled
+    
     r = exec_run(context, f"systemctl disable {name}")
     ok = r["rc"] == 0
     if not ok:
@@ -794,7 +900,9 @@ def svc_disable(context: dict[str, Any], name: str) -> bool:
 
 def svc_restart(context: dict[str, Any], name: str) -> bool:
     """Restart a service"""
-    if platform.system().lower() == "windows":
+    system = platform.system().lower()
+    
+    if system == "windows":
         # Windows doesn't have a direct restart, so stop then start
         exec_run(context, f"sc stop {name}")
         r = exec_run(context, f"sc start {name}")
@@ -802,6 +910,16 @@ def svc_restart(context: dict[str, Any], name: str) -> bool:
         if not ok:
             _warning(context, "Failed to restart service %s (rc=%s)", name, r["rc"])
         return ok
+    
+    elif system == "aix":
+        # AIX: Stop and start the service
+        exec_run(context, f"stopsrc -s {name}")
+        r = exec_run(context, f"startsrc -s {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to restart AIX service %s (rc=%s)", name, r["rc"])
+        return ok
+    
     r = exec_run(context, f"systemctl restart {name}")
     ok = r["rc"] == 0
     if not ok:
@@ -811,7 +929,9 @@ def svc_restart(context: dict[str, Any], name: str) -> bool:
 
 def svc_status(context: dict[str, Any], name: str) -> dict[str, Any]:
     """Get service status information"""
-    if platform.system().lower() == "windows":
+    system = platform.system().lower()
+    
+    if system == "windows":
         r = exec_run(context, f"sc query {name}")
         running = "RUNNING" in r.get("stdout", "")
         # Check if service is set to auto-start
@@ -823,6 +943,25 @@ def svc_status(context: dict[str, Any], name: str) -> dict[str, Any]:
             "status": "running" if running else "stopped",
             "raw": r
         }
+    
+    elif system == "aix":
+        # AIX: Check service status using lssrc
+        r = exec_run(context, f"lssrc -s {name}")
+        stdout = r.get("stdout", "")
+        running = "active" in stdout.lower()
+        
+        # Check if enabled (in inittab)
+        check_cmd = f'lsitab {name}'
+        check_r = exec_run(context, check_cmd)
+        enabled = check_r["rc"] == 0
+        
+        return {
+            "running": running,
+            "enabled": enabled,
+            "status": "running" if running else "stopped",
+            "raw": r
+        }
+    
     r = exec_run(context, f"systemctl status {name}")
     enabled_r = exec_run(context, f"systemctl is-enabled {name}")
     return {
