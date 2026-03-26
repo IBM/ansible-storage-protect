@@ -1,0 +1,35 @@
+---
+- name: Gather IBM Storage Protect BA Client Facts on Linux
+  hosts: linux_clients
+  gather_facts: yes
+
+  vars:
+    # BA Client connection details
+    storage_protect_servername: "{{ server_name }}"
+    storage_protect_nodename: "{{ ansible_hostname }}"
+    storage_protect_admin_user: "{{ admin }}"
+    storage_protect_admin_password: "{{ admin_password }}"
+
+  tasks:
+    - name: Gather all BA Client facts
+      ba_client_facts:
+        server_name: "{{ storage_protect_servername }}"
+        node_name: "{{ storage_protect_nodename }}"
+        user_id: "{{ storage_protect_admin_user }}"
+        password: "{{ storage_protect_admin_password }}"
+        q_version: true
+        q_session: true
+        q_schedule: true
+        q_filespace: true
+        q_systeminfo: true
+      register: ba_client_facts
+
+    - name: Display BA Client facts
+      debug:
+        var: ba_client_facts
+
+    - name: Save BA Client facts to file
+      copy:
+        content: "{{ ba_client_facts | to_nice_json }}"
+        dest: "/tmp/ba_client_facts_{{ ansible_hostname }}.json"
+      when: ba_client_facts is defined
