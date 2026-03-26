@@ -4,9 +4,31 @@
 import subprocess
 import platform
 import re
-from ansible.module_utils.basic import AnsibleModule, env_fallback
 
-from ..module_utils.dsmc_adapter import DsmcAdapter
+# Try to import Ansible (for Linux/normal use)
+HAS_ANSIBLE = False
+try:
+    from ansible.module_utils.basic import AnsibleModule, env_fallback
+    HAS_ANSIBLE = True
+except ImportError:
+    # On Windows or standalone execution, Ansible not available
+    AnsibleModule = None
+    env_fallback = None
+
+# Try relative import first (Ansible module structure)
+try:
+    from ..module_utils.dsmc_adapter import DsmcAdapter
+except ImportError:
+    # Fallback to direct import (Windows standalone)
+    try:
+        from dsmc_adapter import DsmcAdapter
+    except ImportError:
+        # Create a minimal DsmcAdapter if not available
+        class DsmcAdapter:
+            def __init__(self, server_name, node_name, password):
+                self.server_name = server_name
+                self.node_name = node_name
+                self.password = password
 
 
 class DsmcAdapterExtended(DsmcAdapter):
@@ -21,7 +43,7 @@ class DsmcAdapterExtended(DsmcAdapter):
         Args:
             command: The DSMC command to execute
             auto_exit: Whether to automatically exit after command execution
-            dataonly: Whether to use -dataonly=yes parameter
+            dataonly: Whether to use -dataonly=yes parameter (ignored for query session)
             exit_on_fail: Whether to fail on command error
             
         Returns:
@@ -35,45 +57,51 @@ class DsmcAdapterExtended(DsmcAdapter):
         else:
             dsmc_cmd = 'dsmc'
         
-        # Build full command
-        full_command = (
-            f'{dsmc_cmd} {command} '
-            f'-se={self.server_name} '
-            f'-virtualnode={self.node_name} '
-            f'-pass={self.password} '
-        )
+        # Get user credentials
+        user_id = getattr(self, 'user_id', self.node_name)
+        password = self.password
         
-        if dataonly:
-            full_command += '-dataonly=yes '
+        # Build full command - dsmc query session works WITHOUT parameters
+        # It reads configuration from dsm.opt/dsm.sys
+        full_command = f'{dsmc_cmd} {command}'
         
-        # Add comma-delimited for easier parsing
-        full_command += '-commadelimited'
-
         self.json_output['command'] = full_command
+        
+        # Prepare input for interactive prompts (user ID and password)
+        input_data = f"{user_id}\n{password}\n"
         
         try:
             result = subprocess.run(
-                full_command, 
-                shell=True, 
-                check=True, 
-                stdout=subprocess.PIPE, 
+                full_command,
+                shell=True,
+                input=input_data,
+                stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                timeout=30
             )
             raw_output = result.stdout
             self.json_output['output'] = raw_output
+            self.json_output['stderr'] = result.stderr
 
             if auto_exit:
                 self.json_output['changed'] = result.returncode == 0
                 self.exit_json(**self.json_output)
             
-            return result.returncode, raw_output, None
+            return result.returncode, raw_output, result.stderr
             
+        except subprocess.TimeoutExpired:
+            if exit_on_fail:
+                self.fail_json(
+                    msg="Command timed out after 30 seconds",
+                    **self.json_output
+                )
+            return 1, "", "Timeout"
         except subprocess.CalledProcessError as e:
             if exit_on_fail:
                 self.fail_json(
-                    msg=e.stderr, 
-                    rc=e.returncode, 
+                    msg=e.stderr,
+                    rc=e.returncode,
                     **self.json_output
                 )
             return e.returncode, None, e.stderr

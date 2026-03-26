@@ -154,8 +154,9 @@ def build_windows_like_module():
     parser = argparse.ArgumentParser(description="BA Client facts gathering (no-ansible mode)")
 
     parser.add_argument("--server-name", dest="server_name", required=True)
-    parser.add_argument("--node-name", dest="node_name", required=True)
-    parser.add_argument("--password", dest="password", required=True)
+    parser.add_argument("--node-name", dest="node_name", required=False)
+    parser.add_argument("--password", dest="password", required=False, help="Password (optional if using password file)")
+    parser.add_argument("--user-id", dest="user_id", required=False, help="Admin user ID (if different from node name)")
     parser.add_argument("--q-version", dest="q_version", action="store_true", default=False)
     parser.add_argument("--q-session", dest="q_session", action="store_true", default=False)
     parser.add_argument("--q-schedule", dest="q_schedule", action="store_true", default=False)
@@ -171,11 +172,16 @@ def build_windows_like_module():
     # We make an object that looks just enough like DsmcAdapter for the rest of the code.
     class WinModuleShim:
         def __init__(self, args_ns):
+            # Use user_id if provided, otherwise use node_name
+            effective_user = args_ns.user_id if args_ns.user_id else args_ns.node_name
+            effective_node = args_ns.node_name if args_ns.node_name else effective_user
+            
             # mimic .params from ansible
             self.params = {
                 "server_name": args_ns.server_name,
-                "node_name": args_ns.node_name,
+                "node_name": effective_node,
                 "password": args_ns.password,
+                "user_id": effective_user,
                 "q_version": args_ns.q_version,
                 "q_session": args_ns.q_session,
                 "q_schedule": args_ns.q_schedule,
@@ -187,7 +193,8 @@ def build_windows_like_module():
                 "q_options": args_ns.q_options,
             }
             self.server_name = args_ns.server_name
-            self.node_name = args_ns.node_name
+            self.node_name = effective_node
+            self.user_id = effective_user
             self.password = args_ns.password
             self.json_output = {'changed': False}
 
@@ -257,23 +264,57 @@ def main():
     if not HAS_ANSIBLE or platform.system().lower() == "windows":
         # Windows standalone mode - execute DSMC commands directly
         import subprocess
+        import os
+        
+        # Find dsmc.exe and its directory - check common locations
+        dsmc_paths = [
+            r"C:\Program Files\Tivoli\TSM\baclient",
+            r"C:\Program Files\Tivoli\TSM\client\ba\bin",
+            r"C:\Program Files (x86)\Tivoli\TSM\baclient",
+        ]
+        
+        dsmc_dir = None
+        dsmc_exe = None
+        for path in dsmc_paths:
+            exe_path = os.path.join(path, "dsmc.exe")
+            if os.path.exists(exe_path):
+                dsmc_dir = path
+                dsmc_exe = "dsmc.exe"  # Use relative name since we'll change directory
+                break
+        
+        if not dsmc_dir:
+            module.fail_json(msg="Could not find dsmc.exe. Please ensure IBM Storage Protect BA Client is installed.")
         
         for query in queries:
             if module.params.get(f'q_{query}'):
-                # Build DSMC command
+                # Build DSMC command - simple commands without parameters
+                # DSMC reads configuration from dsm.opt and uses password file
                 if query == 'version':
-                    cmd = f'dsmc query session -se={module.server_name} -virtualnode={module.node_name} -pass={module.password} -dataonly=yes -commadelimited'
+                    cmd = f'{dsmc_exe} query session'
+                elif query == 'session':
+                    cmd = f'{dsmc_exe} query session'
                 elif query == 'systeminfo':
-                    cmd = f'dsmc query systeminfo -se={module.server_name} -virtualnode={module.node_name} -pass={module.password} -dataonly=yes'
+                    cmd = f'{dsmc_exe} query systeminfo'
                 elif query == 'options':
-                    cmd = f'dsmc query options -se={module.server_name} -virtualnode={module.node_name} -pass={module.password} -dataonly=yes'
+                    cmd = f'{dsmc_exe} query options'
                 else:
-                    cmd = f'dsmc query {query} -se={module.server_name} -virtualnode={module.node_name} -pass={module.password} -dataonly=yes -commadelimited'
+                    cmd = f'{dsmc_exe} query {query}'
                 
                 try:
-                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=False)
-                    if result.returncode == 0:
-                        results[f'q_{query}'] = getattr(DSMCParser, f'parse_q_{query}')(result.stdout)
+                    # Run from DSMC directory so it can find dsm.opt
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=False, timeout=30, cwd=dsmc_dir)
+                    if result.returncode == 0 and result.stdout:
+                        # Parse the output
+                        parsed_data = getattr(DSMCParser, f'parse_q_{query}')(result.stdout)
+                        if parsed_data:
+                            results[query] = parsed_data
+                        else:
+                            module.log(f"Query {query} parsing returned None. Output: {result.stdout[:200]}")
+                    else:
+                        # Log error for debugging - include both stdout and stderr
+                        module.log(f"Query {query} failed: rc={result.returncode}, stdout={result.stdout[:200]}, stderr={result.stderr[:200]}")
+                except subprocess.TimeoutExpired:
+                    module.log(f"Query {query} timed out after 30 seconds")
                 except Exception as e:
                     module.log(f"Error executing query {query}: {str(e)}")
     else:
