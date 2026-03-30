@@ -1,0 +1,133 @@
+---
+# Petascale Data Protection Deployment Playbook
+# 
+# This playbook deploys a petascale-capable IBM Storage Protect Server
+# using the blueprint orchestration pattern with Large configuration.
+#
+# Reference:
+# - Design: docs/design/design-petascale.md
+# - User Guide: docs/guides/petascale-guide.md
+#
+# Usage:
+#   ansible-playbook petascale_deploy.yml \
+#     -i inventory/petascale.ini \
+#     -e @vars/petascale_vars.yml \
+#     -e @vars/petascale_secrets.yml \
+#     --vault-password-file vault_pass.txt
+
+- name: Deploy Petascale IBM Storage Protect Server
+  hosts: "{{ target_hosts | default('sp_servers') }}"
+  gather_facts: yes
+  become: yes
+  
+  vars:
+    # Petascale configuration defaults
+    server_size: "large"
+    storage_prepare_size: "large"
+    server_blueprint: true
+    
+  pre_tasks:
+    - name: Display deployment information
+      debug:
+        msg:
+          - "=== Petascale Data Protection Deployment ==="
+          - "Target Hosts: {{ ansible_play_hosts }}"
+          - "Server Size: {{ server_size }}"
+          - "Storage Size: {{ storage_prepare_size }}"
+          - "SP Server Version: {{ sp_server_version }}"
+          - "Expected Capacity: ~500+ TB"
+          - "Expected Sessions: 1000+"
+          - "Expected Clients: 1000+"
+    
+    - name: Validate petascale prerequisites
+      assert:
+        that:
+          - server_size == "large"
+          - storage_prepare_size == "large"
+          - sp_server_version is defined
+          - sp_server_bin_repo is defined
+          - ssl_password is defined
+          - server_password is defined
+          - admin_password is defined
+        fail_msg: "Missing required petascale configuration parameters"
+        success_msg: "Petascale prerequisites validated"
+    
+    - name: Check available disk space
+      shell: |
+        df -h | grep -E "Filesystem|/$" || true
+        lsblk -b -o NAME,SIZE,MOUNTPOINT,TYPE | grep -E "NAME|disk" || true
+      register: disk_info
+      changed_when: false
+    
+    - name: Display disk information
+      debug:
+        msg: "{{ disk_info.stdout_lines }}"
+  
+  tasks:
+    - name: Phase 1 - Install SP Server
+      import_playbook: sp_server_install_playbook.yml
+      tags:
+        - install
+        - phase1
+    
+    - name: Phase 2 - Prepare Petascale Storage (500+ TB)
+      import_playbook: storage_prepare_playbook.yml
+      tags:
+        - storage
+        - phase2
+    
+    - name: Phase 3 - Configure Petascale Server
+      import_playbook: sp_server_configure_playbook.yml
+      tags:
+        - configure
+        - phase3
+  
+  post_tasks:
+    - name: Verify petascale deployment
+      block:
+        - name: Check SP Server status
+          shell: |
+            systemctl status dsmserv@{{ tsm_user | default('tsminst1') }} | grep -E "Active|Loaded" || true
+          register: server_status
+          changed_when: false
+          ignore_errors: yes
+        
+        - name: Display server status
+          debug:
+            msg: "{{ server_status.stdout_lines }}"
+        
+        - name: Check storage mounts
+          shell: |
+            df -h | grep "{{ instance_dir | default('/tsminst1') }}" || true
+          register: storage_mounts
+          changed_when: false
+          ignore_errors: yes
+        
+        - name: Display storage mounts
+          debug:
+            msg: "{{ storage_mounts.stdout_lines }}"
+        
+        - name: Display deployment summary
+          debug:
+            msg:
+              - "=== Petascale Deployment Complete ==="
+              - "Server: {{ server_name | default('PETASCALE-SP01') }}"
+              - "Version: {{ sp_server_version }}"
+              - "Configuration: Large (Petascale)"
+              - "Expected Capacity: ~500+ TB"
+              - "Max Sessions: 1000+"
+              - ""
+              - "Next Steps:"
+              - "1. Verify server status: systemctl status dsmserv@tsminst1"
+              - "2. Check storage pools: dsmadmc 'query stgpool f=d'"
+              - "3. Review configuration: dsmadmc 'query status'"
+              - "4. Register clients and start backups"
+              - ""
+              - "Documentation:"
+              - "- Design: docs/design/design-petascale.md"
+              - "- User Guide: docs/guides/petascale-guide.md"
+      tags:
+        - verify
+        - post
+
+# Made with Bob

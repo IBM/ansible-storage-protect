@@ -1,30 +1,94 @@
 ---
-- name: Install BA Client
+# Integration tests for ibm.storage_protect.sp_baclient_install module
+# Validates install, upgrade, and uninstall flows for both Linux & Windows targets.
+
+- name: Install BA Client (Fresh Install)
   hosts: all
   become: true
-  roles:
-    - role: ibm.storage_protect.ba_client_install
-      vars:
-        ba_client_start_daemon: true
-        ba_client_state: "present"
-        ba_client_version: "8.1.23.0"
-        ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
+  tasks:
+    - name: Install BA Client for first time
+      ibm.storage_protect.sp_baclient_install:
+        state: present
+        version: "8.1.23.0"
+        package_source: "{{ lookup('env', 'BA_CLIENT_PKG_PATH') }}"
+        start_daemon: true
+      register: install_result
+
+    - name: Verify BA Client installed successfully
+      assert:
+        that:
+          - install_result.changed
+          - "'successfully' in install_result.msg or install_result.is_installation_successful"
+        fail_msg: "BA Client installation failed or did not report success"
+
+    - name: Run again to check idempotency (should make no changes)
+      ibm.storage_protect.sp_baclient_install:
+        state: present
+        version: "8.1.23.0"
+        package_source: "{{ lookup('env', 'BA_CLIENT_PKG_PATH') }}"
+      register: idempotent_result
+
+    - name: Assert module is idempotent
+      assert:
+        that:
+          - not idempotent_result.changed
+        fail_msg: "BA Client install not idempotent"
+
+# -------------------------------------------------------------------
 
 - name: Upgrade BA Client
   hosts: all
   become: true
-  roles:
-    - role: ibm.storage_protect.ba_client_install
-      vars:
-        ba_client_start_daemon: true
-        ba_client_state: "present"
-        ba_client_version: "8.1.24.0"
-        ba_client_tar_repo: "{{ lookup('env', 'BA_CLIENT_TAR_REPO_PATH') }}"
+  tasks:
+    - name: Perform upgrade to next version
+      ibm.storage_protect.sp_baclient_install:
+        state: upgrade
+        version: "8.1.24.0"
+        package_source: "{{ lookup('env', 'BA_CLIENT_PKG_PATH') }}"
+        start_daemon: true
+      register: upgrade_result
+
+    - name: Validate upgrade completed successfully
+      assert:
+        that:
+          - upgrade_result.changed
+          - "'upgraded' in upgrade_result.msg or upgrade_result.is_installation_successful"
+        fail_msg: "BA Client upgrade failed or message not returned properly"
+
+# -------------------------------------------------------------------
 
 - name: Uninstall BA Client
   hosts: all
   become: true
-  roles:
-    - role: ibm.storage_protect.ba_client_install
-      vars:
-        ba_client_state: "absent"
+  tasks:
+    - name: Remove BA Client
+      ibm.storage_protect.sp_baclient_install:
+        state: absent
+      register: uninstall_result
+
+    - name: Validate BA Client removed successfully
+      assert:
+        that:
+          - uninstall_result.changed
+          - "'uninstalled' in uninstall_result.msg or uninstall_result.ba_client_version is not defined"
+        fail_msg: "BA Client uninstall failed or still detected"
+
+# -------------------------------------------------------------------
+
+- name: Negative Test - Invalid Version Parameter
+  hosts: all
+  become: true
+  tasks:
+    - name: Try upgrade without version argument
+      ibm.storage_protect.sp_baclient_install:
+        state: upgrade
+        package_source: "{{ lookup('env', 'BA_CLIENT_PKG_PATH') }}"
+      register: invalid_upgrade
+      ignore_errors: true
+
+    - name: Validate module fails with proper error
+      assert:
+        that:
+          - invalid_upgrade.failed
+          - "'version parameter required' in invalid_upgrade.msg"
+        fail_msg: "Module did not properly fail when version missing for upgrade"

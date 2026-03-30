@@ -1,0 +1,254 @@
+---
+# Petascale Data Protection Monitoring Playbook
+#
+# This playbook performs comprehensive monitoring and health checks
+# for petascale IBM Storage Protect Server deployments.
+#
+# Reference:
+# - Design: docs/design/design-petascale.md
+# - User Guide: docs/guides/petascale-guide.md
+#
+# Usage:
+#   ansible-playbook petascale_monitor.yml \
+#     -i inventory/petascale.ini \
+#     -e @vars/petascale_secrets.yml \
+#     --vault-password-file vault_pass.txt
+
+- name: Monitor Petascale IBM Storage Protect Server
+  hosts: "{{ target_hosts | default('sp_servers') }}"
+  gather_facts: yes
+  become: yes
+  
+  vars:
+    admin_id: "{{ admin_name | default('admin') }}"
+    admin_pw: "{{ admin_password }}"
+    instance_user: "{{ tsm_user | default('tsminst1') }}"
+    
+  tasks:
+    - name: Display monitoring header
+      debug:
+        msg:
+          - "=== Petascale SP Server Health Check ==="
+          - "Date: {{ ansible_date_time.iso8601 }}"
+          - "Host: {{ inventory_hostname }}"
+      tags: always
+    
+    - name: Check SP Server service status
+      systemd:
+        name: "dsmserv@{{ instance_user }}"
+      register: service_status
+      ignore_errors: yes
+      tags:
+        - service
+        - health
+    
+    - name: Display service status
+      debug:
+        msg:
+          - "Service Status: {{ service_status.status.ActiveState | default('unknown') }}"
+          - "Uptime: {{ service_status.status.ExecMainStartTimestamp | default('N/A') }}"
+      tags:
+        - service
+        - health
+    
+    - name: Query server status
+      shell: |
+        su - {{ instance_user }} -c "dsmadmc -id={{ admin_id }} -pa='{{ admin_pw }}' -dataonly=yes 'query status'"
+      register: server_status
+      changed_when: false
+      ignore_errors: yes
+      no_log: true
+      tags:
+        - status
+        - health
+    
+    - name: Display server status
+      debug:
+        msg: "{{ server_status.stdout_lines }}"
+      when: server_status.rc == 0
+      tags:
+        - status
+        - health
+    
+    - name: Query database utilization
+      shell: |
+        su - {{ instance_user }} -c "dsmadmc -id={{ admin_id }} -pa='{{ admin_pw }}' -dataonly=yes 'query db f=d'" | \
+        grep -E "Database Name|Total Space|Used Space|Free Space|Pct"
+      register: db_util
+      changed_when: false
+      ignore_errors: yes
+      no_log: true
+      tags:
+        - database
+        - capacity
+    
+    - name: Display database utilization
+      debug:
+        msg:
+          - "=== Database Utilization ==="
+          - "{{ db_util.stdout_lines }}"
+      when: db_util.rc == 0
+      tags:
+        - database
+        - capacity
+    
+    - name: Query storage pool utilization
+      shell: |
+        su - {{ instance_user }} -c "dsmadmc -id={{ admin_id }} -pa='{{ admin_pw }}' -dataonly=yes 'query stgpool f=d'" | \
+        grep -E "Storage Pool Name|Estimated Capacity|Pct Util|Pct Migr|Pct Logical"
+      register: stgpool_util
+      changed_when: false
+      ignore_errors: yes
+      no_log: true
+      tags:
+        - storage
+        - capacity
+    
+    - name: Display storage pool utilization
+      debug:
+        msg:
+          - "=== Storage Pool Utilization ==="
+          - "{{ stgpool_util.stdout_lines }}"
+      when: stgpool_util.rc == 0
+      tags:
+        - storage
+        - capacity
+    
+    - name: Query active sessions
+      shell: |
+        su - {{ instance_user }} -c "dsmadmc -id={{ admin_id }} -pa='{{ admin_pw }}' -dataonly=yes 'query session'" | wc -l
+      register: active_sessions
+      changed_when: false
+      ignore_errors: yes
+      no_log: true
+      tags:
+        - sessions
+        - performance
+    
+    - name: Display active sessions
+      debug:
+        msg:
+          - "=== Active Sessions ==="
+          - "Current Sessions: {{ active_sessions.stdout | default('0') }}"
+          - "Max Sessions (Large): 1000+"
+      when: active_sessions.rc == 0
+      tags:
+        - sessions
+        - performance
+    
+    - name: Check filesystem utilization
+      shell: |
+        df -h | grep "{{ instance_dir | default('/tsminst1') }}"
+      register: fs_util
+      changed_when: false
+      ignore_errors: yes
+      tags:
+        - filesystem
+        - capacity
+    
+    - name: Display filesystem utilization
+      debug:
+        msg:
+          - "=== Filesystem Utilization ==="
+          - "{{ fs_util.stdout_lines }}"
+      when: fs_util.rc == 0
+      tags:
+        - filesystem
+        - capacity
+    
+    - name: Check LVM volumes
+      shell: |
+        lvdisplay | grep -E "LV Name|LV Size|Current LE|Allocated" || echo "No LVM volumes found"
+      register: lvm_info
+      changed_when: false
+      ignore_errors: yes
+      tags:
+        - lvm
+        - storage
+    
+    - name: Display LVM information
+      debug:
+        msg:
+          - "=== LVM Volumes ==="
+          - "{{ lvm_info.stdout_lines }}"
+      tags:
+        - lvm
+        - storage
+    
+    - name: Check for recent errors
+      shell: |
+        su - {{ instance_user }} -c "dsmadmc -id={{ admin_id }} -pa='{{ admin_pw }}' -dataonly=yes 'query actlog begind=today search=ANR msg=error'" | tail -20
+      register: recent_errors
+      changed_when: false
+      ignore_errors: yes
+      no_log: true
+      tags:
+        - errors
+        - health
+    
+    - name: Display recent errors
+      debug:
+        msg:
+          - "=== Recent Errors (Last 20) ==="
+          - "{{ recent_errors.stdout_lines }}"
+      when: recent_errors.rc == 0 and recent_errors.stdout_lines | length > 0
+      tags:
+        - errors
+        - health
+    
+    - name: Check database backup status
+      shell: |
+        su - {{ instance_user }} -c "dsmadmc -id={{ admin_id }} -pa='{{ admin_pw }}' -dataonly=yes 'query dbbackup'" | head -10
+      register: db_backup
+      changed_when: false
+      ignore_errors: yes
+      no_log: true
+      tags:
+        - backup
+        - health
+    
+    - name: Display database backup status
+      debug:
+        msg:
+          - "=== Database Backup Status ==="
+          - "{{ db_backup.stdout_lines }}"
+      when: db_backup.rc == 0
+      tags:
+        - backup
+        - health
+    
+    - name: Generate health summary
+      set_fact:
+        health_summary:
+          timestamp: "{{ ansible_date_time.iso8601 }}"
+          host: "{{ inventory_hostname }}"
+          service_status: "{{ service_status.status.ActiveState | default('unknown') }}"
+          active_sessions: "{{ active_sessions.stdout | default('0') }}"
+          database_ok: "{{ db_util.rc == 0 }}"
+          storage_ok: "{{ stgpool_util.rc == 0 }}"
+          errors_found: "{{ recent_errors.stdout_lines | length > 0 }}"
+      tags:
+        - summary
+    
+    - name: Display health summary
+      debug:
+        msg:
+          - "=== Petascale Health Summary ==="
+          - "Timestamp: {{ health_summary.timestamp }}"
+          - "Host: {{ health_summary.host }}"
+          - "Service Status: {{ health_summary.service_status }}"
+          - "Active Sessions: {{ health_summary.active_sessions }}"
+          - "Database Check: {{ 'PASS' if health_summary.database_ok else 'FAIL' }}"
+          - "Storage Check: {{ 'PASS' if health_summary.storage_ok else 'FAIL' }}"
+          - "Errors Found: {{ 'YES' if health_summary.errors_found else 'NO' }}"
+          - ""
+          - "Petascale Targets:"
+          - "- Storage Capacity: 500+ TB"
+          - "- Max Sessions: 1000+"
+          - "- Backup Throughput: 10-50 TB/hour"
+          - "- Database Size: 4+ TB"
+      tags:
+        - summary
+        - always
+
+# Made with Bob

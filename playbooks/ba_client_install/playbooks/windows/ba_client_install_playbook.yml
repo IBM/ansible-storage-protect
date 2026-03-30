@@ -1,0 +1,38 @@
+---
+- name: Install or Upgrade BA Client on Windows
+  hosts: windows
+  gather_facts: yes
+
+  vars_files:
+    - ../../vars/main.yml
+
+  tasks:
+    - name: Ensure temp directory exists
+      win_file:
+        path: "{{ windows_temp_dir }}\\ansible-storage-protect"
+        state: directory
+
+    - name: Copy Python module utils
+      win_copy:
+        src: /Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/module_utils/ba_client_utils.py
+        dest: "{{ windows_module_utils_dest }}"
+
+    - name: Install BA Client using Python module
+      win_command: >
+        python {{ windows_python_module }}
+        --state present
+        --ba-client-version {{ ba_client_version }}
+        --package-source {{ windows_package_source }}
+        --version {{ ba_client_version }}
+        --install-path "{{ windows_ba_install_dir }}"
+        --temp-dir {{ windows_temp_dir }}\\baClient
+      register: install_out
+
+    - name: Show install stdout
+      debug:
+        msg: "{{ install_out.stdout }}"
+
+    - name: Show install stderr
+      debug:
+        msg: "{{ install_out.stderr }}"
+

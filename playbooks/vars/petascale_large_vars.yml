@@ -1,0 +1,220 @@
+---
+# Petascale Data Protection - Large Configuration Variables
+#
+# This file contains configuration variables for deploying a
+# petascale-capable IBM Storage Protect Server (Large size).
+#
+# Reference:
+# - Design: docs/design/design-petascale.md
+# - User Guide: docs/guides/petascale-guide.md
+#
+# IMPORTANT: Sensitive values should be stored in a separate
+# vault-encrypted file (e.g., petascale_secrets.yml)
+#
+# Usage:
+#   ansible-playbook petascale_deploy.yml \
+#     -e @vars/petascale_large_vars.yml \
+#     -e @vars/petascale_secrets.yml \
+#     --vault-password-file vault_pass.txt
+
+# ============================================================================
+# Installation Parameters
+# ============================================================================
+
+# IBM Storage Protect Server version
+sp_server_version: "8.1.27.0"
+
+# Server state (present, absent, upgrade)
+sp_server_state: "present"
+
+# Path to SP Server binary repository
+sp_server_bin_repo: "/repo/sp_server"
+
+# ============================================================================
+# Blueprint Configuration
+# ============================================================================
+
+# Enable blueprint-based deployment
+server_blueprint: true
+
+# Server size configuration (xsmall, small, medium, large)
+# Large = Petascale configuration
+server_size: "large"
+
+# Storage preparation size (must match server_size)
+storage_prepare_size: "large"
+
+# ============================================================================
+# Server Configuration
+# ============================================================================
+
+# Server name (unique identifier)
+server_name: "PETASCALE-SP01"
+
+# Instance directory
+instance_dir: "/tsminst1"
+
+# Instance user and group
+tsm_user: "tsminst1"
+tsm_group: "tsmusers"
+tsm_user_uid: "10001"
+tsm_group_gid: "10001"
+
+# Admin user
+admin_name: "admin"
+
+# ============================================================================
+# Network Configuration
+# ============================================================================
+
+# Server ports
+secure_port: "1543"
+server_port: "1500"
+
+# ============================================================================
+# Storage Configuration (Large/Petascale)
+# ============================================================================
+
+# Storage size ranges (in GB) - automatically allocated by storage_prepare role
+# These are the default ranges for Large configuration:
+#
+# dsk_size:
+#   large:
+#     TSMdbspace: [4000, 4050]      # Database: 4-4.05 TB
+#     TSMalog: [550, 600]            # Active Log: 550-600 GB (LVM striped)
+#     TSMarchlog: [4000, 4050]       # Archive Log: 4-4.05 TB (LVM striped)
+#     TSMfile: [500000, 500050]      # File Storage: 500-500.05 TB
+#     TSMbkup: [16000, 16050]        # Backup: 16-16.05 TB
+
+# Active log size (in MB) for Large configuration
+sp_server_active_log_size: 524032  # 512 GB
+
+# ============================================================================
+# Performance Configuration (Petascale)
+# ============================================================================
+
+# Maximum concurrent sessions (Large configuration)
+# Default: 1000 (can be increased based on workload)
+# max_sessions: 1000
+
+# Backup schedule configuration
+backup_start_time: "22:00"
+backup_start_time_string: "10PM"
+backup_start_plus_ten: "10:00"
+backup_start_plus_fourteen: "14:00"
+
+# Database backup configuration
+maxcap: "500G"              # Maximum capacity per backup stream
+dbbk_streams: "8"           # Number of parallel backup streams
+dbbk_compress: "YES"        # Enable compression
+
+# ============================================================================
+# Policy Configuration
+# ============================================================================
+
+# Default policy domain
+policy_domain: "STANDARD"
+
+# Retention settings (days)
+retention_days: 30
+
+# ============================================================================
+# Offerings Configuration
+# ============================================================================
+
+# Components to install
+offerings:
+  server: true              # SP Server
+  stagent: true             # Storage Agent
+  devices: true             # Device drivers
+  oc: true                  # Operations Center
+  ossm: true                # Object Storage Support
+
+# ============================================================================
+# Petascale Performance Targets
+# ============================================================================
+
+# These are target metrics for Large/Petascale configuration:
+#
+# Storage Capacity: 500+ TB
+# Max Sessions: 1000+
+# Database Size: 4+ TB
+# Backup Throughput: 10-50 TB/hour
+# Restore Throughput: 5-25 TB/hour
+# Concurrent Clients: 1000+
+# Deduplication Ratio: 10:1 to 50:1 (workload dependent)
+
+# ============================================================================
+# Sensitive Variables (Reference vault file)
+# ============================================================================
+
+# These variables should be defined in a vault-encrypted file:
+# - ssl_password: SSL certificate password
+# - server_password: Server password
+# - admin_password: Admin user password
+# - dbbk_password: Database backup password
+# - tsm_user_password: TSM instance user password
+#
+# Example vault file (petascale_secrets.yml):
+# ---
+# vault_ssl_password: "YourSecureSSLPassword123!"
+# vault_server_password: "YourSecureServerPassword456!"
+# vault_admin_password: "YourSecureAdminPassword789!"
+# vault_dbbk_password: "YourSecureDBBackupPassword012!"
+# vault_tsm_user_password: "YourSecureTSMUserPassword345!"
+#
+# Then reference them here:
+ssl_password: "{{ vault_ssl_password }}"
+server_password: "{{ vault_server_password }}"
+admin_password: "{{ vault_admin_password }}"
+dbbk_password: "{{ vault_dbbk_password }}"
+tsm_user_password: "{{ vault_tsm_user_password }}"
+
+# ============================================================================
+# Target Hosts
+# ============================================================================
+
+# Target host group (defined in inventory)
+target_hosts: "sp_servers"
+
+# ============================================================================
+# Additional Notes
+# ============================================================================
+
+# Petascale Deployment Checklist:
+# 
+# 1. Prerequisites:
+#    - Ansible >= 2.15.0
+#    - Python 3.9+ on managed nodes
+#    - Sufficient disk space (500+ TB for Large config)
+#    - High-performance network (10+ GbE recommended)
+#    - Root/sudo access on target hosts
+#
+# 2. Storage Requirements:
+#    - Database: 4-4.05 TB (multiple disks)
+#    - Active Log: 550-600 GB (LVM striped)
+#    - Archive Log: 4-4.05 TB (LVM striped)
+#    - File Storage: 500-500.05 TB (multiple disks)
+#    - Backup: 16-16.05 TB (multiple disks)
+#
+# 3. Network Requirements:
+#    - 10 GbE minimum (25/40/100 GbE recommended)
+#    - Dedicated backup network (separate VLAN)
+#    - Jumbo frames (MTU 9000) for large transfers
+#    - QoS configuration for backup traffic
+#
+# 4. Performance Tuning:
+#    - Large active log (512 GB) reduces contention
+#    - LVM striping for log I/O performance
+#    - Multiple database volumes for parallelism
+#    - XFS filesystem for all storage
+#    - Deduplication enabled for space efficiency
+#
+# 5. Scaling Options:
+#    - Vertical: Add storage volumes, increase sessions, expand database
+#    - Horizontal: Deploy multiple servers, distribute clients, load balancing
+#
+# For detailed instructions, refer to:
+# - docs/guides/petascale-guide.md
+
+# Made with Bob
