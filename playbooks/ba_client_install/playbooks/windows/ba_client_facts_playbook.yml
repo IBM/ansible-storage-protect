@@ -1,0 +1,126 @@
+---
+- name: Gather IBM Storage Protect BA Client Facts on Windows
+  hosts: windows
+  gather_facts: yes
+
+  vars:
+    # BA Client connection details
+    storage_protect_servername: "TSM_SERVER"
+    storage_protect_nodename: "{{ ansible_hostname }}"
+    storage_protect_node_password: "{{ ba_client_password }}"
+    
+    # Windows-specific paths
+    windows_temp_dir: "C:\\temp"
+    windows_module_dir: "C:\\temp\\ansible-ba-client"
+    windows_python_module: "C:\\temp\\ansible-ba-client\\ba_client_facts_main.py"
+
+  tasks:
+    - name: Ensure module directory exists
+      win_file:
+        path: "{{ windows_module_dir }}"
+        state: directory
+
+    - name: Copy ba_client_facts MAIN module to Windows (renamed to avoid conflict)
+      win_copy:
+        src: "/Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/modules/ba_client_facts.py"
+        dest: "{{ windows_module_dir }}\\ba_client_facts_main.py"
+
+    - name: Copy ba_client_facts UTILITY module to Windows (keep original name)
+      win_copy:
+        src: "/Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/module_utils/ba_client_facts.py"
+        dest: "{{ windows_module_dir }}\\ba_client_facts.py"
+
+    - name: Copy dsmc_adapter utility module to Windows
+      win_copy:
+        src: "/Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/module_utils/dsmc_adapter.py"
+        dest: "{{ windows_module_dir }}\\dsmc_adapter.py"
+
+    - name: Gather BA Client facts using Python module (Version)
+      win_command: >
+        python {{ windows_python_module }}
+        --server-name {{ storage_protect_servername }}
+        --node-name {{ storage_protect_nodename }}
+        --user-id {{ storage_protect_admin_user }}
+        --password {{ storage_protect_admin_password }}
+        --q-version
+      register: ba_facts_version
+      ignore_errors: yes
+
+    - name: Display version facts
+      debug:
+        msg: "{{ ba_facts_version.stdout }}"
+      when: ba_facts_version.rc == 0
+
+    - name: Gather BA Client facts using Python module (Session)
+      win_command: >
+        python {{ windows_python_module }}
+        --server-name {{ storage_protect_servername }}
+        --node-name {{ storage_protect_nodename }}
+        --user-id {{ storage_protect_admin_user }}
+        --password {{ storage_protect_admin_password }}
+        --q-session
+      register: ba_facts_session
+      ignore_errors: yes
+
+    - name: Display session facts
+      debug:
+        msg: "{{ ba_facts_session.stdout }}"
+      when: ba_facts_session.rc == 0
+
+    - name: Gather BA Client facts using Python module (Filespace)
+      win_command: >
+        python {{ windows_python_module }}
+        --server-name {{ storage_protect_servername }}
+        --node-name {{ storage_protect_nodename }}
+        --user-id {{ storage_protect_admin_user }}
+        --password {{ storage_protect_admin_password }}
+        --q-filespace
+      register: ba_facts_filespace
+      ignore_errors: yes
+
+    - name: Display filespace facts
+      debug:
+        msg: "{{ ba_facts_filespace.stdout }}"
+      when: ba_facts_filespace.rc == 0
+
+    - name: Gather BA Client facts using Python module (Schedule)
+      win_command: >
+        python {{ windows_python_module }}
+        --server-name {{ storage_protect_servername }}
+        --node-name {{ storage_protect_nodename }}
+        --user-id {{ storage_protect_admin_user }}
+        --password {{ storage_protect_admin_password }}
+        --q-schedule
+      register: ba_facts_schedule
+      ignore_errors: yes
+
+    - name: Display schedule facts
+      debug:
+        msg: "{{ ba_facts_schedule.stdout }}"
+      when: ba_facts_schedule.rc == 0
+
+    - name: Gather comprehensive BA Client facts
+      win_command: >
+        python {{ windows_python_module }}
+        --server-name {{ storage_protect_servername }}
+        --node-name {{ storage_protect_nodename }}
+        --user-id {{ storage_protect_admin_user }}
+        --password {{ storage_protect_admin_password }}
+        --q-version
+        --q-session
+        --q-filespace
+        --q-schedule
+        --q-systeminfo
+      register: ba_facts_all
+      ignore_errors: yes
+
+    - name: Display all facts
+      debug:
+        msg: "{{ ba_facts_all.stdout }}"
+      when: ba_facts_all.rc == 0
+
+    - name: Save BA Client facts to file
+      win_copy:
+        content: "{{ ba_facts_all.stdout }}"
+        dest: "{{ windows_temp_dir }}\\ba_client_facts_{{ ansible_hostname }}.json"
+      when: ba_facts_all.rc == 0

@@ -6,7 +6,6 @@ import platform
 import re
 import shutil
 import subprocess
-from distutils.version import LooseVersion  # type: ignore
 
 IS_WINDOWS = platform.system().lower().startswith("win")
 
@@ -36,6 +35,54 @@ else:
             print(f"[Windows WARN] {msg}")
         def log(self, msg):
             print(f"[Windows LOG] {msg}")
+
+
+def compare_versions(version1, version2):
+    """
+    Compare two version strings.
+    Returns: 1 if version1 > version2, -1 if version1 < version2, 0 if equal
+    """
+    try:
+        # Split versions into parts and convert to integers where possible
+        def normalize(v):
+            parts = re.split(r'[.\-_]', str(v))
+            normalized = []
+            for part in parts:
+                try:
+                    normalized.append(int(part))
+                except ValueError:
+                    normalized.append(part)
+            return normalized
+        
+        v1_parts = normalize(version1)
+        v2_parts = normalize(version2)
+        
+        # Pad shorter version with zeros
+        max_len = max(len(v1_parts), len(v2_parts))
+        v1_parts.extend([0] * (max_len - len(v1_parts)))
+        v2_parts.extend([0] * (max_len - len(v2_parts)))
+        
+        # Compare part by part
+        for p1, p2 in zip(v1_parts, v2_parts):
+            if isinstance(p1, int) and isinstance(p2, int):
+                if p1 > p2:
+                    return 1
+                elif p1 < p2:
+                    return -1
+            else:
+                # String comparison
+                if str(p1) > str(p2):
+                    return 1
+                elif str(p1) < str(p2):
+                    return -1
+        return 0
+    except Exception:
+        # Fallback to string comparison
+        if str(version1) > str(version2):
+            return 1
+        elif str(version1) < str(version2):
+            return -1
+        return 0
 
 
 class BAClientHelper:
@@ -70,7 +117,7 @@ class BAClientHelper:
 
     def is_newer_version(self, target, current):
         try:
-            return LooseVersion(target) > LooseVersion(current)
+            return compare_versions(target, current) > 0
         except Exception:
             return target != current
 

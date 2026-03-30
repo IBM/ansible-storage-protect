@@ -9,7 +9,7 @@
 
   tasks:
     - name: Uninstall BA Client
-      sp_baclient_install:
+      ba_client_install:
         ba_client_version: "{{ ba_client_version }}"
         state: absent
         package_source: "{{ linux_package_source }}"

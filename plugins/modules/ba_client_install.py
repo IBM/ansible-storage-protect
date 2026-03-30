@@ -31,7 +31,7 @@ except ImportError:
 
 DOCUMENTATION = '''
 ---
-Module Name: ibm.storage_protect.sp_baclient_install
+Module Name: ibm.storage_protect.ba_client_install
 Author: Shalu Mishrax
 
 Short Description:
@@ -95,7 +95,7 @@ Notes:
 
 EXAMPLES = '''
   - name: Install or upgrade BA Client on Linux
-      sp_baclient_install:
+      ba_client_install:
         ba_client_version: "{{ ba_client_version }}"
         state: absent
         package_source: "{{ linux_package_source }}"
@@ -104,7 +104,7 @@ EXAMPLES = '''
 
   - name: Execute Python module on Windows
       win_command: >
-        python C:\\temp\\sp_baclient_install.py
+        python C:\\temp\\ba_client_install.py
         --state absent
         --ba-client-version {{ ba_client_version }}
         --package-source {{ windows_package_source }}
