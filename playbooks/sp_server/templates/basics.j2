@@ -1,0 +1,17 @@
+set actlogretention        180
+set summaryretention       180
+set eventretention         180
+set maxschedsessions       80
+setopt maxsessions         {{ max_sessions[server_size] }}
+setopt idletimeout         60
+setopt commtimeout         3600
+setopt expinterval         0
+setopt deduprequiresbackup no
+setopt numopenvolsallowed  20
+setopt allowreorgtable     "YES"
+setopt allowreorgindex     "YES"
+setopt reorgbegintime      12:00
+setopt reorgduration       6
+
+set servername {{ server_name }}
+set serverpassword {{ server_password }}
