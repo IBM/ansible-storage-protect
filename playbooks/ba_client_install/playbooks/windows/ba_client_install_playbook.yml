@@ -1,0 +1,59 @@
+---
+- name: Install or Upgrade BA Client on Windows
+  hosts: windows
+  gather_facts: yes
+
+  vars_files:
+    - ../../vars/main.yml
+
+  tasks:
+    - name: Ensure temp directory exists
+      win_file:
+        path: "{{ windows_temp_dir }}\\ansible-storage-protect"
+        state: directory
+
+    - name: Ensure plugins/modules directory exists
+      win_file:
+        path: "{{ windows_temp_dir }}\\ansible-storage-protect\\plugins\\modules"
+        state: directory
+
+    - name: Ensure plugins/module_utils directory exists
+      win_file:
+        path: "{{ windows_temp_dir }}\\ansible-storage-protect\\plugins\\module_utils"
+        state: directory
+
+    - name: Copy Python module
+      win_copy:
+        src: /Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/modules/ba_client_install.py
+        dest: "{{ windows_temp_dir }}\\ansible-storage-protect\\plugins\\modules\\ba_client_install.py"
+
+    - name: Copy Python module utils
+      win_copy:
+        src: /Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/module_utils/ba_client_utils.py
+        dest: "{{ windows_temp_dir }}\\ansible-storage-protect\\plugins\\module_utils\\ba_client_utils.py"
+
+    - name: Debug version variables
+      debug:
+        msg:
+          - "ba_client_version = {{ ba_client_version }}"
+          - "windows_package_source = {{ windows_package_source }}"
+
+    - name: Install BA Client using Python module
+      win_command: >
+        python {{ windows_temp_dir }}\\ansible-storage-protect\\plugins\\modules\\ba_client_install.py
+        --state present
+        --ba-client-version {{ ba_client_version }}
+        --package-source {{ windows_package_source }}
+        --version {{ ba_client_version }}
+        --install-path "{{ windows_ba_install_dir }}"
+        --temp-dir {{ windows_temp_dir }}\\baClient
+      register: install_out
+
+    - name: Show install stdout
+      debug:
+        msg: "{{ install_out.stdout }}"
+
+    - name: Show install stderr
+      debug:
+        msg: "{{ install_out.stderr }}"
+
