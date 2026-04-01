@@ -24,7 +24,6 @@ import sys
 import json
 import getpass
 import platform
-import re
 import shutil
 import shlex
 import subprocess
@@ -34,7 +33,6 @@ import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 from xml.dom import minidom
 import sp_server_constants
-import platform
 import socket
 
 
@@ -265,7 +263,7 @@ def get_system_info() -> Dict[str, Any]:
 # Filesystem helpers
 # -----------------------------
 
-def fs_disk_free_mb(path: Path, *, context: Optional[dict[str, Any]] = None) -> int:
+def fs_disk_free_mb(path: str | Path, *, context: Optional[dict[str, Any]] = None) -> int:
     p = Path(path)
     du = shutil.disk_usage(p)
     free_mb = int(du.free / (1024 * 1024))
@@ -274,7 +272,7 @@ def fs_disk_free_mb(path: Path, *, context: Optional[dict[str, Any]] = None) -> 
 
 
 def fs_require_free_mb(context: dict[str, Any], min_mb: int, path: str | Path) -> bool:
-    free = fs_disk_free_mb(path, context=context)
+    free = fs_disk_free_mb(path=path, context=context)
     _info(context, "Free space at %s: %s MB (required: %s MB)", path, free, min_mb)
     ok = free >= min_mb
     if not ok:
@@ -311,7 +309,7 @@ def fs_remove_tree(path: str | Path, *, context: Optional[dict[str, Any]] = None
         _error(context, "Failed to remove %s: %s", path, e)
         return False
 
-def extract_binary_package(src, dest, *, context: Optional[dict[str, Any]] = None):
+def extract_binary_package(src, dest, *, context: dict[str, Any]):
         """Extract tarball and ensure RPMs exist"""
 
         _info(context, "Extracting binary package for windows")
@@ -323,18 +321,18 @@ def extract_binary_package(src, dest, *, context: Optional[dict[str, Any]] = Non
             
             if (os.path.exists(dest)):
                 cmd=f"powershell -Command \"Remove-Item -Path '{dest}' -Recurse -Force -ErrorAction SilentlyContinue\""
-                exec_run(context=context, cmd=cmd)
+                exec_run(cmd=cmd, context=context)
 
             cmd=f"\"{src}\" -q -d \"{dest}\""
 
         else:
             if (str(dest).strip() != "" and str(dest).strip() != "/" and os.path.exists(dest)):
                 cmd = f"rm -rf {dest}"
-                exec_run(context=context, cmd=cmd)
+                exec_run(cmd=cmd, context=context)
 
             _info(context=context, msg="Providing execute permissions to binary: " + str(src))
             cmd = f"chmod +x {src}"
-            prem_resp = exec_run(context=context, cmd=cmd)
+            prem_resp = exec_run(cmd=cmd, context=context)
             _info(context=context, msg=prem_resp)
             cmd=f"yes | {src} -q -d {dest}"
 
@@ -346,13 +344,11 @@ def extract_binary_package(src, dest, *, context: Optional[dict[str, Any]] = Non
         
         try:
             _info(context=context, msg=cmd)
-            resp = exec_run(context=context, cmd=cmd)
+            resp = exec_run(cmd=cmd, context=context)
             return resp["rc"] == 0
         except Exception as e:
-            _error(e)
+            _error(context=context, msg=str(e))
             return False
-
-
 
 def update_package_offering(xml_filepath: str, install_data: Dict[str, Dict[str, Any]]) -> None:
 
@@ -394,8 +390,6 @@ def update_xml_value(file_path, xpath, new_value):
         tree.write(file_path, encoding='UTF-8', xml_declaration=True)
     else:
         print(f"No element found for XPath: {xpath}")
-
-
 
 # -----------------------------
 # File read/write helpers
@@ -478,8 +472,6 @@ def replace_text_in_file(
     except Exception:
         return False
 
-
-
 def file_write_text(path: str | Path, content: str, *, context: Optional[dict[str, Any]] = None) -> bool:
     try:
         p = Path(path)
@@ -494,19 +486,19 @@ def file_write_text(path: str | Path, content: str, *, context: Optional[dict[st
 # -----------------------
 # JSON ops
 # -----------------------
-def read_json_file(path: str | Path, default: str = None, *, context: Optional[dict[str, Any]] = None) -> dict:
+def read_json_file(path: str | Path, default: Optional[dict] = None, *, context: Optional[dict[str, Any]] = None) -> dict:
     p = Path(path)
     try:
         if not p.exists() or not p.is_file():
             _error(context=context, msg="File not found")
-            return None
+            return default if default is not None else {}
         else:
             raw_data = p.read_text(encoding="utf-8")
             _debug(context, "Read %d bytes from %s", len(raw_data), p)
             return json.loads(raw_data)
     except Exception as e:
         _error(context=context, msg="Error reading json file: " + str(e))
-        return default
+        return default if default is not None else {}
 
 # -----------------------------
 # Exec helpers
@@ -531,12 +523,13 @@ def exec_run(context: dict[str, Any], cmd: list[str] | str, *, shell: bool = Fal
         if type(cmd) is list:
             cmd = " ".join(cmd)
         shell = True  # Force shell=True for AIX
-    elif is_linux and type(cmd) is not list:
+    elif is_linux and isinstance(cmd, str):
         cmd = shlex.split(cmd)
     elif is_windows and type(cmd) is list:
         cmd = " ".join(cmd)
 
-    log.debug(cmd)
+    if log:
+        log.debug("Executing command: %s", cmd)
 
     # Handle running as different user
     if user is not None:
@@ -724,7 +717,6 @@ def svc_create(context: dict[str, Any], name: str, **kwargs) -> bool:
         _warning(context, "Failed to create service %s: %s", name, str(e))
         return False
 
-
 def svc_delete(context: dict[str, Any], name: str) -> bool:
     """
     Delete a service.
@@ -808,7 +800,6 @@ def svc_stop(context: dict[str, Any], name: str) -> bool:
         _warning(context, "Failed to stop service %s (rc=%s)", name, r["rc"])
     return ok
 
-
 def svc_start(context: dict[str, Any], name: str) -> bool:
     system = platform.system().lower()
     
@@ -831,7 +822,6 @@ def svc_start(context: dict[str, Any], name: str) -> bool:
     if not ok:
         _warning(context, "Failed to start service %s (rc=%s)", name, r["rc"])
     return ok
-
 
 def svc_enable(context: dict[str, Any], name: str) -> bool:
     """Enable service to start at boot"""
@@ -865,7 +855,6 @@ def svc_enable(context: dict[str, Any], name: str) -> bool:
         _warning(context, "Failed to enable service %s (rc=%s)", name, r["rc"])
     return ok
 
-
 def svc_disable(context: dict[str, Any], name: str) -> bool:
     """Disable service from starting at boot"""
     system = platform.system().lower()
@@ -897,7 +886,6 @@ def svc_disable(context: dict[str, Any], name: str) -> bool:
         _warning(context, "Failed to disable service %s (rc=%s)", name, r["rc"])
     return ok
 
-
 def svc_restart(context: dict[str, Any], name: str) -> bool:
     """Restart a service"""
     system = platform.system().lower()
@@ -925,7 +913,6 @@ def svc_restart(context: dict[str, Any], name: str) -> bool:
     if not ok:
         _warning(context, "Failed to restart service %s (rc=%s)", name, r["rc"])
     return ok
-
 
 def svc_status(context: dict[str, Any], name: str) -> dict[str, Any]:
     """Get service status information"""
@@ -1140,8 +1127,6 @@ def find_installer(
         },
     }
 
-
-
 def artifacts_find_best_old(
     oskey: str,
     base_dir: str | Path,
@@ -1197,7 +1182,7 @@ def artifacts_find_best_old(
             fm = version_finder.search(p.stem)
             ver = fm.group(1) if fm else p.stem  # last resort: whole stem
 
-        matches.append((p, ver))
+        matches.append((p, str(ver)))
         _debug(context, "artifact match: %s -> %s", p.name, ver)
 
     if not matches:
@@ -1218,7 +1203,6 @@ def artifacts_find_best_old(
     best = matches[-1]
     _info(context, "Artifact matched for %s -> %s (%s)", oskey, best[0].name, best[1])
     return best
-
 
 def append_line_to_file(path: str, line: str) -> bool:
     """
@@ -1241,8 +1225,7 @@ def append_line_to_file(path: str, line: str) -> bool:
         print(f"append_line_to_file failed: {e}")
         return False
 
-
-def ensure_dir(path: str, owner: str = None, group: str = None, mode: str = None, context=None) -> bool:
+def ensure_dir(path: str, owner: Optional[str] = None, group: Optional[str] = None, mode: Optional[str] = None, context: Optional[dict[str, Any]] = None) -> bool:
     """
     Wrapper around fs_ensure_dir that also applies owner/group/mode.
     Mirrors Ansible 'file: state=directory'.
@@ -1252,8 +1235,14 @@ def ensure_dir(path: str, owner: str = None, group: str = None, mode: str = None
         return False
 
     try:
-        if owner or group:
-            shutil.chown(path, user=owner, group=group)
+        if owner is not None or group is not None:
+            # shutil.chown requires actual values, not None
+            kwargs = {}
+            if owner is not None:
+                kwargs['user'] = owner
+            if group is not None:
+                kwargs['group'] = group
+            shutil.chown(path, **kwargs)
 
         if mode:
             os.chmod(path, int(mode, 8))
@@ -1279,11 +1268,16 @@ def remove_file(path: str) -> bool:
     except Exception:
         return False
     
-def copy_file(src: str, dest: str, owner=None, group=None, mode=None) -> bool:
+def copy_file(src: str, dest: str, owner: Optional[str] = None, group: Optional[str] = None, mode: Optional[str] = None) -> bool:
     try:
         shutil.copy2(src, dest)
-        if owner or group:
-            shutil.chown(dest, user=owner, group=group)
+        if owner is not None or group is not None:
+            kwargs = {}
+            if owner is not None:
+                kwargs['user'] = owner
+            if group is not None:
+                kwargs['group'] = group
+            shutil.chown(dest, **kwargs)
         if mode:
             os.chmod(dest, int(mode, 8))
         return True
@@ -1306,23 +1300,36 @@ def update_lines_in_file(path: str, lines: list[str]) -> bool:
     except Exception:
         return False
 
-def touch_file(path: str, owner=None, group=None) -> bool:
+def touch_file(path: str, owner: Optional[str] = None, group: Optional[str] = None) -> bool:
     try:
         Path(path).touch(exist_ok=True)
-        if owner or group:
-            shutil.chown(path, user=owner, group=group)
+        if owner is not None or group is not None:
+            kwargs = {}
+            if owner is not None:
+                kwargs['user'] = owner
+            if group is not None:
+                kwargs['group'] = group
+            shutil.chown(path, **kwargs)
         return True
     except Exception:
         return False
 
-def chown(context, path: str, owner: str = None, group: str = None) -> bool:
+def chown(context: Optional[dict[str, Any]], path: str, owner: Optional[str] = None, group: Optional[str] = None) -> bool:
     """
     Change owner/group of a file or directory.
     Mirrors Ansible's 'owner' and 'group' behavior.
     """
     try:
-        shutil.chown(path, user=owner, group=group)
-        _debug(context, f"chown applied: {path} -> {owner}:{group}")
+        if owner is not None or group is not None:
+            kwargs = {}
+            if owner is not None:
+                kwargs['user'] = owner
+            if group is not None:
+                kwargs['group'] = group
+            shutil.chown(path, **kwargs)
+            _debug(context, f"chown applied: {path} -> {owner}:{group}")
+        else:
+            _debug(context, f"chown skipped (no owner/group specified): {path}")
         return True
     except Exception as e:
         _error(context, f"Failed chown on {path}: {e}")
@@ -1428,7 +1435,7 @@ def ba_is_installed(context: dict[str, Any], oskey: Optional[str] = None, instal
 
     imcl_path = None
 
-    if oskey.lower() == "windows":
+    if oskey and oskey.lower() == "windows":
         imcl_path = context["ansible_vars_data"].get("install_location_im", "/opt/IBM/InstallationManager")
         
         if imcl_path is None:
@@ -1437,11 +1444,14 @@ def ba_is_installed(context: dict[str, Any], oskey: Optional[str] = None, instal
     else:
         imcl_path = context["ansible_vars_data"].get("install_location_im", "/opt/IBM/InstallationManager")
     
-    IMCL_BIN_PATH = os.path.join(imcl_path, "eclipse", "tools", "imcl")
+    if imcl_path:
+        IMCL_BIN_PATH = os.path.join(imcl_path, "eclipse", "tools", "imcl")
+    else:
+        IMCL_BIN_PATH = None
     
     _debug(context=context, msg="IMCL Bin Path: {}".format(IMCL_BIN_PATH))
 
-    if (not fs_exists(path=IMCL_BIN_PATH, context=context)):
+    if not IMCL_BIN_PATH or not fs_exists(path=IMCL_BIN_PATH, context=context):
         _msg = "IMCL not found. Considering not installed"
         _info(context=context, msg=_msg)
         ret_data["status"] = False
@@ -1449,7 +1459,7 @@ def ba_is_installed(context: dict[str, Any], oskey: Optional[str] = None, instal
         return ret_data
 
 
-    cmd = IMCL_BIN_PATH + " listInstalledPackages"
+    cmd = str(IMCL_BIN_PATH) + " listInstalledPackages"
     resp = exec_run(context=context, cmd=cmd)
 
     _info(context=context, msg=resp)
@@ -1472,7 +1482,7 @@ def ba_is_installed(context: dict[str, Any], oskey: Optional[str] = None, instal
                     # Note: not needed as upgrade is upgrade
                     ret_data["status"] = True
 
-                    package_version = str(line).replace(package_id + "_", "")
+                    package_version = str(line).replace(str(package_id) + "_", "")
 
                     _msg = "IMCL identified package {pn} with version {pv} installed".format(pn=package_id, pv=package_version)
                     _info(context=context, msg=_msg)
@@ -1505,8 +1515,6 @@ def find_ba_server_password(context: dict[str, Any], args):
         return args.serverpassword
     else:
         return None
-
-
 
 
 class AgentInputXMLBuilder:

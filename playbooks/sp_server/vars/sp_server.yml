@@ -4,14 +4,13 @@ sp_pwd: "Ibmibm*2025#13579"
 profile_id: "IBM Storage Protect"
 
 install_location_tsm: "/opt/tivoli/tsm"
-#install_location_tsm: "C:/Program Files/Tivoli/tsm"
 
 # Installation Manager paths (OS-specific)
 install_location_im_linux: "/opt/IBM/InstallationManager"
 install_location_im_windows: "C:\\Program Files\\IBM\\Installation Manager"
 
-#sp_server_install_dest_win: "C:/temp/baserver" 
-sp_server_install_dest_lin: "/opt/spserver/"  # TODO: change to /opt/sp_server_binary/ after you testing
+sp_server_install_dest_win: "C:/temp/baserver" 
+sp_server_install_dest_lin: "/tmp/baserver"  # TODO: change to /opt/sp_server_binary/ after you testing
 # sp_server_temp_dest --> this is not used as we handle it interenally like /artifact as subfolder
 # repository_location --> this is not used as we handle it internally
 # sp_server_bin_repo --> this is not used as we look for binary in current dir only under ./artifacts location
@@ -24,11 +23,11 @@ license_option: "A" # TODO: check this variable how used
 
 # Windows
 # sp_server_version: "8.1.27.100"
-# sp_server_version: "8.2.0.000"
+sp_server_version: "8.2.1.000"
 
 # Linux
 # sp_server_version: "8.1.7.000"
-sp_server_version: "8.2.1.000"
+# sp_server_version: "8.2.0.000"
 # sp_server_version
 
 offerings:
@@ -62,7 +61,7 @@ tsm_group: "tsmusers"
 tsm_group_gid: "10001"
 tsm_user: "tsminst1"
 tsm_user_uid: "10001"
-tsm_user_password: "Tsmuser123456789"
+tsm_user_password: "Tsmuser@@123456789"
 
 directories:
   - TSMdbspace01
@@ -119,13 +118,13 @@ max_sessions:
   medium: 500
   large: 1000
 
-db2_instance_path: "C:/Program Files/Tivoli/tsm/db2/instance" # TODO: for clean config
+db2_instance_path: "/opt/tivoli/tsm/db2/instance" # TODO: for clean config
 # imcl_path --> this is not used as the path is contructed from install_location_im
 
 backup_start_time: "12:00"
 backup_start_time_string: "12PM"
 backup_start_plus_fourteen: "14:00"
-maxcap: "10G"
+maxcap: "100G"
 dbbk_streams: "4"
 dbbk_compress: "YES"
 dbbk_password: "YourDBkPassword@@123456789"
@@ -135,4 +134,3 @@ server_password: "IBMSPServer@@123456789"
 server_blueprint: false
 admin_name: "tsmuser1"
 admin_password: "tsmuser1@@123456789"
-sp_server_active_log_size: "2048"
