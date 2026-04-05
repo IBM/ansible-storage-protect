@@ -1,0 +1,268 @@
+---
+- name: Halt IBM Storage Protect server
+  hosts: server3
+  become: yes
+  vars:
+    tsm_server_name: "TSMDBMGR_TSMINST1"
+    tsm_admin_id: "tsmuser1"
+    tsm_admin_pass: "tsmuser1@@123456789"
+  tasks:
+    - name: Halt IBM Storage Protect server
+      command: >
+        dsmadmc -servername={{ tsm_server_name }} -id={{ tsm_admin_id }} -pass={{ tsm_admin_pass }} halt
+      register: halt_result
+      changed_when: true
+      failed_when: halt_result.rc != 0
+
+- name: TSM Certificate Management
+  hosts: server1
+  become: yes
+  vars:
+    gsk8_bin_path: "/usr/local/ibm/gsk8_64/bin/gsk8capicmd_64"
+    cert_db_path: "/tsminst1/cert.kdb"
+    tsm_base_path: "/cba/components/tsm/8.2.00.000/tsm/tools/gskit"
+    temp_dir: "/tmp/{{ ansible_date_time.epoch }}-0"
+    old_cert_label: "TSM Server SelfSigned SHA Key"
+    root_ca_label: "SP Root CA Cert"
+    inter_ca_label: "SP Intermediate CA Cert"
+    new_cert_label: "BONJOVI-VM166 SP CA Signed Cert"
+    root_ca_file: "{{ tsm_base_path }}/root_ca.crt"
+    inter_ca_file: "{{ tsm_base_path }}/inter_ca.crt"
+    ca_p12_path: "{{ tsm_base_path }}/ca.p12"
+    ca_password: "sp3ctrumpr0tect"
+    cert_expire_days: 7300
+    hostname_fqdn: "bonjovi-vm166.storage.tucson.ibm.com"
+    hostname_short: "bonjovi-vm166"
+    domain_full: "tucson.ibm.com"
+    server_ip: "9.11.66.234"
+  tasks:
+    - name: Create temporary directory for certificate operations
+      file:
+        path: "{{ temp_dir }}"
+        state: directory
+        mode: '0755'
+    
+    - name: Delete old self-signed certificate
+      command: "{{ gsk8_bin_path }} -cert -delete -db {{ cert_db_path }} -stashed -label '{{ old_cert_label }}'"
+      ignore_errors: yes
+    
+    - name: Add root CA certificate to keystore
+      command: "{{ gsk8_bin_path }} -cert -add -db {{ cert_db_path }} -stashed -file {{ root_ca_file }} -label '{{ root_ca_label }}' -format ascii -trust enable"
+    
+    - name: Add intermediate CA certificate to keystore
+      command: "{{ gsk8_bin_path }} -cert -add -db {{ cert_db_path }} -stashed -file {{ inter_ca_file }} -label '{{ inter_ca_label }}' -format ascii -trust enable"
+    
+    - name: Create certificate signing request
+      command: "{{ gsk8_bin_path }} -certreq -create -db {{ cert_db_path }} -stashed -label '{{ new_cert_label }}' -sigalg sha256 -size 2048 -ku digitalSignature,keyEncipherment,keyAgreement -eku clientAuth,serverAuth -dn CN={{ hostname_fqdn }},OU='Spectrum Protect',O=IBM -san_dnsname {{ hostname_fqdn }},{{ hostname_short }}.{{ domain_full }},{{ hostname_short }}.ibm.com,{{ hostname_short }}.com,{{ hostname_short }} -san_ipaddr {{ server_ip }} -file {{ temp_dir }}/cert_request.csr"
+    
+    - name: Sign the certificate request
+      command: "{{ gsk8_bin_path }} -cert -sign -db {{ ca_p12_path }} -pw {{ ca_password }} -file {{ temp_dir }}/cert_request.csr -label '{{ inter_ca_label }}' -target {{ temp_dir }}/cert_signed.csr -sigalg sha256 -expire {{ cert_expire_days }} -preserve"
+    
+    - name: Receive signed certificate into keystore
+      command: "{{ gsk8_bin_path }} -cert -receive -db {{ cert_db_path }} -stashed -file {{ temp_dir }}/cert_signed.csr -default_cert yes"
+    
+    - name: Set new certificate as default
+      command: "{{ gsk8_bin_path }} -cert -setdefault -db {{ cert_db_path }} -stashed -label '{{ new_cert_label }}'"
+    
+    - name: Clean up temporary directory
+      file:
+        path: "{{ temp_dir }}"
+        state: absent
+
+- name: Certificate distribution workflow
+  hosts: server1
+  become: yes
+  vars:
+    run_id: "{{ ansible_date_time.epoch }}_{{ 99999999 | random | to_uuid }}"
+    temp_run_dir: "/tmp/run_{{ run_id }}"
+    cert_source_path: "/tsminst1/cert256.arm"
+    cert_dest_path: "/opt/tivoli/tsm/client/ba/bin"
+  tasks:
+    - name: Create temporary directory on Ansible controller
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: cert_transfer
+      register: temp_run_dir
+      
+    - name: Debug - Show temp directory path
+      ansible.builtin.debug:
+        var: temp_run_dir.path
+      
+    - name: Step 1 - Copy certificate from server1 to Ansible controller
+      ansible.builtin.fetch:
+        src: /tsminst1/cert256.arm
+        dest: "{{ temp_run_dir.path }}/cert256.arm"
+        flat: yes
+      delegate_to: server1
+      
+    - name: Step 2 - Copy certificate from Ansible controller to server3
+      ansible.builtin.copy:
+        src: "{{ temp_run_dir.path }}/cert256.arm"
+        dest: "{{ cert_dest_path }}/cert256.arm"
+        mode: '0644'
+        owner: root
+        group: root
+      delegate_to: server3
+      
+    - name: Cleanup - Remove temporary directory from Ansible controller
+      ansible.builtin.file:
+        path: "{{ temp_run_dir.path }}"
+        state: absent
+
+- name: Import or Add certificate to TSM client
+  hosts: server3
+  become: yes
+  vars:
+    tsm_server_name: "TSMDBMGR_TSMINST1"
+    tsm_client_bin: "/opt/tivoli/tsm/client/ba/bin"
+    cert_file_path: "{{ tsm_client_bin }}/cert256.arm"
+  tasks:
+    - name: Verify certificate file exists
+      stat:
+        path: "{{ cert_file_path }}"
+      register: cert_file_stat
+      failed_when: not cert_file_stat.stat.exists
+    
+    - name: Remove existing dsmcert files
+      shell: "cd {{ tsm_client_bin }} && rm -rf dsmcert.*"
+      args:
+        warn: false
+    
+    - name: Add certificate to TSM client configuration
+      command: "dsmcert -add -server {{ tsm_server_name }} -file {{ cert_file_path }}"
+      register: dsmcert_result
+    
+    - name: Display command output
+      debug:
+        var: dsmcert_result.stdout_lines
+
+- name: Start or Restart TSM service
+  hosts: server1
+  become: yes
+  vars:
+    tsm_service: "tsminst1.service"
+    tsm_process: "dsmserv"
+    tsm_port: 1500
+    restart_timeout: 30
+    port_ready_timeout: 180
+  tasks:
+    - name: Check service status before restart
+      command: systemctl status {{ tsm_service }}
+      register: service_status_before
+      failed_when: false
+      changed_when: false
+    
+    - name: Display service status before restart
+      debug:
+        var: service_status_before.stdout_lines
+    
+    - name: Check TSM process before restart
+      shell: ps -ef | grep -i {{ tsm_process }} | grep -v grep
+      register: process_status_before
+      failed_when: false
+      changed_when: false
+    
+    - name: Display process status before restart
+      debug:
+        var: process_status_before.stdout_lines
+    
+    - name: Restart TSM service
+      systemd:
+        name: "{{ tsm_service }}"
+        state: restarted
+      async: "{{ restart_timeout }}"
+      poll: 5
+      register: service_restart
+      failed_when: false
+    
+    - name: Wait a moment for service to initialize
+      pause:
+        seconds: 5
+    
+    - name: Check TSM process after restart
+      shell: ps -ef | grep -i {{ tsm_process }} | grep -v grep
+      register: process_status_after
+      failed_when: false
+      changed_when: false
+      retries: 6
+      delay: 5
+      until: process_status_after.rc == 0
+    
+    - name: Display process status after restart
+      debug:
+        var: process_status_after.stdout_lines
+    
+    - name: Check which process is using port {{ tsm_port }}
+      shell: lsof -i :{{ tsm_port }} -n -P | grep LISTEN || netstat -tlnp | grep :{{ tsm_port }}
+      register: port_check
+      failed_when: false
+      changed_when: false
+    
+    - name: Display port usage information
+      debug:
+        var: port_check.stdout_lines
+    
+    - name: Wait for port {{ tsm_port }} to be ready
+      wait_for:
+        port: "{{ tsm_port }}"
+        host: localhost
+        state: started
+        timeout: "{{ port_ready_timeout }}"
+        delay: 5
+      register: port_ready
+    
+    - name: Verify service is active
+      command: systemctl is-active {{ tsm_service }}
+      register: service_active
+      failed_when: service_active.stdout != 'active'
+      changed_when: false
+    
+    - name: Display final service status
+      debug:
+        msg: "TSM service {{ tsm_service }} is running and port {{ tsm_port }} is ready"
+
+- name: Configure TSM admin and password policy
+  hosts: server3
+  become: yes
+  vars:
+    tsm_server_name: "TSMDBMGR_TSMINST1"
+    tsm_admin_id: "tsmuser1"
+    tsm_admin_pass: "tsmuser1@@123456789"
+    tsm_admin_name: "admin"
+    tsm_admin_password: "password"
+    tsm_min_password_length: 8
+  tasks:
+    - name: Wait until TSM accepts admin commands
+      shell: >
+        dsmc query session
+      register: tsm_ready
+      retries: 60
+      delay: 10
+      until: tsm_ready.rc == 0
+    
+    - name: Set minimum password length
+      shell: >
+        dsmadmc -servername={{ tsm_server_name }}
+        -id={{ tsm_admin_id }}
+        -pass={{ tsm_admin_pass }}
+        "SET MINPWLENGTH {{ tsm_min_password_length }}"
+      register: setminpw
+      failed_when: setminpw.rc not in [0,10]
+    
+    - name: Register admin
+      shell: >
+        dsmadmc -servername={{ tsm_server_name }}
+        -id={{ tsm_admin_id }}
+        -pass={{ tsm_admin_pass }}
+        "REGISTER ADMIN {{ tsm_admin_name }} {{ tsm_admin_password }}"
+      register: regadmin
+      failed_when: regadmin.rc not in [0,10]
+    
+    - name: Grant system authority
+      shell: >
+        dsmadmc -servername={{ tsm_server_name }}
+        -id={{ tsm_admin_id }}
+        -pass={{ tsm_admin_pass }}
+        "GRANT AUTHORITY {{ tsm_admin_name }} classes=system"
+      register: grantauth
+      failed_when: grantauth.rc not in [0,10]
