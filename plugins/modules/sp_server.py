@@ -123,6 +123,137 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'module_
 import module_utils.sp_server_utils as utils1
 import module_utils.sp_server_constants as sp_server_constants
 
+DOCUMENTATION = """
+---
+Module: sp_server
+Author: Nikhil Tanni
+
+short_description: Install, upgrade, uninstall, and rollback IBM Storage Protect Server
+
+description:
+  - This module manages the lifecycle of the IBM Storage Protect (SP) Server software.
+  - It supports installation, upgrade, uninstallation, and rollback of the SP Server
+    binaries on supported platforms.
+  - The module is responsible only for server software lifecycle operations and does
+    not perform server configuration, database initialization, or runtime tuning.
+  - Configuration and post-install setup are handled separately by the C(sp_server_configure)
+    module.
+
+options:
+  action:
+    description:
+      - Specifies the lifecycle action to perform on the IBM Storage Protect Server.
+    required: true
+    type: str
+    choices:
+      - install
+      - upgrade
+      - uninstall
+
+  install_source:
+    description:
+      - Path to the IBM Storage Protect Server installation media or extracted installer.
+      - Required when C(action=install) or C(action=upgrade).
+    required: false
+    type: str
+
+  install_dir:
+    description:
+      - Target directory where the IBM Storage Protect Server binaries should be installed.
+      - If not provided, the platform default installation path is used.
+    required: false
+    type: str
+
+  version:
+    description:
+      - Target version of IBM Storage Protect Server to install or upgrade to.
+      - Used for validation and idempotency checks.
+    required: false
+    type: str
+
+  rollback_version:
+    description:
+      - Version of IBM Storage Protect Server to roll back to.
+      - Used only when C(action=rollback).
+    required: false
+    type: str
+
+  force:
+    description:
+      - Forces the requested operation even if pre-checks detect existing installations
+        or version mismatches.
+      - Use with caution, especially during uninstall or rollback.
+    required: false
+    type: bool
+    default: false
+
+  log_level:
+    description:
+      - Logging verbosity for the module execution.
+    required: false
+    type: str
+    default: "INFO"
+
+  log_file:
+    description:
+      - Full path to a file where detailed execution logs should be written.
+    required: false
+    type: str
+
+author:
+  - IBM Automation Engineering <ibm-automation@lists.ibm.com>
+
+notes:
+  - This module manages only the server software lifecycle and does not configure
+    users, directories, DB2 instances, databases, services, or macros.
+  - The module is designed to be idempotent where possible by detecting existing
+    installations and installed versions.
+  - Rollback support depends on the availability of rollback media or previously
+    installed versions on the target system.
+  - Platform-specific installers and commands are handled internally for Windows
+    and Linux systems.
+
+seealso:
+  - module: sp_server_configure
+  - module: sp_baclient_install
+  - https://github.com/IBM/ansible-storage-protect
+  - IBM Storage Protect documentation
+
+"""
+
+EXAMPLES = """
+    - name: Run SP orchestration (Linux)
+        ansible.builtin.command: >
+            {{ sp_python_exe }} "{{ sp_server_install_dest_lin }}/sp_server.py"
+            --mode={{ sp_mode }}
+            --serverpassword="{{ sp_pwd }}"
+            --componentname="server"
+            {% if sp_mode == "install" or sp_mode == "upgrade" %}
+            --newversion={{ sp_server_version }}
+            {% endif %}
+            --log-level={{ sp_log_level }}
+        args:
+            chdir: "{{ sp_server_install_dest_lin }}"
+        register: sp_linux_output
+        no_log: false
+
+    - name: Run SP orchestration (Windows)
+        ansible.windows.win_command: >
+            {{ sp_python_exe }} "{{ sp_server_install_dest_win }}\\sp_server.py"
+            --mode={{ sp_mode }}
+            --serverpassword="{{ sp_pwd }}"
+            --componentname="server"
+            {% if sp_mode == "install" or sp_mode == "upgrade" %}
+            --newversion={{ sp_server_version }}
+            {% endif %}
+            --log-level={{ sp_log_level }}
+        args:
+            chdir: "{{ sp_server_install_dest_win }}"
+        register: sp_windows_output
+        no_log: false
+
+"""
+
 ARTIFACT_PATTERNS = {
     # Example: 1.2.1.0-ORGI-SPOC-WindowsX64.exe
     "windows": r"^\d+\.\d+\.\d+\.\d+-IBM-SPOC-WindowsX64\.exe$",
@@ -137,6 +268,7 @@ ARTIFACT_PATTERNS = {
     "aix": r"([0-9]+(?:\\.[0-9]+){1,3})-[A-Za-z0-9_-]+-AixPPC\\.bin$",
 }
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ---------- Logging setup ----------
 
@@ -197,11 +329,12 @@ class BA_SERVER_SETUP:
         self.ctx = context
         self.log = context["logger"]
 
-        if utils1.fs_exists(path="ansible-vars.json"):
-            self.ansible_vars_data = utils1.read_json_file(path="ansible-vars.json")
+        ansiblevars_path = os.path.join(SCRIPT_DIR, "ansible-vars.json")
+        if utils1.fs_exists(path=ansiblevars_path):
+            self.ansible_vars_data = utils1.read_json_file(path=ansiblevars_path)
             self.ctx["ansible_vars_data"] = self.ansible_vars_data
         else:
-            raise FileNotFoundError("ansible-vars.json")
+            raise FileNotFoundError(ansiblevars_path)
 
 
     def run(self, mode: str) -> bool:
@@ -235,7 +368,7 @@ class BA_SERVER_SETUP:
             self.log.info("Detecting and removing all DB2 services...")
             try:
                 query_cmd = 'sc query state= all | findstr /i "DB2"'
-                result = utils1.exec_run(context=self.ctx, cmd=query_cmd)
+                result = utils1.exec_run(cmd=query_cmd, context=self.ctx)
                 if result.get('rc') == 0 and result.get('stdout'):
                     # Extract service names from output
                     import re
@@ -246,9 +379,9 @@ class BA_SERVER_SETUP:
                     for service in service_names:
                         try:
                             stop_cmd = f'sc stop "{service}"'
-                            utils1.exec_run(context=self.ctx, cmd=stop_cmd)
+                            utils1.exec_run(cmd=stop_cmd, context=self.ctx)
                             delete_cmd = f'sc delete "{service}"'
-                            utils1.exec_run(context=self.ctx, cmd=delete_cmd)
+                            utils1.exec_run(cmd=delete_cmd, context=self.ctx)
                             self.log.info(f"Stopped and removed DB2 service: {service}")
                         except Exception as e:
                             self.log.debug(f"Could not remove service {service}: {e}")
@@ -260,9 +393,9 @@ class BA_SERVER_SETUP:
             for service in db2_services:
                 try:
                     stop_cmd = f'sc stop "{service}"'
-                    utils1.exec_run(context=self.ctx, cmd=stop_cmd)
+                    utils1.exec_run(cmd=stop_cmd, context=self.ctx)
                     delete_cmd = f'sc delete "{service}"'
-                    utils1.exec_run(context=self.ctx, cmd=delete_cmd)
+                    utils1.exec_run(cmd=delete_cmd, context=self.ctx)
                     self.log.info(f"Stopped and removed DB2 service: {service}")
                 except Exception as e:
                     self.log.debug(f"Could not remove service {service}: {e}")
@@ -279,7 +412,7 @@ class BA_SERVER_SETUP:
             for reg_key in registry_keys:
                 try:
                     reg_delete_cmd = f'reg delete "{reg_key}" /f'
-                    utils1.exec_run(context=self.ctx, cmd=reg_delete_cmd)
+                    utils1.exec_run(cmd=reg_delete_cmd, context=self.ctx)
                     self.log.info(f"Removed registry key: {reg_key}")
                 except Exception as e:
                     self.log.debug(f"Could not remove registry key {reg_key}: {e}")
@@ -299,7 +432,7 @@ class BA_SERVER_SETUP:
                     try:
                         # Use PowerShell for more forceful removal
                         ps_cmd = f'powershell -Command "Remove-Item -Path \'{db2_dir}\' -Recurse -Force -ErrorAction SilentlyContinue"'
-                        utils1.exec_run(context=self.ctx, cmd=ps_cmd)
+                        utils1.exec_run(cmd=ps_cmd, context=self.ctx)
                         self.log.info(f"Removed DB2 directory: {db2_dir}")
                     except Exception as e:
                         self.log.warning(f"Could not remove DB2 directory {db2_dir}: {e}")
@@ -331,7 +464,7 @@ class BA_SERVER_SETUP:
                 except Exception as e:
                     self.log.warning(f"Could not remove IBM shared directory {ibm_shared_dir}: {e}")
         
-        _installstatus = utils1.ba_is_installed(self.ctx, oskey=os_name, install_data=sp_server_constants.offerings_metadata[install_component_name])
+        _installstatus = utils1.ba_is_installed(self.ctx, oskey=os_name, install_data=sp_server_constants.offerings_metadata[install_component_name])  # type: ignore[arg-type]
         # if _installstatus["status"]:
         #     self.log.info(_installstatus["message"])
         #     self.log.info("Proceeding for upgrade activities")
@@ -370,7 +503,7 @@ class BA_SERVER_SETUP:
     def _upgrade(self, os_name: str, install_path: Path, component_id:str) -> bool:
 
         install_component_name = self.ctx["args"]["componentname"]
-        _installstatus = utils1.ba_is_installed(self.ctx, oskey=os_name, install_data=sp_server_constants.offerings_metadata[install_component_name])
+        _installstatus = utils1.ba_is_installed(self.ctx, oskey=os_name, install_data=sp_server_constants.offerings_metadata[install_component_name])  # type: ignore[arg-type]
         
 
         if not _installstatus["status"]:
@@ -397,8 +530,7 @@ class BA_SERVER_SETUP:
             self.log.info("already up to date (%s vs %s) - no upgrade required", current_version, candidate_version)
             return True
 
-        # Pass installed packages dict to uninstall so it knows exact versions
-        if not self._uninstall(os_name, install_path, installed_packages=_installstatus["data"]["installedpackages"]):
+        if not self._uninstall(os_name, install_path):
             self.log.error("uninstall failed; aborting upgrade")
             return False
 
@@ -516,12 +648,10 @@ class BA_SERVER_SETUP:
         self.log.debug(utils1.file_read_text(path=xmlfile))
 
         InputXMLBuilder = utils1.AgentInputXMLBuilder(context=self.ctx)
-        # Always use "install" mode for _deploy, even during upgrade
-        # (upgrade flow: uninstall old -> install new)
         InputXMLBuilder.generate(
             filename=xmlfile,
-            inputdata=self.ansible_vars_data,  # type: ignore
-            mode="install"
+            inputdata=self.ansible_vars_data,
+            mode=self.ansible_vars_data["sp_mode"]
         )
 
         # update in put response xml file
@@ -551,9 +681,8 @@ class BA_SERVER_SETUP:
 
         # for updating the offerings (or packages to install)
         
-        current_data = utils1.ba_is_installed(context=self.ctx, oskey=os_name, install_data=sp_server_constants.offerings_metadata[install_component_name])
+        current_data = utils1.ba_is_installed(context=self.ctx, oskey=os_name, install_data=sp_server_constants.offerings_metadata[install_component_name])  # type: ignore[arg-type]
 
-        print("current_data: {}".format(current_data))
         final_installdata = {}
 
         if install_component_name in current_data["data"]["installedpackages"]:
@@ -565,8 +694,6 @@ class BA_SERVER_SETUP:
         else:
             final_installdata[install_component_name] = sp_server_constants.offerings_metadata[install_component_name]
 
-        print("final_installdata: {}".format(final_installdata))
-
         # for offerings_components in install_metadata:
         #     if offerings_components in current_data["data"]["installedpackages"]:
         #         if utils1.version_is_newer(current=current_data["data"]["installedpackages"][offerings_components], candidate=version):
@@ -574,9 +701,6 @@ class BA_SERVER_SETUP:
         #         else:
         #             self.log.warning("Component {} is attempting to install older version. Skipping install/upgrade".format(offerings_components))
         #             self.log.warning("Current installed version: {}, Candidate install version: {}".format(current_data["data"]["installedpackages"][offerings_components], version))
-
-
-
 
         utils1.update_package_offering(xml_filepath=xmlfile, install_data=final_installdata)
         self.log.debug("XML File updated with offerings:")
@@ -599,7 +723,7 @@ class BA_SERVER_SETUP:
             cmd = "dos2unix " + install_script_fullfilepath
             print(":::::")
             print(cmd)
-            exec_perm_resp = utils1.exec_run(context=self.ctx, cmd=cmd)
+            exec_perm_resp = utils1.exec_run(cmd=cmd, context=self.ctx)
 
             if (exec_perm_resp["rc"] != 0):
                 self.log.error("Error while converting binary to linux line endings")
@@ -609,10 +733,13 @@ class BA_SERVER_SETUP:
                 self.log.debug("Converted binary to linux line endings")
 
         install_cmd = install_script_fullfilepath + " -s -input {respfile} -acceptLicense".format(respfile=xmlfile)
-        
+
+        if os_name.lower() == "aix":
+            install_cmd = "ulimit -f unlimited && ulimit -c unlimited && ulimit -n unlimited && " + install_cmd
+            
         self.log.debug("Install command: {}".format(install_cmd))
         
-        resp = utils1.exec_run(context=self.ctx, cmd=install_cmd)
+        resp = utils1.exec_run(cmd=install_cmd, context=self.ctx)
         self.log.debug(resp)
 
         return resp["rc"] == 0
@@ -644,7 +771,7 @@ class BA_SERVER_SETUP:
         uninstall_cmd = imcl_loc + " -s -input " + artifact_path_extracted +"/input/uninstall_response_sample.xml -acceptLicense"
         self.log.debug("Uninstall command: {}".format(uninstall_cmd))
 
-        resp = utils1.exec_run(context=self.ctx, cmd=uninstall_cmd)
+        resp = utils1.exec_run(cmd=uninstall_cmd, context=self.ctx)
 
         self.log.info("Resp from uninstall execution: {}".format(resp))
 
@@ -667,9 +794,11 @@ class BA_SERVER_SETUP:
             self.log.info("Uninstalled Version: {}".format(version_info))
             self.log.info("  ✓ SP Server software removed")
             self.log.info("System is now clean and ready for fresh installation")
+            return True
+        else:
+            self.log.error("Uninstall failed with return code: {}".format(resp["rc"]))
+            return False
         
-        return resp["rc"] == 0
-
     def _cleanup_windows_user_group(self) -> None:
         """Clean up Windows user, group, folders, and registry entries created during installation"""
         tsm_user = self.ansible_vars_data.get("tsm_user", "tsminst1")  # type: ignore
@@ -680,7 +809,7 @@ class BA_SERVER_SETUP:
         # 1. Remove user
         self.log.info("Removing Windows user...")
         user_del_cmd = f'net user "{tsm_user}" /delete'
-        resp = utils1.exec_run(context=self.ctx, cmd=user_del_cmd)
+        resp = utils1.exec_run(cmd=user_del_cmd, context=self.ctx)
         if resp["rc"] == 0:
             self.log.info("Removed user: {}".format(tsm_user))
         else:
@@ -689,7 +818,7 @@ class BA_SERVER_SETUP:
         # 2. Remove group
         self.log.info("Removing Windows group...")
         group_del_cmd = f'net localgroup "{tsm_group}" /delete'
-        resp = utils1.exec_run(context=self.ctx, cmd=group_del_cmd)
+        resp = utils1.exec_run(cmd=group_del_cmd, context=self.ctx)
         if resp["rc"] == 0:
             self.log.info("Removed group: {}".format(tsm_group))
         else:
@@ -710,7 +839,7 @@ class BA_SERVER_SETUP:
             if utils1.fs_exists(path=folder, context=self.ctx):
                 self.log.info("Removing folder: {}".format(folder))
                 cmd = f'powershell -Command "Remove-Item -Path \'{folder}\' -Recurse -Force -ErrorAction SilentlyContinue"'
-                resp = utils1.exec_run(context=self.ctx, cmd=cmd)
+                resp = utils1.exec_run(cmd=cmd, context=self.ctx)
                 if resp["rc"] == 0:
                     self.log.info("Removed folder: {}".format(folder))
                 else:
@@ -729,7 +858,7 @@ class BA_SERVER_SETUP:
         for reg_key in registry_keys:
             self.log.info("Removing registry key: {}".format(reg_key))
             cmd = f'reg delete "{reg_key}" /f'
-            resp = utils1.exec_run(context=self.ctx, cmd=cmd)
+            resp = utils1.exec_run(cmd=cmd, context=self.ctx)
             if resp["rc"] == 0:
                 self.log.info("Removed registry key: {}".format(reg_key))
             else:
@@ -737,10 +866,9 @@ class BA_SERVER_SETUP:
         
         self.log.info("Windows cleanup completed")
 
-
     def _verify(self, os_name: str, install_path: Path) -> bool:
         install_component_name = self.ctx["args"]["componentname"]
-        _installstatus = utils1.ba_is_installed(self.ctx, oskey=os_name, install_data=sp_server_constants.offerings_metadata[install_component_name])
+        _installstatus = utils1.ba_is_installed(self.ctx, oskey=os_name, install_data=sp_server_constants.offerings_metadata[install_component_name])  # type: ignore[arg-type]
         
         if not _installstatus["status"]:
             return False

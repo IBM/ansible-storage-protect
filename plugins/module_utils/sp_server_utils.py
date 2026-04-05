@@ -19,11 +19,11 @@ Naming convention: <area>_<action>
 """
 
 import os
+import re
 import sys
 import json
 import getpass
 import platform
-import re
 import shutil
 import shlex
 import subprocess
@@ -33,7 +33,6 @@ import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 from xml.dom import minidom
 import sp_server_constants
-import platform
 import socket
 
 
@@ -264,7 +263,7 @@ def get_system_info() -> Dict[str, Any]:
 # Filesystem helpers
 # -----------------------------
 
-def fs_disk_free_mb(path: Path, *, context: Optional[dict[str, Any]] = None) -> int:
+def fs_disk_free_mb(path: str | Path, *, context: Optional[dict[str, Any]] = None) -> int:
     p = Path(path)
     du = shutil.disk_usage(p)
     free_mb = int(du.free / (1024 * 1024))
@@ -273,7 +272,7 @@ def fs_disk_free_mb(path: Path, *, context: Optional[dict[str, Any]] = None) -> 
 
 
 def fs_require_free_mb(context: dict[str, Any], min_mb: int, path: str | Path) -> bool:
-    free = fs_disk_free_mb(Path(path), context=context)
+    free = fs_disk_free_mb(path=path, context=context)
     _info(context, "Free space at %s: %s MB (required: %s MB)", path, free, min_mb)
     ok = free >= min_mb
     if not ok:
@@ -322,30 +321,34 @@ def extract_binary_package(src, dest, *, context: dict[str, Any]):
             
             if (os.path.exists(dest)):
                 cmd=f"powershell -Command \"Remove-Item -Path '{dest}' -Recurse -Force -ErrorAction SilentlyContinue\""
-                exec_run(context, cmd)
+                exec_run(cmd=cmd, context=context)
 
             cmd=f"\"{src}\" -q -d \"{dest}\""
 
         else:
             if (str(dest).strip() != "" and str(dest).strip() != "/" and os.path.exists(dest)):
-                cmd = f"sudo rm -rf {dest}"
-                exec_run(context, cmd)
+                cmd = f"rm -rf {dest}"
+                exec_run(cmd=cmd, context=context)
 
-            _info(context, "Providing execute permissions to binary: " + str(src))
-            cmd = f"sudo chmod +x {src}"
-            prem_resp = exec_run(context, cmd)
-            _info(context, prem_resp)
-            cmd=f"{src} -q -d {dest}"
+            _info(context=context, msg="Providing execute permissions to binary: " + str(src))
+            cmd = f"chmod +x {src}"
+            prem_resp = exec_run(cmd=cmd, context=context)
+            _info(context=context, msg=prem_resp)
+            cmd=f"yes | {src} -q -d {dest}"
+
+            if platform.system().lower() == 'aix':
+                _debug(context=context, msg="pre-pending ulimits for aix")
+                cmd = "ulimit -f unlimited && ulimit -c unlimited && ulimit -n unlimited && " + cmd
+                _debug(context=context, msg="Command: " + str(cmd))
             
         
         try:
-            resp = exec_run(context, cmd)
+            _info(context=context, msg=cmd)
+            resp = exec_run(cmd=cmd, context=context)
             return resp["rc"] == 0
         except Exception as e:
-            _error(context, str(e))
+            _error(context=context, msg=str(e))
             return False
-
-
 
 def update_package_offering(xml_filepath: str, install_data: Dict[str, Dict[str, Any]]) -> None:
 
@@ -388,8 +391,6 @@ def update_xml_value(file_path, xpath, new_value):
     else:
         print(f"No element found for XPath: {xpath}")
 
-
-
 # -----------------------------
 # File read/write helpers
 # -----------------------------
@@ -407,18 +408,69 @@ def file_read_text(path: str | Path, default: str = "", *, context: Optional[dic
             _info(context, "Unable to read %s (%s); using default", p, e)
         return default
 
-def replace_text_in_file(file_path: str, old_text: str, new_text: str) -> bool:
+def replace_text_in_file(
+    file_path: str, 
+    old_text: str, 
+    new_text: str, 
+    use_regex: bool = False,
+    replace_line: bool = False
+) -> bool:
+    """
+    Replace text in a file with support for plain text and regex patterns.
+    
+    Args:
+        file_path: Path to the file
+        old_text: Text or regex pattern to search for
+        new_text: Replacement text
+        use_regex: If True, treat old_text as a regex pattern (default: False)
+        replace_line: If True, replace entire line when pattern matches (default: False)
+                     Only applicable when use_regex=True
+    
+    Returns:
+        bool: True if replacement was successful, False otherwise
+    
+    Examples:
+        # Plain text replacement (existing behavior)
+        replace_text_in_file("config.txt", "old", "new")
+        
+        # Regex replacement
+        replace_text_in_file("config.txt", r"^#hello=.*", "hello=newvalue", 
+                           use_regex=True, replace_line=True)
+        
+        # Regex pattern replacement without replacing entire line
+        replace_text_in_file("config.txt", r"port=\d+", "port=8080", use_regex=True)
+    """
     try:
         content = file_read_text(path=file_path)
-        updated_content = content.replace(old_text, new_text)
-
+        
+        if not use_regex:
+            # Original behavior: plain text replacement
+            updated_content = content.replace(old_text, new_text)
+        else:
+            # Regex-based replacement
+            if replace_line:
+                # Replace entire line when pattern matches
+                lines = content.split('\n')
+                updated_lines = []
+                pattern = re.compile(old_text)
+                
+                for line in lines:
+                    if pattern.match(line):
+                        # Replace entire line
+                        updated_lines.append(new_text)
+                    else:
+                        updated_lines.append(line)
+                
+                updated_content = '\n'.join(updated_lines)
+            else:
+                # Replace only the matched pattern
+                updated_content = re.sub(old_text, new_text, content)
+        
         file_write_text(path=file_path, content=updated_content)
-
+        
         return True
     except Exception:
         return False
-
-
 
 def file_write_text(path: str | Path, content: str, *, context: Optional[dict[str, Any]] = None) -> bool:
     try:
@@ -434,12 +486,12 @@ def file_write_text(path: str | Path, content: str, *, context: Optional[dict[st
 # -----------------------
 # JSON ops
 # -----------------------
-def read_json_file(path: str | Path, default: dict | None = None, *, context: Optional[dict[str, Any]] = None) -> dict | None:
+def read_json_file(path: str | Path, default: Optional[dict] = None, *, context: Optional[dict[str, Any]] = None) -> dict:
     p = Path(path)
     try:
         if not p.exists() or not p.is_file():
             _error(context=context, msg="File not found")
-            return None
+            return default if default is not None else {}
         else:
             raw_data = p.read_text(encoding="utf-8")
             _debug(context, "Read %d bytes from %s", len(raw_data), p)
@@ -453,21 +505,58 @@ def read_json_file(path: str | Path, default: dict | None = None, *, context: Op
 # -----------------------------
 
 def exec_run(context: dict[str, Any], cmd: list[str] | str, *, shell: bool = False, timeout: Optional[int] = None,
-             check: bool = False, capture_output: bool = True) -> dict[str, Any]:
+             check: bool = False, capture_output: bool = True, user: Optional[str] = None, 
+             stdin_input: Optional[str] = None) -> dict[str, Any]:
     # split for linux
     os_name = os_oskey(context=context)["os"]
-    if (os_name.lower() == "linux" and not isinstance(cmd, list)):
-        cmd = shlex.split(cmd)
-        # cmd = cmd.split(" ")
-    if (os_name.lower() != "linux" and isinstance(cmd, list)):
-        cmd = " ".join(cmd)
+    original_cmd = cmd
 
     log = _get_log(context)
+    
+    # AIX needs special handling - treat it separately from Linux
+    is_aix = os_name.lower() == "aix" or "aix" in os_name.lower()
+    is_linux = os_name.lower() == "linux" and not is_aix
+    is_windows = os_name.lower() == "windows" or os_name.lower() == "win"
+    
+    # For AIX, prefer shell=True with string commands
+    if is_aix:
+        if type(cmd) is list:
+            cmd = " ".join(cmd)
+        shell = True  # Force shell=True for AIX
+    elif is_linux and isinstance(cmd, str):
+        cmd = shlex.split(cmd)
+    elif is_windows and type(cmd) is list:
+        cmd = " ".join(cmd)
+
+    if log:
+        log.debug("Executing command: %s", cmd)
+
+    # Handle running as different user
+    if user is not None:
+        if is_linux or is_aix:
+            # For Linux/AIX, use sudo -u
+            if type(cmd) is list:
+                cmd = ["sudo", "-u", user] + cmd
+            else:
+                cmd = f"sudo -u {user} {cmd}"
+        else:
+            # For Windows, use runas (requires different approach)
+            _warning(context, "Running as different user on Windows requires alternative methods")
+            if type(cmd) is list:
+                cmd = ["runas", f"/user:{user}"] + cmd
+            else:
+                cmd = f"runas /user:{user} {cmd}"
+
     if context.get("dry_run"):
         if log:
             log.info("[DRY-RUN] Would run: %s", cmd)
         return {"rc": 0, "stdout": "", "stderr": "", "cmd": cmd, "dry_run": True}
     try:
+        # Prepare stdin input if provided
+        input_data = None
+        if stdin_input is not None:
+            input_data = stdin_input if stdin_input.endswith('\n') else stdin_input + '\n'
+        
         completed = subprocess.run(
             cmd,
             shell=shell,
@@ -475,6 +564,7 @@ def exec_run(context: dict[str, Any], cmd: list[str] | str, *, shell: bool = Fal
             check=check,
             capture_output=capture_output,
             text=True,
+            input=input_data,
         )
         if completed.returncode == 0:
             _info(context, "Exec OK: %s", cmd)
@@ -520,32 +610,354 @@ def winreg_query_value(root: str, subkey: str, name: str, *, context: Optional[d
 # Service helpers (basic)
 # -----------------------------
 
+def svc_create(context: dict[str, Any], name: str, **kwargs) -> bool:
+    """
+    Create a new service.
+    
+    Args:
+        context: Execution context
+        name: Service name
+        **kwargs: Service parameters:
+            - execstart: Command to start the service (required)
+            - execstop: Command to stop the service (optional)
+            - execreload: Command to reload the service (optional)
+            - description: Service description (optional)
+            - display_name: Display name for Windows (optional)
+            - start_type: Windows start type - auto, demand, disabled (optional, default: demand)
+            - type: Linux service type - simple, forking, oneshot, etc. (optional, default: simple)
+            - autostart: Enable autostart at boot (optional, default: False)
+    
+    Returns:
+        bool: True if service was created successfully
+    """
+    execstart = kwargs.get("execstart")
+    if not execstart:
+        _warning(context, "execstart parameter is required for service %s", name)
+        return False
+    
+    system = platform.system().lower()
+    
+    if system == "windows":
+        # Build sc create command
+        cmd = f'sc create "{name}" binPath= "{execstart}"'
+        
+        # Add optional parameters
+        if "display_name" in kwargs:
+            cmd += f' DisplayName= "{kwargs["display_name"]}"'
+        
+        start_type = kwargs.get("start_type", "demand")
+        cmd += f' start= {start_type}'
+        
+        
+        r = exec_run(context, cmd)
+        ok = r["rc"] == 0
+        
+        # Add description if provided (requires separate command)
+        if ok and "description" in kwargs:
+            exec_run(context, f'sc description "{name}" "{kwargs["description"]}"')
+        
+        if not ok:
+            _warning(context, "Failed to create service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    elif system == "aix":
+        # AIX: Create service using SRC (System Resource Controller)
+        # Build mkssys command to register the service
+        cmd = f'mkssys -s {name} -p {execstart} -u 0 -S -n 15 -f 9'
+        
+        r = exec_run(context, cmd)
+        ok = r["rc"] == 0
+        
+        if not ok:
+            _warning(context, "Failed to create AIX service %s (rc=%s)", name, r["rc"])
+            return False
+        
+        # Add to /etc/inittab for autostart if requested
+        autostart = kwargs.get("autostart", False)
+        if ok and autostart:
+            # Check if entry already exists in inittab
+            check_cmd = f'lsitab {name}'
+            check_r = exec_run(context, check_cmd)
+            
+            if check_r["rc"] != 0:
+                # Entry doesn't exist, add it
+                inittab_cmd = f'mkitab "{name}:23456789:respawn:/usr/bin/startsrc -s {name}"'
+                inittab_r = exec_run(context, inittab_cmd)
+                if inittab_r["rc"] != 0:
+                    _warning(context, "Failed to add AIX service %s to inittab (rc=%s)", name, inittab_r["rc"])
+        
+        return ok
+    
+    # Linux: Create systemd unit file
+    unit_content = "[Unit]\n"
+    unit_content += f"Description={kwargs.get('description', name)}\n"
+    unit_content += "\n[Service]\n"
+    unit_content += f"ExecStart={execstart}\n"
+    
+    if "execstop" in kwargs:
+        unit_content += f"ExecStop={kwargs['execstop']}\n"
+    
+    if "execreload" in kwargs:
+        unit_content += f"ExecReload={kwargs['execreload']}\n"
+    
+    unit_content += f"Type={kwargs.get('type', 'simple')}\n"
+    unit_content += "\n[Install]\n"
+    unit_content += "WantedBy=multi-user.target\n"
+    
+    unit_path = f"/etc/systemd/system/{name}.service"
+    try:
+        with open(unit_path, "w") as f:
+            f.write(unit_content)
+        r = exec_run(context, "systemctl daemon-reload")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to create service %s (rc=%s)", name, r["rc"])
+        return ok
+    except Exception as e:
+        _warning(context, "Failed to create service %s: %s", name, str(e))
+        return False
+
+def svc_delete(context: dict[str, Any], name: str) -> bool:
+    """
+    Delete a service.
+    
+    Args:
+        context: Execution context
+        name: Service name
+    
+    Returns:
+        bool: True if service was deleted successfully
+    """
+    system = platform.system().lower()
+    
+    if system == "windows":
+        # Stop the service first (ignore errors if already stopped)
+        exec_run(context, f'sc stop "{name}"')
+        
+        # Delete the service
+        r = exec_run(context, f'sc delete "{name}"')
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to delete service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    elif system == "aix":
+        # AIX: Stop service, remove from inittab, and delete from SRC
+        # Stop the service first (ignore errors if already stopped)
+        exec_run(context, f"stopsrc -s {name}")
+        
+        # Remove from inittab if present
+        check_cmd = f'lsitab {name}'
+        check_r = exec_run(context, check_cmd)
+        if check_r["rc"] == 0:
+            exec_run(context, f"rmitab {name}")
+        
+        # Delete the service from SRC
+        r = exec_run(context, f"rmssys -s {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to delete AIX service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    # Linux: Stop and disable service first, then remove unit file
+    exec_run(context, f"systemctl stop {name}")
+    exec_run(context, f"systemctl disable {name}")
+    
+    unit_path = f"/etc/systemd/system/{name}.service"
+    try:
+        import os
+        if os.path.exists(unit_path):
+            os.remove(unit_path)
+        r = exec_run(context, "systemctl daemon-reload")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to delete service %s (rc=%s)", name, r["rc"])
+        return ok
+    except Exception as e:
+        _warning(context, "Failed to delete service %s: %s", name, str(e))
+        return False
+
 def svc_stop(context: dict[str, Any], name: str) -> bool:
-    if platform.system().lower() == "windows":
+    system = platform.system().lower()
+    
+    if system == "windows":
         r = exec_run(context, "sc stop " + str(name))
         ok = r["rc"] == 0
         if not ok:
             _warning(context, "Failed to stop service %s (rc=%s)", name, r["rc"])
         return ok
+    
+    elif system == "aix":
+        r = exec_run(context, f"stopsrc -s {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to stop AIX service %s (rc=%s)", name, r["rc"])
+        return ok
+    
     r = exec_run(context, "systemctl stop " + str(name))
     ok = r["rc"] == 0
     if not ok:
         _warning(context, "Failed to stop service %s (rc=%s)", name, r["rc"])
     return ok
 
-
 def svc_start(context: dict[str, Any], name: str) -> bool:
-    if platform.system().lower() == "windows":
+    system = platform.system().lower()
+    
+    if system == "windows":
         r = exec_run(context, "sc start " + str(name))
         ok = r["rc"] == 0
         if not ok:
             _warning(context, "Failed to start service %s (rc=%s)", name, r["rc"])
         return ok
+    
+    elif system == "aix":
+        r = exec_run(context, f"startsrc -s {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to start AIX service %s (rc=%s)", name, r["rc"])
+        return ok
+    
     r = exec_run(context, "systemctl start " + str(name))
     ok = r["rc"] == 0
     if not ok:
         _warning(context, "Failed to start service %s (rc=%s)", name, r["rc"])
     return ok
+
+def svc_enable(context: dict[str, Any], name: str) -> bool:
+    """Enable service to start at boot"""
+    system = platform.system().lower()
+    
+    if system == "windows":
+        r = exec_run(context, f"sc config {name} start=auto")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to enable service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    elif system == "aix":
+        # AIX: Add to inittab for autostart
+        # Check if entry already exists
+        check_cmd = f'lsitab {name}'
+        check_r = exec_run(context, check_cmd)
+        
+        if check_r["rc"] != 0:
+            # Entry doesn't exist, add it
+            r = exec_run(context, f'mkitab "{name}:23456789:respawn:/usr/bin/startsrc -s {name}"')
+            ok = r["rc"] == 0
+            if not ok:
+                _warning(context, "Failed to enable AIX service %s (rc=%s)", name, r["rc"])
+            return ok
+        return True  # Already enabled
+    
+    r = exec_run(context, f"systemctl enable {name}")
+    ok = r["rc"] == 0
+    if not ok:
+        _warning(context, "Failed to enable service %s (rc=%s)", name, r["rc"])
+    return ok
+
+def svc_disable(context: dict[str, Any], name: str) -> bool:
+    """Disable service from starting at boot"""
+    system = platform.system().lower()
+    
+    if system == "windows":
+        r = exec_run(context, f"sc config {name} start=disabled")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to disable service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    elif system == "aix":
+        # AIX: Remove from inittab to disable autostart
+        check_cmd = f'lsitab {name}'
+        check_r = exec_run(context, check_cmd)
+        
+        if check_r["rc"] == 0:
+            # Entry exists, remove it
+            r = exec_run(context, f"rmitab {name}")
+            ok = r["rc"] == 0
+            if not ok:
+                _warning(context, "Failed to disable AIX service %s (rc=%s)", name, r["rc"])
+            return ok
+        return True  # Already disabled
+    
+    r = exec_run(context, f"systemctl disable {name}")
+    ok = r["rc"] == 0
+    if not ok:
+        _warning(context, "Failed to disable service %s (rc=%s)", name, r["rc"])
+    return ok
+
+def svc_restart(context: dict[str, Any], name: str) -> bool:
+    """Restart a service"""
+    system = platform.system().lower()
+    
+    if system == "windows":
+        # Windows doesn't have a direct restart, so stop then start
+        exec_run(context, f"sc stop {name}")
+        r = exec_run(context, f"sc start {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to restart service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    elif system == "aix":
+        # AIX: Stop and start the service
+        exec_run(context, f"stopsrc -s {name}")
+        r = exec_run(context, f"startsrc -s {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to restart AIX service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    r = exec_run(context, f"systemctl restart {name}")
+    ok = r["rc"] == 0
+    if not ok:
+        _warning(context, "Failed to restart service %s (rc=%s)", name, r["rc"])
+    return ok
+
+def svc_status(context: dict[str, Any], name: str) -> dict[str, Any]:
+    """Get service status information"""
+    system = platform.system().lower()
+    
+    if system == "windows":
+        r = exec_run(context, f"sc query {name}")
+        running = "RUNNING" in r.get("stdout", "")
+        # Check if service is set to auto-start
+        config_r = exec_run(context, f"sc qc {name}")
+        enabled = "AUTO_START" in config_r.get("stdout", "")
+        return {
+            "running": running,
+            "enabled": enabled,
+            "status": "running" if running else "stopped",
+            "raw": r
+        }
+    
+    elif system == "aix":
+        # AIX: Check service status using lssrc
+        r = exec_run(context, f"lssrc -s {name}")
+        stdout = r.get("stdout", "")
+        running = "active" in stdout.lower()
+        
+        # Check if enabled (in inittab)
+        check_cmd = f'lsitab {name}'
+        check_r = exec_run(context, check_cmd)
+        enabled = check_r["rc"] == 0
+        
+        return {
+            "running": running,
+            "enabled": enabled,
+            "status": "running" if running else "stopped",
+            "raw": r
+        }
+    
+    r = exec_run(context, f"systemctl status {name}")
+    enabled_r = exec_run(context, f"systemctl is-enabled {name}")
+    return {
+        "running": r["rc"] == 0,
+        "enabled": enabled_r["rc"] == 0,
+        "status": "running" if r["rc"] == 0 else "stopped",
+        "raw": r
+    }
+
 
 # -----------------------------
 # Package helpers (RPM example)
@@ -615,13 +1027,14 @@ def find_installer(
     print(ok)
     if ok in ("windows", "win"):
         ext = ".exe"
-    elif ok in ("linux", "lin"):
+    elif ok in ("linux", "lin", "aix"):
         ext = ".bin"
     elif ok in ("rhel", "centos"):
         ext = ".bin"
     else:
         ext = oskey if oskey.startswith(".") else f".{oskey}"
 
+    print(ext)
     base_path = Path(base_dir)
     if not base_path.is_dir():
         return {
@@ -714,8 +1127,6 @@ def find_installer(
         },
     }
 
-
-
 def artifacts_find_best_old(
     oskey: str,
     base_dir: str | Path,
@@ -793,7 +1204,6 @@ def artifacts_find_best_old(
     _info(context, "Artifact matched for %s -> %s (%s)", oskey, best[0].name, best[1])
     return best
 
-
 def append_line_to_file(path: str, line: str) -> bool:
     """
     Safely append a line to a file if it does not already exist.
@@ -815,8 +1225,7 @@ def append_line_to_file(path: str, line: str) -> bool:
         print(f"append_line_to_file failed: {e}")
         return False
 
-
-def ensure_dir(path: str, owner: str | None = None, group: str | None = None, mode: str | None = None, context=None) -> bool:
+def ensure_dir(path: str, owner: Optional[str] = None, group: Optional[str] = None, mode: Optional[str] = None, context: Optional[dict[str, Any]] = None) -> bool:
     """
     Wrapper around fs_ensure_dir that also applies owner/group/mode.
     Mirrors Ansible 'file: state=directory'.
@@ -827,7 +1236,13 @@ def ensure_dir(path: str, owner: str | None = None, group: str | None = None, mo
 
     try:
         if owner is not None or group is not None:
-            shutil.chown(path, user=owner, group=group)  # type: ignore
+            # shutil.chown requires actual values, not None
+            kwargs = {}
+            if owner is not None:
+                kwargs['user'] = owner
+            if group is not None:
+                kwargs['group'] = group
+            shutil.chown(path, **kwargs)
 
         if mode:
             os.chmod(path, int(mode, 8))
@@ -853,12 +1268,16 @@ def remove_file(path: str) -> bool:
     except Exception:
         return False
     
-def copy_file(src: str, dest: str, owner=None, group=None, mode=None) -> bool:
+def copy_file(src: str, dest: str, owner: Optional[str] = None, group: Optional[str] = None, mode: Optional[str] = None) -> bool:
     try:
         shutil.copy2(src, dest)
-        if owner or group:
-            if owner is not None or group is not None:
-                shutil.chown(dest, user=owner, group=group)  # type: ignore
+        if owner is not None or group is not None:
+            kwargs = {}
+            if owner is not None:
+                kwargs['user'] = owner
+            if group is not None:
+                kwargs['group'] = group
+            shutil.chown(dest, **kwargs)
         if mode:
             os.chmod(dest, int(mode, 8))
         return True
@@ -881,25 +1300,36 @@ def update_lines_in_file(path: str, lines: list[str]) -> bool:
     except Exception:
         return False
 
-def touch_file(path: str, owner=None, group=None) -> bool:
+def touch_file(path: str, owner: Optional[str] = None, group: Optional[str] = None) -> bool:
     try:
         Path(path).touch(exist_ok=True)
-        if owner or group:
-            if owner is not None or group is not None:
-                shutil.chown(path, user=owner, group=group)  # type: ignore
+        if owner is not None or group is not None:
+            kwargs = {}
+            if owner is not None:
+                kwargs['user'] = owner
+            if group is not None:
+                kwargs['group'] = group
+            shutil.chown(path, **kwargs)
         return True
     except Exception:
         return False
 
-def chown(context, path: str, owner: str | None = None, group: str | None = None) -> bool:
+def chown(context: Optional[dict[str, Any]], path: str, owner: Optional[str] = None, group: Optional[str] = None) -> bool:
     """
     Change owner/group of a file or directory.
     Mirrors Ansible's 'owner' and 'group' behavior.
     """
     try:
         if owner is not None or group is not None:
-            shutil.chown(path, user=owner, group=group)  # type: ignore
+            kwargs = {}
+            if owner is not None:
+                kwargs['user'] = owner
+            if group is not None:
+                kwargs['group'] = group
+            shutil.chown(path, **kwargs)
             _debug(context, f"chown applied: {path} -> {owner}:{group}")
+        else:
+            _debug(context, f"chown skipped (no owner/group specified): {path}")
         return True
     except Exception as e:
         _error(context, f"Failed chown on {path}: {e}")
@@ -998,82 +1428,30 @@ def ba_binary_path(context: dict[str, Any], oskey: Optional[str] = None) -> Path
     return p
 
 
-def ba_is_installed(context: dict[str, Any], oskey: Optional[str] = None, install_data: Dict[str, Any] = {}) -> dict:
+def ba_is_installed(context: dict[str, Any], oskey: Optional[str] = None, install_data: Dict[str, Dict[str, Any]] = {}) -> dict:
     print(install_data)
 
     ret_data = {"status": True, "message": "", "data": {"installedpackages": {}}}
 
     imcl_path = None
-    
-    # Handle None oskey
-    if oskey is None:
-        _error(context, "oskey parameter is required but was None")
-        ret_data["status"] = False
-        ret_data["message"] = "oskey parameter is required"
-        return ret_data
-    
-    # Debug logging
-    _debug(context, "ba_is_installed: oskey = '{}'".format(oskey))
-    _debug(context, "ba_is_installed: oskey.lower() = '{}'".format(oskey.lower()))
 
-    if oskey.lower() == "windows":
-        # Try to get from ansible vars first (OS-specific variable)
-        ansible_vars = context.get("ansible_vars_data", {})
-        imcl_path = ansible_vars.get("install_location_im_windows", None) if ansible_vars else None
-        
-        # Fallback to legacy variable name for backward compatibility
-        if imcl_path is None and ansible_vars:
-            imcl_path = ansible_vars.get("install_location_im", None)
-            # If legacy var is set but looks like Linux path, ignore it
-            if imcl_path and imcl_path.startswith("/"):
-                _warning(context, "install_location_im appears to be a Linux path, ignoring for Windows")
-                imcl_path = None
+    if oskey and oskey.lower() == "windows":
+        imcl_path = context["ansible_vars_data"].get("install_location_im", "/opt/IBM/InstallationManager")
         
         if imcl_path is None:
-            # Try registry lookup
-            imcl_path = winreg_query_value(root="HKLM", subkey="SOFTWARE\\IBM\\Installation Manager", name="location")
-        
-        # If still None, check common installation paths
-        if imcl_path is None:
-            _warning(context, "Installation Manager location not found in registry, checking common paths...")
-            common_paths = [
-                "C:\\Program Files\\IBM\\Installation Manager",
-                "C:\\Program Files (x86)\\IBM\\Installation Manager",
-                "C:\\ProgramData\\IBM\\Installation Manager"
-            ]
-            for path in common_paths:
-                # Verify that the path contains the eclipse/tools/imcl structure
-                imcl_exe = os.path.join(path, "eclipse", "tools", "imcl.exe")
-                if os.path.exists(imcl_exe):
-                    imcl_path = path
-                    _info(context, "Found Installation Manager at: {}".format(path))
-                    _debug(context, "Verified imcl.exe exists at: {}".format(imcl_exe))
-                    break
-        # If still None after all checks, imcl_path remains None (will be caught later)
-    elif oskey.lower() == "linux":
-        # Linux - try OS-specific variable first
-        ansible_vars = context.get("ansible_vars_data", {})
-        imcl_path = ansible_vars.get("install_location_im_linux", None) if ansible_vars else None
-        
-        # Fallback to legacy variable or default
-        if imcl_path is None and ansible_vars:
-            imcl_path = ansible_vars.get("install_location_im", "/opt/IBM/InstallationManager")
-        elif imcl_path is None:
-            imcl_path = "/opt/IBM/InstallationManager"
+            # look up in registry
+            imcl_path  = winreg_query_value(root="HKLM", subkey="SOFTWARE\\IBM\\Installation Manager", name="location")
     else:
-        # Unknown OS
-        _warning(context, "Unknown OS type: {}".format(oskey))
-        imcl_path = None
+        imcl_path = context["ansible_vars_data"].get("install_location_im", "/opt/IBM/InstallationManager")
     
-    # Construct IMCL binary path with correct extension for Windows
-    if oskey.lower() == "windows":
-        IMCL_BIN_PATH = os.path.join(imcl_path, "eclipse", "tools", "imcl.exe") if imcl_path else None
+    if imcl_path:
+        IMCL_BIN_PATH = os.path.join(imcl_path, "eclipse", "tools", "imcl")
     else:
-        IMCL_BIN_PATH = os.path.join(imcl_path, "eclipse", "tools", "imcl") if imcl_path else None
+        IMCL_BIN_PATH = None
     
     _debug(context=context, msg="IMCL Bin Path: {}".format(IMCL_BIN_PATH))
 
-    if IMCL_BIN_PATH is None or (not fs_exists(path=IMCL_BIN_PATH, context=context)):
+    if not IMCL_BIN_PATH or not fs_exists(path=IMCL_BIN_PATH, context=context):
         _msg = "IMCL not found. Considering not installed"
         _info(context=context, msg=_msg)
         ret_data["status"] = False
@@ -1081,7 +1459,7 @@ def ba_is_installed(context: dict[str, Any], oskey: Optional[str] = None, instal
         return ret_data
 
 
-    cmd = IMCL_BIN_PATH + " listInstalledPackages"
+    cmd = str(IMCL_BIN_PATH) + " listInstalledPackages"
     resp = exec_run(context=context, cmd=cmd)
 
     _info(context=context, msg=resp)
@@ -1104,7 +1482,7 @@ def ba_is_installed(context: dict[str, Any], oskey: Optional[str] = None, instal
                     # Note: not needed as upgrade is upgrade
                     ret_data["status"] = True
 
-                    package_version = str(line).replace(package_id + "_", "")
+                    package_version = str(line).replace(str(package_id) + "_", "")
 
                     _msg = "IMCL identified package {pn} with version {pv} installed".format(pn=package_id, pv=package_version)
                     _info(context=context, msg=_msg)
@@ -1113,16 +1491,14 @@ def ba_is_installed(context: dict[str, Any], oskey: Optional[str] = None, instal
                         ret_data["data"]["installedpackages"] = {}
 
                     ret_data["data"]["installedpackages"][package_id] = package_version
-                    break  # Found the package, exit loop
 
-            # After loop completes, check if package was found
-            if ret_data["status"]:
-                ret_data["message"] = "SP Server packages are installed: " + str(len(ret_data["data"]["installedpackages"]))
+                if ret_data["status"]:
+                    ret_data["message"] = "SP Server packages are installed: " + str(len(ret_data["data"]["installedpackages"]))
+                return ret_data
             else:
                 ret_data["status"] = False
                 ret_data["message"] = "SP Server packages not installed"
-            
-            return ret_data
+                return ret_data
         else:
             ret_data["status"] = False
             ret_data["message"] = "Error while fetching list of installed packages: " + str(resp["rc"])
@@ -1139,8 +1515,6 @@ def find_ba_server_password(context: dict[str, Any], args):
         return args.serverpassword
     else:
         return None
-
-
 
 
 class AgentInputXMLBuilder:
@@ -1280,12 +1654,6 @@ class AgentInputXMLBuilder:
             "key": "user.license,com.tivoli.dsm.server",
             "value": "${license.selection}",
         })
-        # License acceptance option - required for silent install
-        license_option = inputdata.get("license_option", "A")
-        SubElement(profile, "data", {
-            "key": "user.license_option,com.tivoli.dsm.server",
-            "value": license_option,
-        })
         SubElement(profile, "data", {
             "key": "user.securePortNumber,com.tivoli.dsm.gui.offering",
             "value": "${port}",
@@ -1325,10 +1693,6 @@ class AgentInputXMLBuilder:
         """
         Build the <agent-input> tree for 'uninstall' mode.
         Emits one <uninstall modify='false'> per selected offering.
-        
-        NOTE: For uninstall, IBM IM expects the BASE package ID WITHOUT version.
-        IM will automatically uninstall whatever version is currently installed.
-        Including the version causes "Cannot find installed package" errors.
         """
         root = Element("agent-input", {"clean": "true", "temporary": "true"})
         offerings = inputdata.get("offerings", {}) or {}
@@ -1339,17 +1703,8 @@ class AgentInputXMLBuilder:
             meta = self.constants.offerings_metadata.get(name)
             if not meta:
                 continue
-            
-            package_id = meta["id"]
-            profile = meta.get("profile", "")
-            
             uninstall = SubElement(root, "uninstall", {"modify": "false"})
-            # For uninstall, use base package ID without version
-            # IM will find and uninstall the installed version automatically
-            SubElement(uninstall, "offering", {
-                "id": package_id,
-                "profile": profile
-            })
+            self.add_offering(uninstall, meta, selected=None)
 
         return root
 
@@ -1395,4 +1750,3 @@ class AgentInputXMLBuilder:
                 # Unknown offering name -> skip silently for resilience
                 continue
             self.add_offering(parent_block, meta, selected=selected)
-
