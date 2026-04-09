@@ -1,0 +1,112 @@
+---
+- name: Create dsm.sys file with TSM configuration
+  hosts: server3
+  become: yes
+
+  tasks:
+    - name: Ensure target directory exists
+      file:
+        path: /usr/tivoli/tsm/client/ba/bin64
+        state: directory
+        mode: '0755'
+
+    - name: Create dsm.sys with required content
+      copy:
+        dest: /usr/tivoli/tsm/client/ba/bin64/dsm.sys
+        content: |
+          SERVERNAME TSMDBMGR_TSMINST1
+          TCPSERVERADDRESS bonjovi-vm177.storage.tucson.ibm.com
+          COMMMETHOD tcpip
+          TCPPORT 1500
+          NODENAME p9c-vm34.storage.tucson.ibm.com
+        owner: root
+        group: system
+        mode: '0644'
+
+    - name: Create dsm.opt with required content
+      copy:
+        dest: /usr/tivoli/tsm/client/ba/bin64/dsm.opt
+        content: |
+          SERVERNAME TSMDBMGR_TSMINST1
+          PASSWORD tsmuser1@@123456789
+        owner: root
+        group: system
+        mode: '0600'
+
+    - name: Add TSM server certificate
+      command: >
+        dsmcert -add -server TSMDBMGR_TSMINST1
+        -file /usr/tivoli/tsm/client/ba/bin64/cert256.arm
+      args:
+        chdir: /usr/tivoli/tsm/client/ba/bin64
+      register: dsmcert_result
+      changed_when: "'successfully' in dsmcert_result.stdout | lower"
+      failed_when: dsmcert_result.rc != 0
+
+    - name: Wait for port 1500 to be available
+      wait_for:
+        host: "bonjovi-vm177.storage.tucson.ibm.com"
+        port: 1500
+        state: started
+        timeout: 300
+        delay: 0
+
+
+- name: Update admnin
+  hosts: server1
+  become: yes
+
+  tasks:
+    - name: Register TSM node
+      shell: |
+        cd /tmp
+        dsmadmc \
+          -servername=TSMDBMGR_TSMINST1 \
+          -id=tsmuser1 \
+          -pass=tsmuser1@@123456789 \
+          "update admin tsmuser1 sessionsecurity=trans"
+
+- name: Register and query node
+  hosts: server3
+  become: yes
+
+  tasks:
+    - name: Register TSM node
+      shell: |
+        export DSMI_LOG=/tmp
+        export DSMI_CONFIG=/usr/tivoli/tsm/client/ba/bin64/dsm.opt
+        cd /tmp
+        dsmadmc \
+          -servername=TSMDBMGR_TSMINST1 \
+          -id=tsmuser1 \
+          -pass=tsmuser1@@123456789 \
+          "register node p9c-vm34.storage.tucson.ibm.com tsmuser1@@123456789"
+      args:
+        executable: /bin/sh
+      register: register_node_result
+      changed_when: "'registered' in register_node_result.stdout | lower"
+      failed_when: >
+        register_node_result.rc != 0 and
+        'already exists' not in register_node_result.stdout | lower
+
+    - name: Query TSM server status
+      shell: |
+        export DSMI_LOG=/tmp
+        export DSMI_CONFIG=/usr/tivoli/tsm/client/ba/bin64/dsm.opt
+        cd /tmp
+        dsmadmc \
+          -servername=TSMDBMGR_TSMINST1 \
+          -id=tsmuser1 \
+          -pass=tsmuser1@@123456789 \
+          -dataonly=yes \
+          -commadelimited \
+          "q status"
+      args:
+        executable: /bin/sh
+      register: tsm_status_result
+      changed_when: false
+      failed_when: tsm_status_result.rc != 0
+
+    - name: Show TSM server status
+      debug:
+        var: tsm_status_result.stdout
