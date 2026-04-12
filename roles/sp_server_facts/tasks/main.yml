@@ -14,6 +14,220 @@
     q_stgpool: "{{ sp_server_facts_flags.q_stgpool }}"
   register: sp_server_facts
 
-- name: "Display Storage Protect Server Facts"
+- name: Set portable diff script path
+  set_fact:
+    sp_diff_script_path: "{{ role_path }}/../../plugins/modules/diff_analyse.py"
+
+- name: Enabled query list from flags
+  set_fact:
+    sp_enabled_queries: >-
+      {{
+        (sp_server_facts_flags | dict2items)
+        | selectattr('value', 'equalto', true)
+        | map(attribute='key')
+        | list
+      }}
+
+- name: Normalize module facts payload
+  set_fact:
+    sp_server_facts_data: "{{ sp_server_facts.ansible_module_results | default({}) }}"
+
+- name: Count returned fields per enabled query
+  set_fact:
+    sp_field_counts: >-
+      {%- set out = {} -%}
+      {%- for k, v in sp_server_facts_data.items() if k in sp_enabled_queries -%}
+      {%-   if v is mapping -%}
+      {%-     set _ = out.update({k: (v | length)}) -%}
+      {%-   elif v is sequence and v is not string -%}
+      {%-     if (v | length) > 0 and (v[0] is mapping) -%}
+      {%-       set _ = out.update({k: (v | map('length') | list | sum)}) -%}
+      {%-     else -%}
+      {%-       set _ = out.update({k: (v | length)}) -%}
+      {%-     endif -%}
+      {%-   else -%}
+      {%-     set _ = out.update({k: 1}) -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {{ out }}
+
+- name: Total returned fields
+  set_fact:
+    sp_total_fields: "{{ sp_field_counts.values() | list | sum }}"
+
+- name: Show summary
+  debug:
+    msg:
+      enabled_queries: "{{ sp_enabled_queries | length }}"
+      total_queries: 11
+      query_coverage_pct: "{{ ((sp_enabled_queries | length) * 100.0 / 11) | round(1) }}"
+      total_returned_fields: "{{ sp_total_fields }}"
+      per_query_field_counts: "{{ sp_field_counts }}"
+
+- name: Display Storage Protect Server Facts
   ansible.builtin.debug:
-    var: sp_server_facts
+    var: sp_server_facts_data
+
+- name: prepare snapshot payload (mask secrets if any)
+  set_fact:
+    sp_snapshot:
+      resource: sp_server
+      collected_by: sp_server_facts
+      collected_from: "{{ inventory_hostname }}"
+      collected_address: "{{ hostvars[inventory_hostname].ansible_host | default(inventory_hostname) }}"
+      timestamp: "{{ ansible_facts['date_time']['utc'] | default(ansible_facts['date_time']['iso8601']) }}"
+      coverage:
+        total_queries: 11
+        enabled_queries: "{{ sp_enabled_queries | length }}"
+        query_coverage_pct: "{{ ((sp_enabled_queries | length) * 100.0 / 11) | round(1) }}"
+        total_returned_fields: "{{ sp_total_fields }}"
+        per_query_field_counts: "{{ sp_field_counts }}"
+      data:
+        ansible_module_results: "{{ sp_server_facts_data }}"
+
+- name: ensure reports dir exists on control node
+  delegate_to: localhost
+  run_once: true
+  become: false
+  file:
+    path: "reports"
+    state: directory
+    mode: "0750"
+
+- name: Write Mermaid pie chart markdown
+  delegate_to: localhost
+  become: false
+  copy:
+    dest: "reports/sp_field_distribution_{{ inventory_hostname }}.md"
+    mode: "0640"
+    content: |
+      # SP Server Facts Field Distribution
+
+      ```mermaid
+      pie title Returned fields by query
+      {% for k, v in sp_field_counts.items() %}
+        "{{ k }} ({{ v }})" : {{ v }}
+      {% endfor %}
+      ```
+
+- name: write snapshot to control node (atomic)
+  delegate_to: localhost
+  become: false
+  vars:
+    out_file: "reports/current_{{ inventory_hostname }}.json"
+  copy:
+    content: "{{ sp_snapshot | to_nice_json }}"
+    dest: "{{ out_file }}"
+    mode: "0640"
+
+- name: Run drift detection script
+  delegate_to: localhost
+  become: false
+  command: >-
+    {{ ansible_playbook_python }} {{ sp_diff_script_path }}
+    --current reports/current_{{ inventory_hostname }}.json
+    --baseline reports/baseline_{{ inventory_hostname }}.json
+    --drift-json reports/drift_report_{{ inventory_hostname }}.json
+    --drift-html reports/drift_report_{{ inventory_hostname }}.html
+    --drift-zip reports/drift_report_bundle_{{ inventory_hostname }}.zip
+  args:
+    chdir: "{{ playbook_dir }}"
+
+- name: Prompt acceptance mode for baseline update
+  delegate_to: localhost
+  run_once: true
+  pause:
+    prompt: >-
+      Accept drift changes mode for hosts [{{ ansible_play_hosts_all | join(', ') }}]:
+      enter 'all', 'selected', or 'none'
+  register: accept_mode_prompt
+
+- name: Normalize acceptance mode
+  delegate_to: localhost
+  run_once: true
+  set_fact:
+    accept_mode: "{{ accept_mode_prompt.user_input | default('none') | lower | trim }}"
+
+- name: Validate acceptance mode
+  delegate_to: localhost
+  run_once: true
+  fail:
+    msg: "Invalid accept mode '{{ accept_mode }}'. Allowed values: all, selected, none."
+  when: accept_mode not in ['all', 'selected', 'none']
+
+- name: Prompt selected hosts for baseline update
+  delegate_to: localhost
+  run_once: true
+  pause:
+    prompt: "Enter comma-separated hostnames to accept (example: v1,v3)"
+  register: selected_hosts_prompt
+  when: accept_mode == 'selected'
+
+- name: Build target host list for baseline update
+  delegate_to: localhost
+  run_once: true
+  set_fact:
+    hosts_to_accept: >-
+      {{
+        ansible_play_hosts_all
+        if accept_mode == 'all'
+        else (
+          (selected_hosts_prompt.user_input | default(''))
+          .split(',')
+          | map('trim')
+          | reject('equalto', '')
+          | list
+        )
+        if accept_mode == 'selected'
+        else []
+      }}
+
+- name: Validate selected hosts are in play scope
+  delegate_to: localhost
+  run_once: true
+  vars:
+    invalid_hosts: "{{ hosts_to_accept | difference(ansible_play_hosts_all) }}"
+  fail:
+    msg: "Invalid selected hosts: {{ invalid_hosts | join(', ') }}. Valid hosts: {{ ansible_play_hosts_all | join(', ') }}"
+  when:
+    - accept_mode == 'selected'
+    - (invalid_hosts | length) > 0
+
+- name: Accept drift changes (update baseline)
+  delegate_to: localhost
+  run_once: true
+  become: false
+  when: (hosts_to_accept | length) > 0
+  loop: "{{ hosts_to_accept }}"
+  loop_control:
+    label: "{{ item }}"
+  command: >-
+    {{ ansible_playbook_python }} {{ sp_diff_script_path }}
+    --accept
+    --current reports/current_{{ item }}.json
+    --baseline reports/baseline_{{ item }}.json
+    --drift-json reports/drift_report_{{ item }}.json
+    --drift-html reports/drift_report_{{ item }}.html
+    --drift-zip reports/drift_report_bundle_{{ item }}.zip
+  args:
+    chdir: "{{ playbook_dir }}"
+
+- name: Show accepted host-baseline mapping
+  delegate_to: localhost
+  run_once: true
+  when: (hosts_to_accept | length) > 0
+  debug:
+    msg: >-
+      Accepted drift changes for hosts: {{ hosts_to_accept | join(', ') }}.
+      Updated files: {{
+        hosts_to_accept
+        | map('regex_replace', '^(.*)$', 'reports/baseline_\\1.json')
+        | list
+      }}
+
+- name: Show no baseline update selected
+  delegate_to: localhost
+  run_once: true
+  when: (hosts_to_accept | length) == 0
+  debug:
+    msg: "No baseline updates were accepted."

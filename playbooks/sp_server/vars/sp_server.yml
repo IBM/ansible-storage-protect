@@ -5,7 +5,9 @@ profile_id: "IBM Storage Protect"
 
 install_location_tsm: "/opt/tivoli/tsm"
 
-install_location_im: "/opt/IBM/InstallationManager"
+# Installation Manager paths (OS-specific)
+install_location_im_linux: "/opt/IBM/InstallationManager"
+install_location_im_windows: "C:\\Program Files\\IBM\\Installation Manager"
 
 sp_server_install_dest_win: "C:/temp/baserver" 
 sp_server_install_dest_lin: "/tmp/baserver"  # TODO: change to /opt/sp_server_binary/ after you testing
