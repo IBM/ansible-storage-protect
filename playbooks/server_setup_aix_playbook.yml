@@ -7,7 +7,6 @@
     instance_dir: /tsminst1
     server_bin: /opt/tivoli/tsm/server/bin
     service_name: tsminst1
-
   tasks:
     - name: Add tsminst1 to root group
       user:
@@ -52,7 +51,6 @@
           [Unit]
           Description=IBM Storage Protect Server instance {{ service_name }}
           After=network.target
-
           [Service]
           Type=oneshot
           RemainAfterExit=true
@@ -60,7 +58,6 @@
           ExecStop={{ server_bin }}/{{ service_name }} stop
           ExecReload={{ server_bin }}/{{ service_name }} restart
           TasksMax=infinity
-
           [Install]
           WantedBy=multi-user.target
 
@@ -73,15 +70,26 @@
         name: "{{ service_name }}"
         enabled: yes
 
+    - name: Check if dsmserv is already running
+      shell: ps -ef | grep -i dsmserv | grep -v grep
+      register: dsmserv_running
+      failed_when: false
+      changed_when: false
+
     - name: Restart service
       systemd:
         name: "{{ service_name }}"
         state: restarted
+      when: dsmserv_running.rc != 0
+
+    - name: Skip restart - dsmserv already running
+      debug:
+        msg: "dsmserv is already running - skipping restart"
+      when: dsmserv_running.rc == 0
 
 - name: Copy the certificate from the IBM Storage Protect server
   hosts: server1
   become: yes
-
   tasks:
     - name: Fetch the certificate file
       fetch:
@@ -96,7 +104,7 @@
     - name: Copy the certificate to the client machine.
       copy:
         src: "/tmp/cert256.arm"
-        dest: /opt/tivoli/tsm/client/ba/bin/
+        dest: /usr/tivoli/tsm/client/ba/bin64/  # AIX path (original was /opt/tivoli/tsm/client/ba/bin/)
         owner: root
-        group: root
+        group: system  # AIX uses system not root
         mode: '0644'
