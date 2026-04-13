@@ -28,6 +28,22 @@
         - "/tsm/server/*/*"
       when: sp_server_state == "absent"
 
+    - name: Clean up /tsm directory contents
+      ansible.builtin.shell: rm -rf /tsm*/*
+      args:
+        warn: false
+      failed_when: false
+      changed_when: true
+      when: sp_server_state == "absent"
+
+    - name: Clean up /tmp directory contents
+      ansible.builtin.shell: rm -rf /tmp/*
+      args:
+        warn: false
+      failed_when: false
+      changed_when: true
+      when: sp_server_state == "absent"
+
 #    - name: Uninstallation Status
 #      ansible.builtin.debug:
 #        msg:
