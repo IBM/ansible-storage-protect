@@ -8,6 +8,9 @@ linux_package_source: "/tmp/{{ ba_client_version }}-TIV-TSMBAC-LinuxX86.tar"
 # Windows BA Client package source
 windows_package_source: "C:\\temp\\{{ ba_client_version }}-TIV-TSMBAC-WinX64.exe"
 
+# AIX BA Client package source
+aix_package_source: "/tmp/{{ ba_client_version }}-TIV-TSMBAC-AIX.tar.Z"
+
 # Windows temp/module paths
 windows_temp_dir: "C:\\temp"
 windows_ba_install_dir: "C:\\Program Files\\Tivoli\\tsm\\client\\ba\\bin"

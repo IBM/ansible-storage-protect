@@ -123,6 +123,13 @@
       ansible.builtin.debug:
         msg: BA Client uninstalled successfully
 
+    - name: Remove /opt/tivoli directory
+      ansible.builtin.file:
+        path: /opt/tivoli
+        state: absent
+      failed_when: false
+      changed_when: true
+
 # ================== if uninstall fails =====================
 
   rescue:
