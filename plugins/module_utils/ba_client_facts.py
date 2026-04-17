@@ -50,10 +50,19 @@ class DsmcAdapterExtended(DsmcAdapter):
             tuple: (return_code, stdout, stderr)
         """
         # Build the command based on platform
-        is_windows = platform.system().lower().startswith("win")
+        system_platform = platform.system().lower()
+        is_windows = system_platform.startswith("win")
+        is_aix = system_platform == "aix"
         
         if is_windows:
             dsmc_cmd = 'dsmc.exe'
+        elif is_aix:
+            # AIX: Try to find DSMC in common locations
+            dsmc_cmd = self._find_dsmc_aix()
+            if not dsmc_cmd:
+                if exit_on_fail:
+                    self.fail_json(msg="DSMC not found on AIX system. Checked: /usr/bin/dsmc, /opt/tivoli/tsm/client/ba/bin/dsmc, /usr/tivoli/tsm/client/ba/bin/dsmc")
+                return 1, "", "DSMC not found"
         else:
             dsmc_cmd = 'dsmc'
         
@@ -70,6 +79,14 @@ class DsmcAdapterExtended(DsmcAdapter):
         # Prepare input for interactive prompts (user ID and password)
         input_data = f"{user_id}\n{password}\n"
         
+        # AIX-specific environment setup
+        env = None
+        if is_aix:
+            import os
+            env = os.environ.copy()
+            env['LANG'] = 'C'  # Ensure English output for consistent parsing
+            env['LC_ALL'] = 'C'
+        
         try:
             result = subprocess.run(
                 full_command,
@@ -78,7 +95,8 @@ class DsmcAdapterExtended(DsmcAdapter):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=30
+                timeout=30,
+                env=env
             )
             raw_output = result.stdout
             self.json_output['output'] = raw_output
@@ -105,7 +123,26 @@ class DsmcAdapterExtended(DsmcAdapter):
                     **self.json_output
                 )
             return e.returncode, None, e.stderr
-
+    
+    def _find_dsmc_aix(self):
+        """
+        Find DSMC binary on AIX system.
+        
+        Returns:
+            str: Path to DSMC binary or None if not found
+        """
+        import os
+        possible_paths = [
+            '/usr/bin/dsmc',
+            '/opt/tivoli/tsm/client/ba/bin/dsmc',
+            '/usr/tivoli/tsm/client/ba/bin/dsmc'
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path) and os.access(path, os.X_OK):
+                return path
+        
+        return None
 
 class DSMCParser:
     """

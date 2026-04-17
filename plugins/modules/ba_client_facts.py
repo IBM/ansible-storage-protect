@@ -39,7 +39,7 @@ description:
     - This module gathers various facts related to the IBM Storage Protect (SP) Backup-Archive (BA) Client using the DSMC command-line interface.
     - It supports multiple queries such as client version, configuration, schedules, file spaces, and backup status.
     - The output of each query is parsed and returned in a developer-friendly format.
-    - Works on both Linux and Windows platforms.
+    - Works on Linux, Windows, and AIX platforms.
 
 options:
     q_version:
@@ -221,11 +221,13 @@ def build_windows_like_module():
 def get_module():
     """
     Return an object that has the Ansible-like interface.
-    - on Linux/Ansible: real DsmcAdapterExtended
+    - on Linux/AIX/Ansible: real DsmcAdapterExtended
     - on Windows/no-ansible: our shim
     """
-    if HAS_ANSIBLE and platform.system().lower() != "windows":
-        # Original behavior
+    system_platform = platform.system().lower()
+    
+    if HAS_ANSIBLE and system_platform not in ["windows", "win32"]:
+        # Linux, AIX, or other Unix-like systems with Ansible
         argument_spec = dict(
             q_version=dict(type='bool', default=False),
             q_session=dict(type='bool', default=False),
