@@ -1,0 +1,128 @@
+# Task 1: Check if the dsm.opt file exists on the target system.
+
+- name: Check if dsm.opt file exists
+  ansible.builtin.stat:
+    path: "{{ dsm_opt_optfile_path }}"
+  register: dsm_opt_status
+
+# - name: Debug the value of dsm_opt_state
+#  debug:
+#    var: dsm_opt_state
+
+- name: Remove dsm.opt file
+  ansible.builtin.file:
+    path: "{{ dsm_opt_optfile_path }}"
+    state: absent
+  when: dsm_opt_status.stat.exists and dsm_opt_state == 'absent'
+
+- name: Check if dsm.opt file still exists after removal
+  ansible.builtin.stat:
+    path: "{{ dsm_opt_optfile_path }}"
+  register: post_removal_status
+  when:
+    - dsm_opt_state == 'absent'
+
+- name: Debug the status of dsm.opt file removal
+  ansible.builtin.debug:
+    msg: "dsm.opt file removed successfully"
+  when:
+    - dsm_opt_state == 'absent'
+    - not post_removal_status.stat.exists
+
+- name: Stop execution of playbook when file is removed
+  ansible.builtin.meta: end_play
+  when:
+    - dsm_opt_state == 'absent'
+    - not post_removal_status.stat.exists
+
+# Task 2: Convert the content of the dsm.opt file into a dictionary using a Python script.
+# Earlier: Attempted to parse file content directly in Ansible using Jinja2 regex, which failed due to limitations in Jinja2 processing capabilities.
+# Now: A Python script processes the file content line by line, extracting key-value pairs, and saves the result as a JSON dictionary.
+- name: Convert dsm.opt file content into a dictionary
+  ansible.builtin.shell: |
+    python3 <<EOF
+    import os
+    import json
+
+    file_path = "{{ dsm_opt_optfile_path }}"
+    dsm_dict = {}
+
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+
+        for line in lines:
+            line = line.strip()
+            if line and ' ' in line:
+                key, value = line.split(' ', 1)
+                dsm_dict[key] = value
+
+    with open('/tmp/dsm_opt_dict.json', 'w') as output_file:
+        json.dump(dsm_dict, output_file)
+    EOF
+  when: dsm_opt_status.stat.exists
+  changed_when: false
+
+# Task 3: Read the existing dictionary content from the JSON file created in Task 2.
+# Earlier: Inline dictionary creation in Ansible was cumbersome and error-prone with complex file content.
+# Now: The `slurp` module reads the JSON file, and we process it further in subsequent tasks.
+- name: Read the existing dictionary from JSON
+  ansible.builtin.slurp:
+    src: /tmp/dsm_opt_dict.json
+  register: existing_dict_raw
+  when: dsm_opt_status.stat.exists
+
+# Task 4: Convert the raw JSON content into a usable dictionary format.
+# Earlier: Direct usage of raw content caused parsing issues when processing nested or complex data.
+# Now: Using `from_json` ensures that the content is correctly converted to a structured dictionary.
+- name: Convert the raw dictionary into usable data
+  ansible.builtin.set_fact:
+    existing_dsm_dict: "{{ existing_dict_raw.content | b64decode | from_json }}"
+  when: dsm_opt_status.stat.exists
+
+# Task 5: Initialize an empty dictionary if the dsm.opt file does not exist.
+# Earlier: Tasks assumed file existence, leading to failures in absence of the file.
+# Now: Explicitly handle the absence of the file by initializing an empty dictionary.
+- name: Initialize empty dictionary if dsm.opt does not exist
+  ansible.builtin.set_fact:
+    existing_dsm_dict: {}
+  when: not dsm_opt_status.stat.exists
+
+# Task 6: Initialize an empty dictionary to store transformed parameters with uppercase keys.
+# Earlier: Transformation logic was tightly coupled with merging, making debugging difficult.
+# Now: Separate initialization ensures clarity and easier debugging.
+- name: Initialize transformed parameters dictionary
+  ansible.builtin.set_fact:
+    transformed_dsm_parameters: {}
+
+# Task 7: Transform the `snake_case` keys in `dsm_opt_parameters` into uppercase iteratively.
+# Earlier: Tried using Python-style comprehensions, which are not supported in Jinja2.
+# Now: Iterative transformation with `with_dict` ensures compatibility with Jinja2 and clear processing of each parameter.
+- name: Transform snake_case keys to uppercase iteratively
+  ansible.builtin.set_fact:
+    transformed_dsm_parameters: >-
+      {{
+        transformed_dsm_parameters | combine({
+          (item.key.split('_', 2)[-1] | upper): item.value
+        })
+      }}
+  with_dict: "{{ dsm_opt_parameters }}"
+
+# Task 8: Merge the transformed parameters with the existing dictionary content.
+# Earlier: Direct merges failed when parameters were not consistently processed or transformed.
+# Now: Separating transformation and merging ensures a clean, robust merged dictionary.
+- name: Merge transformed parameters with existing content
+  ansible.builtin.set_fact:
+    merged_dsm_dict: >-
+      {{
+        existing_dsm_dict | default({}) | combine(transformed_dsm_parameters, recursive=true)
+      }}
+
+# Task 9: Write the updated content back to the dsm.opt file using a Jinja2 template.
+# Earlier: Missing or improperly formatted templates led to incomplete or invalid files.
+# Now: The Jinja2 template dynamically generates key-value pairs from the merged dictionary, ensuring a valid and complete file.
+- name: Write the updated dsm.opt file
+  ansible.builtin.template:
+    src: dsm.opt.j2
+    dest: "{{ dsm_opt_optfile_path }}"
+    mode: '0644'

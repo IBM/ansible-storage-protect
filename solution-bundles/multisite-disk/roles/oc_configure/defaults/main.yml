@@ -1,0 +1,4 @@
+# Defaults for the role
+
+admin_name: ""
+action: "configure"

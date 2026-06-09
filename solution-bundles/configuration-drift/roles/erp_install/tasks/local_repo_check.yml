@@ -1,0 +1,49 @@
+---
+- name: Find p erp installer file in the local control node directory
+  ansible.builtin.find:
+    paths: "{{ erp_bin_repo }}"
+    patterns: "*.bin"
+    file_type: file
+  register: all_available_files
+  delegate_to: localhost
+
+- name: Debug the found files
+  ansible.builtin.debug:
+    var: all_available_files.files
+  delegate_to: localhost
+
+- name: Fail if no .tar files are found in the directory
+  ansible.builtin.fail:
+    msg: "No .tar files found in the specified directory: {{ erp_bin_repo }}."
+  when: all_available_files.files | length == 0
+  delegate_to: localhost
+
+- name: Check if the specified version is available locally
+  ansible.builtin.set_fact:
+    version_available: "{{ all_available_files.files | length > 0 }}"
+
+- name: Debug version availability
+  ansible.builtin.debug:
+    var: version_available
+
+# - name: Fail the play if version specified is not available in control node
+#  fail:
+#    msg: "Version {{ ba_client_version }} is not available in the specified directory {{ ba_client_tar_repo }}."
+#  when: version_available == false
+
+- name: Get the path of the specified version
+  ansible.builtin.set_fact:
+    tar_file_path: >-
+      {{
+        all_available_files.files
+        | map(attribute='path')
+        | list
+        | first
+      }}
+    tar_file_basename: "{{ all_available_files.files[0].path | basename }}"
+  when: all_available_files.files | length > 0
+
+- name: Debug the found tar file path
+  ansible.builtin.debug:
+    msg: "Path of the specified version : {{ tar_file_path }}"
+  when: all_available_files.files | length > 0

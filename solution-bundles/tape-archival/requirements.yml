@@ -1,0 +1,12 @@
+---
+# IBM Storage Protect - Single-Site Disk Solution
+# Collection Dependencies
+
+collections:
+  - name: ansible.builtin
+    version: ">=2.15.0"
+
+# No external collection dependencies required
+# All components are vendored within this solution bundle
+
+# Made with Bob

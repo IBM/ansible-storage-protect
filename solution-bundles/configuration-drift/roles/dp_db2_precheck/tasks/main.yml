@@ -1,0 +1,91 @@
+---
+# Check if DB2 is installed by verifying processes and installation files
+- block:
+    # Check if DB2 processes are running
+    - name: Check if DB2 processes are running
+      ansible.builtin.shell: "ps -ef | grep -v grep | grep db2sysc"
+      register: db2_process_check
+      failed_when: db2_process_check.rc != 0
+      ignore_errors: false
+
+    # Fail the playbook execution if DB2 processes are not running
+    - name: Fail if DB2 processes are not running
+      ansible.builtin.fail:
+        msg: "DB2 processes are not running on the system. Ensure DB2 is started and running."
+      when: db2_process_check.stdout == ""
+
+    # Check if DB2 binaries exist in the expected installation directory
+    - name: Check if DB2 binaries exist
+      ansible.builtin.stat:
+        path: "/home/{{ db2_instance_owner }}/sqllib/bin/db2"
+      register: db2_binary_check
+
+    # Fail the playbook execution if DB2 binaries are not found
+    - name: Fail if DB2 binaries are not found
+      ansible.builtin.fail:
+        msg: "DB2 binaries are not found at '/home/{{ db2_instance_owner }}/sqllib/bin/db2'. Ensure DB2 is installed correctly."
+      when: not db2_binary_check.stat.exists
+  tags:
+    - db2_install_check
+
+# Capture DB2 version and bit-level information
+- block:
+    # Run the db2level command to capture DB2 version and bit-level information
+    - name: Run db2level and capture output
+      ansible.builtin.shell: ". /home/{{ db2_instance_owner }}/sqllib/db2profile && db2level"
+      register: db2level_output
+      failed_when: db2level_output.rc != 0
+      when: db2_binary_check.stat.exists
+
+    # Fail the playbook execution if db2level command fails
+    - name: Fail if db2level command fails
+      ansible.builtin.fail:
+        msg: "Failed to execute db2level command. Ensure DB2 environment is configured correctly."
+      when: db2level_output.rc != 0
+
+    # Display the output of the db2level command for debugging purposes
+    - name: Display db2level output
+      ansible.builtin.debug:
+        msg: "{{ db2level_output.stdout }}"
+      when: db2level_output is defined
+
+    # Extract the DB2 bit level (32-bit or 64-bit) from the db2level output
+    - name: Extract DB2 bit level from db2level output
+      ansible.builtin.set_fact:
+        db2_bit: "{{ '64' if '64' in db2level_output.stdout else '32' }}"
+      when: db2level_output is defined
+  tags:
+    - db2_version_check
+
+# Check if required RHEL packages are installed
+- name: Ensure required RHEL packages are installed
+  ansible.builtin.yum:
+    name:
+      - glibc
+      - libstdc++
+      - libaio
+    state: present
+  register: rhel_packages_check
+  failed_when: rhel_packages_check.rc != 0
+  tags:
+    - rhel_package_check
+
+# Fail the playbook execution if RHEL packages are not installed
+- name: Fail if required RHEL packages are not installed
+  ansible.builtin.fail:
+    msg: "Required RHEL packages (glibc, libstdc++, libaio) are not installed. Ensure these packages are installed."
+  when: rhel_packages_check.rc != 0
+
+# Provide recommendations based on DB2 bit level
+- name: Provide recommendations based on DB2 bit level
+  ansible.builtin.debug:
+    msg: >-
+      DB2 is detected as {{ db2_bit }}-bit.
+      {% if db2_bit == '32' %}
+      Install the 32-bit IBM Storage Protect (TSM) API to match DB2.
+      {% else %}
+      Install the 64-bit IBM Storage Protect (TSM) API to match DB2.
+      {% endif %}
+  when: db2_bit is defined
+  tags:
+    - db2_recommendation

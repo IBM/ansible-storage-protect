@@ -1,0 +1,82 @@
+#- name: Kill all dsmserv processes
+#  ansible.builtin.shell: "pkill -f dsmserv"
+#  ignore_errors: true
+
+- name: Stop DB2 process
+  ansible.builtin.shell: "/opt/tivoli/tsm/db2/bin/db2fmcu -d"
+  ignore_errors: true
+  become: true
+# sudo /opt/tivoli/tsm/db2/bin/db2fmcu -d
+
+# sudo su - tsminst1 -c ". /home/tsminst1/sqllib/db2profile && db2 force application all"
+- name: Kill DB2 Processes
+  ansible.builtin.shell: "sudo su - {{ tsm_user }} -c '. /home/{{ tsm_user }}/sqllib/db2profile && db2 force application all' "
+  ignore_errors: true
+
+# sudo su - tsminst1 -c ". /home/tsminst1/sqllib/db2profile && db2stop force"
+
+- name: Stop DB2 instance
+  ansible.builtin.shell: "sudo su - {{ tsm_user }} -c '. /home/{{ tsm_user }}/sqllib/db2profile && db2stop force'"
+  ignore_errors: true
+
+#- name: Stop the DB2 instance
+#  ansible.builtin.shell: "su - {{ tsm_user }} -c 'db2stop'"
+#  ignore_errors: true
+
+- name: Kill all dsmserv processes
+  ansible.builtin.shell: "pkill -f dsmserv"
+  ignore_errors: true
+
+# sudo su - tsminst1 -c ". /home/tsminst1/sqllib/db2profile && dsmserv removedb tsmdb001"
+- name: Remove the TSM database
+  ansible.builtin.shell: "sudo su - {{ tsm_user }} -c '. dsmserv removedb TSMdbspace01'"
+  args:
+    chdir: "/{{ tsm_user }}"
+  ignore_errors: true
+
+- name: Drop the DB2 instance
+  ansible.builtin.shell: "{{ db2_instance_path }}/db2idrop {{ tsm_user }}"
+  ignore_errors: true
+
+# sudo pkill -KILL -u tsminst1
+- name: Kill the processes of user before removing
+  ansible.builtin.shell: "sudo pkill -KILL -u {{ tsm_user }}"
+  ignore_errors: true
+
+- name: Remove the TSM user
+  ansible.builtin.user:
+    name: "{{ tsm_user }}"
+    state: absent
+    remove: true
+  ignore_errors: true
+
+- name: Remove the TSM group
+  ansible.builtin.group:
+    name: "{{ tsm_group }}"
+    state: absent
+  ignore_errors: true
+
+#- name: Unmount /tsmroot
+#  ansible.builtin.command: "sudo umount {{ root_dir }}"
+#  ignore_errors: true
+
+# Importing storage_prepare role to umount the directories only if blueprint is set to true
+- name: Umount the directories
+  ansible.builtin.include_role:
+    name: storage_prepare
+  vars:
+    clean_up: true
+  when: server_blueprint == true
+
+- name: Remove user-related directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/home/{{ tsm_user }}"
+    - "/export/home/{{ tsm_user }}"
+    - "/var/spool/mail/{{ tsm_user }}"
+    - "/etc/tivoli/tsm/instanceList.obj"
+    - "/{{ tsm_user }}"
+  ignore_errors: true
+...

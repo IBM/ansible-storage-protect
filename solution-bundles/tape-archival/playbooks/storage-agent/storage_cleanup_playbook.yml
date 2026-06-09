@@ -1,0 +1,10 @@
+---
+- name: Prepare Storage for xsmall server
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  roles:
+    - ibm.storage_protect.storage_prepare
+  vars:
+    clean_up: true
+    instance_dir: "/tsminst1"
+...

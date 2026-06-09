@@ -1,0 +1,26 @@
+---
+- name: Performing pre-checks before installing Sp Server
+  ansible.builtin.include_tasks: sp_server_prechecks_linux.yml
+  when: sp_server_state == "present" or sp_server_state == "upgrade"
+
+- name: Install Sp Server
+  ansible.builtin.include_tasks: sp_server_install_linux.yml
+  when: sp_server_state == "present" and sp_server_action is defined and sp_server_action == "install"
+
+- name: Upgrade Sp Server
+  ansible.builtin.include_tasks: sp_server_install_linux.yml
+  when: sp_server_state == "upgrade" and sp_server_action is defined and sp_server_action == "upgrade"
+
+- name: Uninstall Sp server
+  ansible.builtin.include_tasks: sp_server_uninstall_linux.yml
+  when: sp_server_state == "absent"
+...
+
+# Tests to be conducted
+# Fresh Installation
+# Failure during Fresh Installation
+# After Installation -> Upgrade
+# Fresh Installation -> Upgrade -> Configure
+#
+# Configure -> Uninstall
+# Installed -> Uninstall

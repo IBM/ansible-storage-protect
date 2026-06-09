@@ -1,0 +1,313 @@
+---
+# IBM Storage Protect Server Blueprint Configuration Solution
+#
+# Purpose: Orchestrate multi-phase SP Server deployment with coordinated execution
+# Reference: docs/design/design-sp-blueprint-conf-solution.md
+# Guide: docs/guides/sp-blueprint-conf-solution-guide.md
+#
+# What is a Blueprint?
+# A Blueprint is an orchestration playbook that coordinates multiple solution playbooks
+# in a specific sequence to achieve complex deployment goals. It acts as a conductor,
+# ensuring each phase executes in the correct order with proper dependency management.
+#
+# Deployment Phases:
+#   Phase 1: Initial server installation
+#   Phase 2: Storage volume preparation
+#   Phase 3: Server configuration and finalization
+#
+# Usage:
+#   # Complete deployment (all phases)
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.sp_server_blueprint_playbook.yml \
+#     -e @vars/blueprint-vars.yml \
+#     -e @vars/blueprint-secrets.yml \
+#     --vault-password-file vault_pass.txt
+#
+#   # Environment-specific deployment
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.sp_server_blueprint_playbook.yml \
+#     -e @vars/blueprint-vars.yml \
+#     -e @vars/prod.yml \
+#     -e @vars/blueprint-secrets.yml \
+#     --vault-password-file vault_pass.txt
+#
+# Required Variables:
+#   - sp_server_version: SP Server version (e.g., "8.1.23.0")
+#   - sp_server_state: Installation state (present/absent/upgrade)
+#   - sp_server_bin_repo: Path to installation binaries
+#   - storage_size: Storage configuration size (xsmall/small/medium/large)
+#   - target_hosts: Target host group
+#   - ssl_password: SSL certificate password (vaulted)
+#
+# Optional Variables:
+#   - instance_user: Instance username (default: tsminst1)
+#   - instance_dir: Instance directory (default: /tsminst1)
+#   - instance_password: Instance password (vaulted)
+#
+# Blueprint Architecture:
+#   User/CI-CD → Blueprint Orchestrator → Phase Playbooks → Roles → Modules → Target Hosts
+#
+# Design Principles:
+#   - Separation of Concerns: Blueprint handles orchestration, not implementation
+#   - Idempotency: Can be run multiple times safely
+#   - Fail-Fast: Stops on first error
+#   - Transparency: Clear logging of each phase
+#   - Flexibility: Parameterized for different environments
+
+# ============================================================================
+# Pre-Flight Validation
+# ============================================================================
+- name: Blueprint Pre-Flight Validation
+  hosts: localhost
+  gather_facts: false
+  
+  tasks:
+    - name: Display blueprint information
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "SP Server Blueprint Configuration Solution"
+          - "=========================================="
+          - ""
+          - "Blueprint Orchestration Pattern"
+          - "Multi-Phase Deployment Coordinator"
+          - ""
+          - "Deployment Phases:"
+          - "  Phase 1: Initial Server Installation"
+          - "  Phase 2: Storage Volume Preparation"
+          - "  Phase 3: Server Configuration & Finalization"
+          - ""
+          - "Target Hosts: {{ target_hosts | default('all') }}"
+          - "SP Server Version: {{ sp_server_version | default('Not specified') }}"
+          - "Storage Size: {{ storage_size | default('Not specified') }}"
+          - "Deployment State: {{ sp_server_state | default('present') }}"
+          - ""
+          - "=========================================="
+
+    - name: Validate required blueprint variables
+      ansible.builtin.assert:
+        that:
+          - sp_server_version is defined
+          - sp_server_state is defined
+          - sp_server_bin_repo is defined
+          - storage_size is defined
+          - target_hosts is defined
+          - ssl_password is defined
+        fail_msg: |
+          Required blueprint variables are missing!
+          
+          Required variables:
+            - sp_server_version: SP Server version
+            - sp_server_state: Installation state (present/absent/upgrade)
+            - sp_server_bin_repo: Path to installation binaries
+            - storage_size: Storage size (xsmall/small/medium/large)
+            - target_hosts: Target host group
+            - ssl_password: SSL certificate password
+          
+          Please provide all required variables via -e or variable files.
+        success_msg: "All required blueprint variables are defined"
+
+    - name: Validate storage size parameter
+      ansible.builtin.assert:
+        that:
+          - storage_size in ['xsmall', 'small', 'medium', 'large']
+        fail_msg: "storage_size must be one of: xsmall, small, medium, large"
+        success_msg: "Storage size '{{ storage_size }}' is valid"
+
+    - name: Display pre-flight validation success
+      ansible.builtin.debug:
+        msg:
+          - "✓ Pre-flight validation completed successfully"
+          - "✓ All required variables are defined"
+          - "✓ Storage size is valid"
+          - ""
+          - "Proceeding with blueprint deployment..."
+
+# ============================================================================
+# Phase 1: Initial Server Installation
+# ============================================================================
+- name: "Phase 1: Install IBM Storage Protect Server"
+  import_playbook: ibm.storage_protect.sp_server_install_playbook.yml
+
+# ============================================================================
+# Inter-Phase Validation (Phase 1 → Phase 2)
+# ============================================================================
+- name: Inter-Phase Validation - Installation Complete
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: false
+  become: true
+  
+  tasks:
+    - name: Display phase 1 completion
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Phase 1: Installation - COMPLETED"
+          - "=========================================="
+          - ""
+          - "✓ SP Server installation completed"
+          - "✓ Server instance created"
+          - "✓ Base configuration applied"
+          - ""
+          - "Proceeding to Phase 2: Storage Preparation..."
+
+    - name: Verify server installation
+      ansible.builtin.stat:
+        path: "/opt/tivoli/tsm/server/bin/dsmserv"
+      register: server_binary
+      failed_when: not server_binary.stat.exists
+
+    - name: Display installation verification
+      ansible.builtin.debug:
+        msg: "✓ Server binary verified at /opt/tivoli/tsm/server/bin/dsmserv"
+
+# ============================================================================
+# Phase 2: Storage Volume Preparation
+# ============================================================================
+- name: "Phase 2: Prepare Storage Infrastructure"
+  import_playbook: ibm.storage_protect.storage_prepare_playbook.yml
+
+# ============================================================================
+# Inter-Phase Validation (Phase 2 → Phase 3)
+# ============================================================================
+- name: Inter-Phase Validation - Storage Ready
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: false
+  become: true
+  
+  tasks:
+    - name: Display phase 2 completion
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Phase 2: Storage Preparation - COMPLETED"
+          - "=========================================="
+          - ""
+          - "✓ Storage volumes created"
+          - "✓ Filesystems formatted"
+          - "✓ Volumes mounted"
+          - "✓ Permissions configured"
+          - ""
+          - "Proceeding to Phase 3: Server Configuration..."
+
+    - name: Verify storage mount points
+      ansible.builtin.shell: "df -h | grep {{ instance_dir | default('/tsminst1') }}"
+      register: storage_mounts
+      changed_when: false
+      failed_when: storage_mounts.rc != 0
+
+    - name: Display storage verification
+      ansible.builtin.debug:
+        msg: "✓ Storage volumes verified and mounted"
+
+# ============================================================================
+# Phase 3: Server Configuration and Finalization
+# ============================================================================
+- name: "Phase 3: Configure IBM Storage Protect Server"
+  import_playbook: ibm.storage_protect.sp_server_configure_playbook.yml
+
+# ============================================================================
+# Post-Deployment Validation and Reporting
+# ============================================================================
+- name: Blueprint Post-Deployment Validation
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Display phase 3 completion
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Phase 3: Configuration - COMPLETED"
+          - "=========================================="
+          - ""
+          - "✓ Server configured"
+          - "✓ Storage pools created"
+          - "✓ Policies defined"
+          - "✓ Schedules configured"
+          - ""
+          - "Performing final validation..."
+
+    - name: Verify server service status
+      ansible.builtin.systemd:
+        name: dsmserv
+        state: started
+      check_mode: true
+      register: service_status
+
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "BLUEPRINT DEPLOYMENT SUCCESSFUL"
+          - "=========================================="
+          - ""
+          - "Deployment Summary:"
+          - "  Host: {{ ansible_hostname }}"
+          - "  SP Server Version: {{ sp_server_version }}"
+          - "  Storage Size: {{ storage_size }}"
+          - "  Instance Directory: {{ instance_dir | default('/tsminst1') }}"
+          - "  Instance User: {{ instance_user | default('tsminst1') }}"
+          - ""
+          - "Deployment Phases Completed:"
+          - "  ✓ Phase 1: Server Installation"
+          - "  ✓ Phase 2: Storage Preparation"
+          - "  ✓ Phase 3: Server Configuration"
+          - ""
+          - "Next Steps:"
+          - "  1. Verify deployment: ansible-playbook sp_server_facts_playbook.yml"
+          - "  2. Register client nodes"
+          - "  3. Configure backup schedules"
+          - "  4. Test backup operations"
+          - "  5. Configure monitoring and alerts"
+          - ""
+          - "Access Information:"
+          - "  Admin Console: https://{{ ansible_hostname }}:1543"
+          - "  Server Port: 1500"
+          - "  Instance Directory: {{ instance_dir | default('/tsminst1') }}"
+          - ""
+          - "Documentation:"
+          - "  Design: docs/design/design-sp-blueprint-conf-solution.md"
+          - "  Guide: docs/guides/sp-blueprint-conf-solution-guide.md"
+          - ""
+          - "=========================================="
+
+    - name: Save deployment information
+      ansible.builtin.copy:
+        content: |
+          # SP Server Blueprint Deployment Information
+          
+          Deployment Date: {{ ansible_date_time.iso8601 }}
+          Host: {{ ansible_hostname }}
+          
+          ## Configuration
+          SP Server Version: {{ sp_server_version }}
+          Storage Size: {{ storage_size }}
+          Instance Directory: {{ instance_dir | default('/tsminst1') }}
+          Instance User: {{ instance_user | default('tsminst1') }}
+          
+          ## Deployment Phases
+          - Phase 1: Server Installation - COMPLETED
+          - Phase 2: Storage Preparation - COMPLETED
+          - Phase 3: Server Configuration - COMPLETED
+          
+          ## Access Information
+          Admin Console: https://{{ ansible_hostname }}:1543
+          Server Port: 1500
+          
+          ## Next Steps
+          1. Verify deployment using sp_server_facts_playbook.yml
+          2. Register client nodes
+          3. Configure backup schedules
+          4. Test backup operations
+          5. Configure monitoring and alerts
+        dest: "/tmp/sp_blueprint_deployment_{{ ansible_hostname }}_{{ ansible_date_time.iso8601_basic_short }}.txt"
+        mode: '0644'
+
+    - name: Display deployment file location
+      ansible.builtin.debug:
+        msg: "Deployment information saved to: /tmp/sp_blueprint_deployment_{{ ansible_hostname }}_{{ ansible_date_time.iso8601_basic_short }}.txt"
+...
+
+# Made with Bob

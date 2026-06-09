@@ -1,0 +1,73 @@
+---
+# Ensure DB2 instance profile exists
+- name: Check if DB2 instance profile exists
+  ansible.builtin.stat:
+    path: "/home/{{ db2_instance }}/sqllib/db2profile"
+  register: db2profile_check
+
+- name: Fail if DB2 instance profile is missing
+  ansible.builtin.fail:
+    msg: "DB2 instance profile not found at /home/{{ db2_instance }}/sqllib/db2profile"
+  when: not db2profile_check.stat.exists
+
+# Construct the DB2 delete command using db2adutl
+- name: Construct DB2 delete command using db2adutl
+  ansible.builtin.set_fact:
+    db2_delete_cmd: >-
+      {{ [
+        'db2adutl delete',
+        db2_delete_type | default(''),
+        db2_delete_level | default(''),
+        (
+          db2_delete_type == 'logs' and
+          db2_delete_logs_start is defined and
+          db2_delete_logs_end is defined
+        ) | ternary('between ' ~ db2_delete_logs_start ~ ' and ' ~ db2_delete_logs_end, ''),
+        (db2_delete_filter_type is defined and db2_delete_filter_value is defined)
+          | ternary(db2_delete_filter_type ~ ' ' ~ db2_delete_filter_value, ''),
+        (db2_delete_chain | default('') | length > 0) | ternary('chain ' ~ db2_delete_chain, ''),
+        (db2_comprlib | default('') | length > 0) | ternary('comprlib ' ~ db2_comprlib, ''),
+        (db2_compropts | default('') | length > 0) | ternary('compropts ' ~ db2_compropts, ''),
+        (db2_encrlib | default('') | length > 0) | ternary('encrlib ' ~ db2_encrlib, ''),
+        (db2_encropts | default('') | length > 0) | ternary('encropts ' ~ db2_encropts, ''),
+        (db2_partition | default('') | length > 0) | ternary('dbpartitionnum ' ~ db2_partition, ''),
+        (db2_logstream | default('') | length > 0) | ternary('logstream ' ~ db2_logstream, ''),
+        (db2_database | default('') | length > 0) | ternary('db ' ~ db2_database, ''),
+        (db2_options | default('') | length > 0) | ternary('options ' ~ db2_options, ''),
+        (db2_tsm_password | default('') | length > 0) | ternary("password '" ~ db2_tsm_password ~ "'", ''),
+        (db2_tsm_nodename | default('') | length > 0) | ternary('nodename ' ~ db2_tsm_nodename, ''),
+        (db2_tsm_owner | default('') | length > 0) | ternary('owner ' ~ db2_tsm_owner, ''),
+        (db2_without_prompting | default(false)) | ternary('without prompting', '')
+      ]
+      | reject('equalto', '')
+      | join(' ')
+      }}
+
+# Display constructed command
+- name: Display DB2 delete command
+  ansible.builtin.debug:
+    msg: "DB2 delete command: {{ db2_delete_cmd }}"
+
+# Execute the db2adutl delete command with profile sourced
+- name: Execute DB2 delete command
+  ansible.builtin.shell: |
+    source /home/{{ db2_instance }}/sqllib/db2profile
+    {{ db2_delete_cmd }}
+  args:
+    executable: /bin/bash
+    chdir: "/home/{{ db2_user | default(db2_instance) }}"
+  environment:
+    DB2INSTANCE: "{{ db2_instance }}"
+  register: delete_result
+  changed_when: "'DB2' in delete_result.stdout or 'DB2' in delete_result.stderr"
+
+# Show DB2 delete command output
+- name: Show DB2 delete output
+  ansible.builtin.debug:
+    var: delete_result.stdout_lines
+
+# Show errors if any
+- name: Show DB2 delete errors if any
+  ansible.builtin.debug:
+    var: delete_result.stderr_lines
+  when: delete_result.rc != 0

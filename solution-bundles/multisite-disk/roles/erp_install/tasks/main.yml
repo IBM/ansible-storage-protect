@@ -1,0 +1,24 @@
+- name: Install ba client using predefined role
+  ansible.builtin.include_role:
+    name: ba_client_install
+    public: yes
+- name: Set erp_action dynamically based on state
+  ansible.builtin.include_tasks: determine_action.yml
+  when: ba_client_state == "present"
+
+- name: Check if the erp local repo exists
+  ansible.builtin.include_tasks: local_repo_check.yml
+  when: erp_action is defined and erp_action == "install" and ba_client_state == "present"
+
+- name: Run ERP install tasks
+  ansible.builtin.include_tasks: erp_install_linux.yml
+  when: erp_action is defined and erp_action == "install" and ba_client_state == "present"
+
+- name: Set erp_action, check if node is configurable
+  ansible.builtin.include_tasks: determine_action.yml
+  when: ba_client_state == "present"
+
+- name: Run ERP configure tasks
+  ansible.builtin.include_tasks: erp_configure_linux.yml
+  when: erp_action is defined and erp_action == "configure" and ba_client_state == "present"
+

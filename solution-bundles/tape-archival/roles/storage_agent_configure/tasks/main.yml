@@ -1,0 +1,9 @@
+---
+- name: Configure Storage Agent
+  include_tasks: storage_agent_configure.yml
+  when: not validate_lan_free
+
+- name: Include configuration task if validate_lan_free is false
+  include_tasks: lanfree_client_validation.yml
+  when: validate_lan_free
+...

@@ -1,0 +1,10 @@
+---
+# Running the configuration
+- name: Running SP ERP configuration
+  ansible.builtin.shell:
+    cmd: "echo TODO: This task is WIP"
+  when: sperp_installation is defined and sperp_installation.rc == 0
+  register: sperp_configuration
+
+
+...

@@ -1,0 +1,67 @@
+---
+# IBM Storage Protect Server Configuration
+# Group Variables for SP Servers
+
+# ============================================================================
+# Version Configuration
+# ============================================================================
+sp_server_version: "8.1.24"
+ba_client_version: "8.1.24"
+
+# ============================================================================
+# Binary Repository Paths
+# ============================================================================
+sp_server_bin_repo: "/data/sp-packages/server/8.1.24"
+ba_client_bin_repo: "/data/sp-packages/ba-client/8.1.24"
+
+# ============================================================================
+# Installation Paths
+# ============================================================================
+sp_server_install_path: "/opt/tivoli/tsm/server"
+sp_server_instance_dir: "/tsminst1"
+sp_server_db_dir: "{{ sp_server_instance_dir }}/db"
+sp_server_active_log_dir: "{{ sp_server_instance_dir }}/activelog"
+sp_server_archive_log_dir: "{{ sp_server_instance_dir }}/archivelog"
+
+# ============================================================================
+# Server Configuration
+# ============================================================================
+sp_server_admin_user: "admin"
+sp_server_admin_password: "{{ vault_sp_server_admin_password }}"
+ssl_password: "{{ vault_ssl_password }}"
+
+# ============================================================================
+# Instance Configuration
+# ============================================================================
+instance_user: "tsminst1"
+instance_dir: "/tsminst1"
+instance_password: "{{ vault_instance_password }}"
+
+# ============================================================================
+# Storage Configuration (Use vars/small|medium|large_server_vars.yml)
+# ============================================================================
+storage_size: "small"  # Options: xsmall, small, medium, large
+
+# ============================================================================
+# Network Configuration
+# ============================================================================
+sp_server_port: 1500
+sp_server_admin_port: 1543
+
+# ============================================================================
+# Feature Flags
+# ============================================================================
+sp_server_configure_storage: true
+sp_server_configure_policies: true
+sp_server_configure_schedules: true
+deduplication_enabled: true
+compression_enabled: true
+encryption_enabled: true
+
+# ============================================================================
+# Backup Configuration
+# ============================================================================
+backup_retention_days: 90
+archive_retention_days: 365
+
+# Made with Bob

@@ -1,0 +1,27 @@
+---
+- name: "Storage Protect On demand backup"
+  ibm.storage_protect.node_file_backup:
+    backup_action: "{{storage_protect_node_file_backup.backup_action | mandatory}}"
+    filespec: "{{storage_protect_node_file_backup.filespec | mandatory}}"
+    absolute: "{{storage_protect_node_file_backup.absolute | default(omit)}}"
+    compression: "{{storage_protect_node_file_backup.compression | default(omit)}}"
+    is_compress_always: "{{storage_protect_node_file_backup.is_compress_always | default(omit)}}"
+    diff_snapshot: "{{storage_protect_node_file_backup.diff_snapshot | default(omit)}}"
+    dirs_only: "{{storage_protect_node_file_backup.dirs_only | default(omit)}}"
+    file_list: "{{storage_protect_node_file_backup.file_list | default(omit)}}"
+    files_only: "{{storage_protect_node_file_backup.files_only | default(omit)}}"
+    remove_operand_limit: "{{storage_protect_node_file_backup.remove_operand_limit | default(omit)}}"
+    snapshot_root: "{{storage_protect_node_file_backup.snapshot_root | default(omit)}}"
+    is_subdir: "{{storage_protect_node_file_backup.is_subdir | default(omit)}}"
+
+
+    # Role Standard Options
+    server_name: "{{ storage_protect_server_name | default(omit) }}"
+    node_name: "{{ storage_protect_node_name | default(omit) }}"
+    password: "{{ storage_protect_node_password | default(omit) }}"
+    request_timeout: "{{ storage_protect_request_timeout | default(omit) }}"
+
+  register: backup_status
+- name: Debug output
+  debug:
+    var: backup_status
