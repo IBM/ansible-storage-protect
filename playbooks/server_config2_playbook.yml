@@ -91,12 +91,12 @@
 
 - name: Distribute certificate to clients.
   hosts: server3
-  gather_facts: no
+  gather_facts: yes
   tasks:
     - name: Copy the certificate to the client machine.
       copy:
         src: "/tmp/cert256.arm"
         dest: /opt/tivoli/tsm/client/ba/bin/
         owner: root
-        group: root
+        group: "{{ 'system' if ansible_system == 'AIX' else 'root' }}"
         mode: '0644'
