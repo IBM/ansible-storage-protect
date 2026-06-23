@@ -1,7 +1,7 @@
 from ansible.module_utils.basic import AnsibleModule
 from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
 
-DOCUMENTATION='''
+DOCUMENTATION = '''
 ---
 module: oc_configure
 author: Sarthak Kshirsagar
@@ -13,7 +13,7 @@ options:
   admin_name:
     description:
       - The name of the admin user of the hub server.
-    required: true
+    required: false
     type: str
   action:
     description:
@@ -24,10 +24,9 @@ options:
       - configure
       - restart
       - stop
-
 '''
 
-EXAMPLES='''
+EXAMPLES = '''
 ---
 - name: Configure OC
   ibm.storage_protect.oc_configure:
@@ -36,14 +35,14 @@ EXAMPLES='''
 
 - name: Stop OC
   ibm.storage_protect.oc_configure:
-    admin_name: tsmuser1
     action: stop
 
-- name: Start OC
+- name: Restart OC
   ibm.storage_protect.oc_configure:
-    admin_name: tsmuser1
     action: restart
 '''
+
+
 def main():
     argument_spec = dict(
         admin_name=dict(type='str', required=False),
@@ -59,36 +58,53 @@ def main():
     if action == 'configure' and not admin_name:
         module.fail_json(msg="'admin_name' is required when action is 'configure'")
 
-    rc, out, err = module.run_command('systemctl status opscenter.service')
-
-    if 'could not be found' in (out + err).lower() or 'not-found' in (out + err).lower():
-        module.fail_json(msg="OC is not installed or service is not registered.")
-
     if action == 'configure':
         rc, out, err = dsmadmc_adapter.run_command(
             f'update admin {admin_name} sessionsecurity=transitional',
             auto_exit=False
         )
+
         if rc == 0:
             module.exit_json(
                 msg="OC configuration complete. Access the OC at https://<hostname>:<port>/oc",
                 stdout=out,
                 changed=False
             )
-        else:
-            module.fail_json(msg='Failed to configure the OC', stdout=out, stderr=str(err))
 
-    else:
-        rc, out, err = module.run_command(["systemctl", action, "opscenter.service"])
-        if rc == 0:
-            module.exit_json(changed=True,stdout=out,tderr=err)
-        else:
-            module.fail_json(
-                msg=f'Failed to {action} the OC',
-                stdout=out,
-                stderr=err,
-                changed=False
-            )
+        module.fail_json(
+            msg='Failed to configure the OC',
+            stdout=out,
+            stderr=str(err),
+            changed=False
+        )
+
+    rc, out, err = module.run_command('systemctl status opscenter.service')
+
+    service_status = (out + err).lower()
+    if rc != 0 or 'could not be found' in service_status or 'not-found' in service_status:
+        module.fail_json(
+            msg="OC is not installed or service is not registered.",
+            stdout=out,
+            stderr=err,
+            changed=False
+        )
+
+    rc, out, err = module.run_command(["systemctl", action, "opscenter.service"])
+
+    if rc == 0:
+        module.exit_json(
+            changed=True,
+            stdout=out,
+            stderr=err
+        )
+
+    module.fail_json(
+        msg=f'Failed to {action} the OC',
+        stdout=out,
+        stderr=err,
+        changed=False
+    )
+
 
 if __name__ == '__main__':
     main()
