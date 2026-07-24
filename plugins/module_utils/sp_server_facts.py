@@ -1,18 +1,24 @@
+import csv
+import io
+import re
 import subprocess
 
 from ..module_utils.dsmadmc_adapter import DsmadmcAdapter
+
 
 class DsmadmcAdapterExtended(DsmadmcAdapter):
     """
     Extended DsmadmcAdapter to add support for the -commadelimited parameter.
     """
 
-    def run_command(self, command, auto_exit=True, dataonly=True, exit_on_fail=True):
+    def run_command(
+            self, command, auto_exit=True, dataonly=True, exit_on_fail=True,
+            commadelimited=True):
 
         command = (
             f'dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} '
             + ('-dataonly=yes ' if dataonly else '') +
-            '-commadelimited ' +
+            ('-commadelimited ' if commadelimited else '') +
             command
         )
 
@@ -38,6 +44,82 @@ class DSMParser:
     """
 
     @staticmethod
+    def _parse_csv_rows(raw_output):
+        """
+        Parse DSMADMC -commadelimited output as CSV.
+
+        DSMADMC quotes values that contain thousands separators.  A plain
+        split(',') corrupts those values and shifts every following field.
+        """
+        if not raw_output or not raw_output.strip():
+            return []
+
+        rows = csv.reader(io.StringIO(raw_output), skipinitialspace=True)
+        return [
+            [value.strip() for value in row]
+            for row in rows
+            if any(value.strip() for value in row)
+        ]
+
+    @staticmethod
+    def _map_row(query, keys, row, row_number=1):
+        if len(row) != len(keys):
+            raise ValueError(
+                "{0} row {1}: expected {2} fields but received {3}".format(
+                    query, row_number, len(keys), len(row)
+                )
+            )
+        return dict(zip(keys, row))
+
+    @staticmethod
+    def _single_csv_row(query, keys, raw_output):
+        rows = DSMParser._parse_csv_rows(raw_output)
+        if len(rows) != 1:
+            raise ValueError(
+                "{0}: expected 1 data row but received {1}".format(
+                    query, len(rows)
+                )
+            )
+        return DSMParser._map_row(query, keys, rows[0])
+
+    @staticmethod
+    def _developer_key(label):
+        key = re.sub(r"[^A-Za-z0-9]+", "_", label.strip()).strip("_")
+        return key.lower()
+
+    @staticmethod
+    def _parse_labeled_output(query, dsm_output, first_label):
+        parsed_data = {}
+        fields_started = False
+        first_key = DSMParser._developer_key(first_label)
+
+        for raw_line in dsm_output.splitlines():
+            line = raw_line.strip()
+            if not fields_started:
+                if ":" not in line:
+                    continue
+                label, _ = line.split(":", 1)
+                if DSMParser._developer_key(label) != first_key:
+                    continue
+                fields_started = True
+
+            if line.startswith("ANS8002I"):
+                break
+            if not line or ":" not in line:
+                continue
+
+            label, value = line.split(":", 1)
+            key = DSMParser._developer_key(label)
+            if key:
+                parsed_data[key] = value.strip()
+
+        if not parsed_data:
+            raise ValueError(
+                "{0}: no label/value fields were found".format(query)
+            )
+        return parsed_data
+
+    @staticmethod
     def parse_q_status(dsm_output):
         """
         Parses the 'q status' output into a dictionary.
@@ -48,21 +130,9 @@ class DSMParser:
         Returns:
             dict: A dictionary with parsed key-value pairs based on the 'q status' output.
         """
-        labels = [
-            "Monitor Status", "Status Refresh Interval (Minutes)", "Status Retention (Hours)",
-            "Monitor Message Alerts", "Alert Update Interval (Minutes)", "Alert to Email",
-            "Send Alert Summary to Administrators", "Alert from Email Address", "Alert SMTP Host",
-            "Alert SMTP Port", "Alert Active Duration (Minutes)", "Alert Inactive Duration (Minutes)",
-            "Alert Closed Duration (Minutes)", "Monitoring Admin", "Monitored Group", "Monitored Servers",
-            "At-Risk Interval for Applications", "Skipped files as At-Risk for Applications?",
-            "At-Risk Interval for Virtual Machines", "Skipped files as At-Risk for Virtual Machines?",
-            "At-Risk Interval for Systems", "Skipped files as At-Risk for Systems?"
-        ]
-
-        values = dsm_output.split(',')
-        parsed_data = dict(zip(labels, values))
-
-        return parsed_data
+        return DSMParser._parse_labeled_output(
+            "q_status", dsm_output, "Server Name"
+        )
 
     @staticmethod
     def parse_q_monitorsettings(dsm_output):
@@ -75,21 +145,9 @@ class DSMParser:
         Returns:
             dict: A dictionary with parsed key-value pairs based on the 'q monitorsettings' output.
         """
-        labels = [
-            "Monitor Status", "Status Refresh Interval (Minutes)", "Status Retention (Hours)",
-            "Monitor Message Alerts", "Alert Update Interval (Minutes)", "Alert to Email",
-            "Send Alert Summary to Administrators", "Alert from Email Address", "Alert SMTP Host",
-            "Alert SMTP Port", "Alert Active Duration (Minutes)", "Alert Inactive Duration (Minutes)",
-            "Alert Closed Duration (Minutes)", "Monitoring Admin", "Monitored Group", "Monitored Servers",
-            "At-Risk Interval for Applications", "Skipped files as At-Risk for Applications?",
-            "At-Risk Interval for Virtual Machines", "Skipped files as At-Risk for Virtual Machines?",
-            "At-Risk Interval for Systems", "Skipped files as At-Risk for Systems?"
-        ]
-
-        values = dsm_output.split(',')
-        parsed_data = dict(zip(labels, values))
-
-        return parsed_data
+        return DSMParser._parse_labeled_output(
+            "q_monitorsettings", dsm_output, "Monitor Status"
+        )
 
     @staticmethod
     def parse_q_db(raw_output):
@@ -102,18 +160,11 @@ class DSMParser:
         Returns:
             dict: A dictionary with parsed database information (e.g., name, pages, usage).
         """
-        raw_data = raw_output.splitlines()[0]
-        parsed_data = [item.strip().replace('"', '') for item in raw_data.split(",")]
-
-        parsed_output = {
-            "Database Name": parsed_data[0],
-            "Total Pages": parsed_data[1],
-            "Usable Pages": parsed_data[2],
-            "Used Pages": parsed_data[3],
-            "Free Pages": parsed_data[4]
-        }
-
-        return parsed_output
+        keys = [
+            "Database Name", "Total Pages", "Usable Pages", "Used Pages",
+            "Free Pages"
+        ]
+        return DSMParser._single_csv_row("q_db", keys, raw_output)
 
     @staticmethod
     def parse_q_dbspace(raw_output):
@@ -124,17 +175,21 @@ class DSMParser:
             raw_output (str): The raw output string from the space info query.
 
         Returns:
-            dict: A dictionary with parsed space information (total, used, and free space).
+            list: Database directory records with total, used, and free space.
         """
-        parsed_values = [item.strip().replace('"', '') for item in raw_output.strip().split(",")]
-        parsed_output = {
-            "Total Space (MB)": parsed_values[0],
-            "Used Space (MB)": parsed_values[1],
-            "Free Space (MB)": parsed_values[2]
-        }
+        keys = [
+            "Location", "Total Space (MB)", "Used Space (MB)",
+            "Free Space (MB)"
+        ]
+        rows = DSMParser._parse_csv_rows(raw_output)
+        if not rows:
+            raise ValueError("q_dbspace: expected at least 1 data row")
+        return [
+            DSMParser._map_row("q_dbspace", keys, row, row_number)
+            for row_number, row in enumerate(rows, start=1)
+        ]
 
-        return parsed_output
-
+    @staticmethod
     def parse_q_log(raw_output):
         """
         Parses the space information output into a structured dictionary.
@@ -145,36 +200,30 @@ class DSMParser:
         Returns:
             dict: A dictionary with parsed space information (total, used, and free space).
         """
-        parsed_values = [item.strip().replace('"', '') for item in raw_output.strip().split(",")]
-        parsed_output = {
-            "Total Space (MB)": parsed_values[0],
-            "Used Space (MB)": parsed_values[1],
-            "Free Space (MB)": parsed_values[2]
-        }
-
-        return parsed_output
+        keys = ["Total Space (MB)", "Used Space (MB)", "Free Space (MB)"]
+        return DSMParser._single_csv_row("q_log", keys, raw_output)
 
     @staticmethod
     def parse_q_domain(raw_output):
         """
-        Parses the policy information output into a structured dictionary.
+        Parses policy domain output into a list of domain records.
 
         Args:
             raw_output (str): The raw output string from the policy info query.
 
         Returns:
-            dict: A dictionary with parsed policy information (e.g., domain name, nodes).
+            list: Policy domain records.
         """
-        parsed_values = [item.strip() for item in raw_output.strip().split(",")]
-        parsed_output = {
-            "Policy Domain Name": parsed_values[0],
-            "Activated Policy Set": parsed_values[1],
-            "Activated Default Mgmt Class": parsed_values[2],
-            "Number of Registered Nodes": parsed_values[3],
-            "Description": parsed_values[4]
-        }
-
-        return parsed_output
+        keys = [
+            "Policy Domain Name", "Activated Policy Set",
+            "Activated Default Mgmt Class", "Number of Registered Nodes",
+            "Description"
+        ]
+        rows = DSMParser._parse_csv_rows(raw_output)
+        return [
+            DSMParser._map_row("q_domain", keys, row, row_number)
+            for row_number, row in enumerate(rows, start=1)
+        ]
 
     @staticmethod
     def parse_q_copygroup(raw_output):
@@ -187,18 +236,16 @@ class DSMParser:
         Returns:
             list: A list of dictionaries, each containing parsed policy setting details.
         """
-        rows = raw_output.strip().split("\n")
         keys = [
             "Policy Domain Name", "Policy Set Name", "Mgmt Class Name", "Copy Group Name",
             "Versions Data Exists", "Versions Data Deleted", "Retain Extra Versions", "Retain Only Version"
         ]
 
-        parsed_output = []
-        for row in rows:
-            values = [value.strip() for value in row.split(",")]
-            parsed_output.append(dict(zip(keys, values)))
-
-        return parsed_output
+        rows = DSMParser._parse_csv_rows(raw_output)
+        return [
+            DSMParser._map_row("q_copygroup", keys, row, row_number)
+            for row_number, row in enumerate(rows, start=1)
+        ]
 
     @staticmethod
     def parse_q_replrule(raw_output):
@@ -211,17 +258,21 @@ class DSMParser:
         Returns:
             dict: A dictionary with parsed replication rules and a footer message.
         """
-        rows = raw_output.strip().split("\n")
         keys = [
             "Replication Rule Name", "Target Replication Server", "Active Only", "Enabled"
         ]
         parsed_output = []
 
-        for row in rows:
-            if row.startswith("ANR1999I"):
+        rows = DSMParser._parse_csv_rows(raw_output)
+        for row_number, row in enumerate(rows, start=1):
+            if row and row[0].startswith("ANR1999I"):
                 continue
-            values = [value.strip() if value else None for value in row.split(",")]
-            parsed_output.append(dict(zip(keys, values)))
+            values = [value if value else None for value in row]
+            parsed_output.append(
+                DSMParser._map_row(
+                    "q_replrule", keys, values, row_number
+                )
+            )
 
         footer_message = "ANR1999I QUERY REPLRULE completed successfully."
         return {"rules": parsed_output, "footer_message": footer_message}
@@ -229,22 +280,28 @@ class DSMParser:
     @staticmethod
     def parse_q_devclass(raw_output):
         """
-        Parses the device class output into a dictionary.
+        Parses device class output into a list of device class records.
 
         Args:
             raw_output (str): The raw output string from the device class query.
 
         Returns:
-            dict: A dictionary with parsed device class details.
+            list: Device class records.
         """
         keys = [
             "Device Class Name", "Device Access Strategy", "Storage Pool Count",
             "Device Type", "Format", "Est/Max Capacity (MB)", "Mount Limit"
         ]
 
-        values = [value.strip() if value else None for value in raw_output.strip().split(",")]
-        parsed_output = dict(zip(keys, values))
-
+        rows = DSMParser._parse_csv_rows(raw_output)
+        parsed_output = []
+        for row_number, row in enumerate(rows, start=1):
+            values = [value if value else None for value in row]
+            parsed_output.append(
+                DSMParser._map_row(
+                    "q_devclass", keys, values, row_number
+                )
+            )
         return parsed_output
 
     @staticmethod
@@ -261,13 +318,11 @@ class DSMParser:
         keys = [
             "Policy Domain Name", "Policy Set Name", "Mgmt Class Name", "Default Mgmt Class?", "Description"
         ]
-        rows = [line.strip() for line in raw_output.strip().split("\n") if line.strip()]
-
-        parsed_output = []
-        for row in rows:
-            values = [value.strip() for value in row.split(",")]
-            parsed_output.append(dict(zip(keys, values)))
-        return parsed_output
+        rows = DSMParser._parse_csv_rows(raw_output)
+        return [
+            DSMParser._map_row("q_mgmtclass", keys, row, row_number)
+            for row_number, row in enumerate(rows, start=1)
+        ]
 
     @staticmethod
     def parse_q_stgpool(raw_output):
@@ -285,14 +340,11 @@ class DSMParser:
             "Pct Migr", "High Mig Pct", "Low Mig Pct", "Next Storage Pool"
         ]
 
-        rows = [line.strip() for line in raw_output.strip().split("\n") if line.strip()]
-        parsed_output = []
-
-        for row in rows:
-            values = [value.strip() for value in row.split(",")]
-            parsed_output.append(dict(zip(keys, values)))
-
-        return parsed_output
+        rows = DSMParser._parse_csv_rows(raw_output)
+        return [
+            DSMParser._map_row("q_stgpool", keys, row, row_number)
+            for row_number, row in enumerate(rows, start=1)
+        ]
 
 
 class SpServerResponseMapper:
@@ -308,6 +360,16 @@ class SpServerResponseMapper:
         "Free Space (MB)": "free_space_mb",
         "Total Space (MB)": "total_space_mb",
         "Used Space (MB)": "used_space_mb",
+        "Location": "location",
+        "Database Name": "database_name",
+        "Total Pages": "total_pages",
+        "Usable Pages": "usable_pages",
+        "Used Pages": "used_pages",
+        "Free Pages": "free_pages",
+        "Replication Rule Name": "replication_rule_name",
+        "Target Replication Server": "target_replication_server",
+        "Active Only": "active_only",
+        "Enabled": "enabled",
         "Device Access Strategy": "device_access_strategy",
         "Device Class Name": "device_class_name",
         "Device Type": "device_type",
