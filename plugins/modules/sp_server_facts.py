@@ -1,8 +1,10 @@
 #!/usr/bin/python
 # coding: utf-8 -*-
 
+import csv
+
 from ..module_utils.sp_server_facts import DSMParser, SpServerResponseMapper
-from  ..module_utils.sp_server_facts import DsmadmcAdapterExtended
+from ..module_utils.sp_server_facts import DsmadmcAdapterExtended
 
 DOCUMENTATION = '''
 ---
@@ -132,9 +134,24 @@ def main():
 
     for query in queries:
         if dsmadmc.params.get(f'q_{query}'):
-            rc, output, _ = dsmadmc.run_command(f'q {query}', auto_exit=False)
+            list_query = query in ('status', 'monitorsettings')
+            rc, output, _ = dsmadmc.run_command(
+                f'-displaymode=list q {query}'
+                if list_query
+                else f'q {query}',
+                auto_exit=False,
+                dataonly=not list_query,
+                commadelimited=not list_query
+            )
             if rc == 0:
-                results[f'q_{query}'] = getattr(DSMParser, f'parse_q_{query}')(output)
+                try:
+                    results[f'q_{query}'] = getattr(
+                        DSMParser, f'parse_q_{query}'
+                    )(output)
+                except (ValueError, csv.Error) as error:
+                    dsmadmc.fail_json(
+                        msg="Unable to parse q_{0}: {1}".format(query, error)
+                    )
 
     mapped_result = SpServerResponseMapper.map_to_developer_friendly(results)
 

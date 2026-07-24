@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 from html import escape
 
 REPORT_DIR = Path("reports")
-REPORT_DIR.mkdir(exist_ok=True)
 
 BASELINE = REPORT_DIR / "baseline.json"
 CURRENT = REPORT_DIR / "current.json"
@@ -21,6 +20,59 @@ DRIFT_HTML = REPORT_DIR / "drift_report.html"
 DRIFT_ZIP = REPORT_DIR / "drift_report_bundle.zip"
 
 VOLATILE_KEYS = {"timestamp", "last_checked"}
+
+VOLATILE_FIELDS_BY_QUERY = {
+    "q_status": {
+        "activity_log_number_of_records",
+        "used_space_on_file_system_mb",
+        "free_space_available_mb",
+    },
+    "q_dbspace": {
+        "used_space_mb",
+        "free_space_mb",
+    },
+    "q_log": {
+        "used_space_mb",
+        "free_space_mb",
+    },
+    "q_stgpool": {
+        "pct_util",
+        "pct_migr",
+    },
+}
+
+LIST_IDENTITY_FIELDS = {
+    "q_dbspace": {
+        (): ("location",),
+    },
+    "q_stgpool": {
+        (): ("storage_pool_name",),
+    },
+    "q_replrule": {
+        ("rules",): ("replication_rule_name",),
+    },
+    "q_devclass": {
+        (): ("device_class_name",),
+    },
+    "q_domain": {
+        (): ("policy_domain_name",),
+    },
+    "q_copygroup": {
+        (): (
+            "policy_domain_name",
+            "policy_set_name",
+            "mgmt_class_name",
+            "copy_group_name",
+        ),
+    },
+    "q_mgmtclass": {
+        (): (
+            "policy_domain_name",
+            "policy_set_name",
+            "mgmt_class_name",
+        ),
+    },
+}
 
 CLASSIFICATION_MAP = {
     "q_copygroup": "Policies",
@@ -78,7 +130,7 @@ def get_query_keys(snapshot):
         return sorted(module_results.keys())
     return []
 
-def clean_dict(obj):
+def clean_dict(obj, query_name=None):
     if isinstance(obj, dict):
         out = {}
         for k, v in obj.items():
@@ -86,83 +138,145 @@ def clean_dict(obj):
                 continue
             if k in ("resource", "generated_at"):
                 continue
-            out[k] = clean_dict(v)
+            if k in VOLATILE_FIELDS_BY_QUERY.get(query_name, set()):
+                continue
+            out[k] = clean_dict(v, query_name)
         return out
     if isinstance(obj, list):
-        return [clean_dict(x) for x in obj]
+        return [clean_dict(x, query_name) for x in obj]
     return obj
 
-# -------------------------------------------------
-# Diff engine
-# -------------------------------------------------
-def diff_dict(old, new):
-    added, removed, changed = {}, {}, {}
+def _identity_label(item, identity_fields):
+    missing = [
+        field
+        for field in identity_fields
+        if field not in item or item[field] in (None, "")
+    ]
+    if missing:
+        raise ValueError(
+            "Cannot compare list item: missing identity field(s) {0}".format(
+                ", ".join(missing)
+            )
+        )
 
-    old = old or {}
-    new = new or {}
+    if len(identity_fields) == 1:
+        return str(item[identity_fields[0]])
+    return ", ".join(
+        "{0}={1}".format(field, item[field])
+        for field in identity_fields
+    )
 
-    for k in new.keys() - old.keys():
-        added[k] = new[k]
 
-    for k in old.keys() - new.keys():
-        removed[k] = old[k]
+def normalize_lists(query_name, obj, path=()):
+    if isinstance(obj, dict):
+        return {
+            key: normalize_lists(query_name, value, path + (key,))
+            for key, value in obj.items()
+        }
 
-    for k in old.keys() & new.keys():
-        a, b = old[k], new[k]
-        if isinstance(a, dict) and isinstance(b, dict):
-            ad, rm, ch = diff_dict(a, b)
-            if ad:
-                added[k] = ad
-            if rm:
-                removed[k] = rm
-            if ch:
-                changed[k] = ch
-        elif a != b:
-            changed[k] = {"old": a, "new": b}
+    if isinstance(obj, list):
+        identity_fields = LIST_IDENTITY_FIELDS.get(
+            query_name, {}
+        ).get(path)
+        if not identity_fields:
+            return [
+                normalize_lists(query_name, value, path)
+                for value in obj
+            ]
 
-    return added, removed, changed
+        normalized = {}
+        for item in obj:
+            if not isinstance(item, dict):
+                raise ValueError(
+                    "{0} list at {1} contains a non-object item".format(
+                        query_name, ".".join(path) or "<root>"
+                    )
+                )
+            identity = "[{0}]".format(
+                _identity_label(item, identity_fields)
+            )
+            if identity in normalized:
+                raise ValueError(
+                    "{0} list at {1} contains duplicate identity {2}".format(
+                        query_name, ".".join(path) or "<root>", identity
+                    )
+                )
+            normalized[identity] = normalize_lists(
+                query_name, item, path + ("[]",)
+            )
+        return normalized
 
-# -------------------------------------------------
-# Flatten to field-level rows
-# -------------------------------------------------
-def flatten_changes(module, obj, mode):
-    rows = []
+    return obj
 
-    def walk(path, old, new):
-        if isinstance(old, dict) and isinstance(new, dict):
-            for k in set(old) | set(new):
-                walk(f"{path}.{k}" if path else k, old.get(k), new.get(k))
-        else:
-            if mode == "changed" and old != new:
-                rows.append((module, path, old, new))
-            elif mode == "added" and old is None:
-                rows.append((module, path, None, new))
-            elif mode == "removed" and new is None:
-                rows.append((module, path, old, None))
 
-    if mode == "changed":
-        for k, v in obj.items():
-            if isinstance(v, dict):
-                # Check if this is a simple change dict with "old" and "new"
-                if "old" in v and "new" in v:
-                    walk(k, v["old"], v["new"])
-                else:
-                    # It's a nested structure - recurse into it
-                    for nested_k, nested_v in v.items():
-                        nested_path = f"{k}.{nested_k}" if k else nested_k
-                        if isinstance(nested_v, dict) and "old" in nested_v and "new" in nested_v:
-                            walk(nested_path, nested_v["old"], nested_v["new"])
-                        else:
-                            # Even deeper nesting or unexpected structure
-                            walk(nested_path, nested_v, nested_v)
-            else:
-                # v is not a dict (could be list, string, etc.)
-                # This shouldn't normally happen in "changed" mode, but handle it gracefully
-                walk(k, None, v)
-    else:
-        walk("", None if mode == "added" else obj, obj if mode == "added" else None)
+def prepare_module_results(module_results):
+    return {
+        query_name: normalize_lists(
+            query_name,
+            clean_dict(value, query_name),
+        )
+        for query_name, value in module_results.items()
+    }
 
+
+_MISSING = object()
+
+
+def _join_path(path, key):
+    if key.startswith("["):
+        return "{0}{1}".format(path, key)
+    return "{0}.{1}".format(path, key) if path else key
+
+
+def _compare_values(module, path, old, new, rows):
+    if old is _MISSING:
+        rows["Added"].append((module, path, None, new))
+        return
+    if new is _MISSING:
+        rows["Removed"].append((module, path, old, None))
+        return
+
+    if isinstance(old, dict) and isinstance(new, dict):
+        for key in sorted(old.keys() | new.keys()):
+            _compare_values(
+                module,
+                _join_path(path, key),
+                old.get(key, _MISSING),
+                new.get(key, _MISSING),
+                rows,
+            )
+        return
+
+    if old != new:
+        rows["Changed"].append((module, path, old, new))
+
+
+def build_change_rows(old, new):
+    rows = {"Changed": [], "Added": [], "Removed": []}
+    for module in sorted(old.keys() | new.keys()):
+        _compare_values(
+            module,
+            "",
+            old.get(module, _MISSING),
+            new.get(module, _MISSING),
+            rows,
+        )
     return rows
+
+
+def serialize_rows(rows):
+    return {
+        key.lower(): [
+            {
+                "module": module,
+                "field": field,
+                "previous": old,
+                "current": new,
+            }
+            for module, field, old, new in values
+        ]
+        for key, values in rows.items()
+    }
 
 # -------------------------------------------------
 # HTML helpers
@@ -177,14 +291,11 @@ def render_table(title, rows):
     if not rows:
         return ""
 
-    is_changed = title == "Changed"
-
     html = [f"<div class='card'><h2>{title}</h2><table>"]
-
-    if is_changed:
-        html.append("<tr><th>Classification</th><th>Module</th><th>Field</th><th>Previous</th><th>Current</th></tr>")
-    else:
-        html.append("<tr><th>Classification</th><th>Module</th><th>Previous</th><th>Current</th></tr>")
+    html.append(
+        "<tr><th>Classification</th><th>Module</th><th>Field</th>"
+        "<th>Previous</th><th>Current</th></tr>"
+    )
 
     last_module = None
     for mod, field, old, new in rows:
@@ -197,13 +308,9 @@ def render_table(title, rows):
         else:
             html.append("<td></td>")
 
-        if is_changed:
-            html.append(f"<td>{escape(field)}</td>")
-            html.append(f"<td><pre>{jdump(old)}</pre></td>")
-            html.append(f"<td><pre>{jdump(new)}</pre></td>")
-        else:
-            html.append(f"<td><pre>{jdump(old)}</pre></td>")
-            html.append(f"<td><pre>{jdump(new)}</pre></td>")
+        html.append(f"<td>{escape(field)}</td>")
+        html.append(f"<td><pre>{jdump(old)}</pre></td>")
+        html.append(f"<td><pre>{jdump(new)}</pre></td>")
 
         html.append("</tr>")
 
@@ -264,12 +371,6 @@ def generate_html(rows, counts, meta, html_uri, json_uri, zip_uri, coverage=None
 
     html.append("</body></html>")
     return "\n".join(html)
-
-# -------------------------------------------------
-# Module-level counting
-# -------------------------------------------------
-def count_modules(rows):
-    return len({r[0] for r in rows})
 
 # -------------------------------------------------
 # Main
@@ -335,26 +436,18 @@ def main():
     baseline = load_json(baseline_path)
     coverage = current.get("coverage", {})
 
-    prev = clean_dict(baseline["data"]["ansible_module_results"])
-    curr = clean_dict(current["data"]["ansible_module_results"])
-
-    added, removed, changed = diff_dict(prev, curr)
-
-    rows = {"Changed": [], "Added": [], "Removed": []}
-
-    for mod, val in changed.items():
-        rows["Changed"].extend(flatten_changes(mod, val, "changed"))
-
-    for mod, val in added.items():
-        rows["Added"].extend(flatten_changes(mod, val, "added"))
-
-    for mod, val in removed.items():
-        rows["Removed"].extend(flatten_changes(mod, val, "removed"))
+    prev = prepare_module_results(
+        baseline["data"]["ansible_module_results"]
+    )
+    curr = prepare_module_results(
+        current["data"]["ansible_module_results"]
+    )
+    rows = build_change_rows(prev, curr)
 
     counts = {
-        "changed": count_modules(rows["Changed"]),
-        "added": count_modules(rows["Added"]),
-        "removed": count_modules(rows["Removed"]),
+        "changed": len(rows["Changed"]),
+        "added": len(rows["Added"]),
+        "removed": len(rows["Removed"]),
     }
 
     drift = {
@@ -366,6 +459,7 @@ def main():
         "baseline_sha": sha256_of(baseline_path),
         "current_sha": sha256_of(current_path),
         "coverage": coverage,
+        "changes": serialize_rows(rows),
     }
 
     write_json(drift_json_path, drift)
