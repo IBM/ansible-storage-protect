@@ -1,0 +1,43 @@
+IBM Storage Protect
+Command Line Administrative Interface - Version 8, Release 2, Level 0.0
+(c) Copyright IBM Corp. 1990, 2025. All Rights Reserved.
+
+Session established with server TESTSERVER: Linux/x86_64
+  Server Version 8, Release 2, Level 2.000
+  Server date/time: 07/24/26   07:08:42  Last access: 07/24/26   07:07:58
+
+ANS8000I Server command: 'q monitorsettings'.
+
+                                Monitor Status: Off
+             Status Refresh Interval (Minutes): 5
+                      Status Retention (Hours): 24
+                        Monitor Message Alerts: Off
+               Alert Update Interval (Minutes): 10
+                                Alert to Email: Off
+          Send Alert Summary to Administrators:
+                      Alert from Email Address:
+                               Alert SMTP Host:
+                               Alert SMTP Port: 25
+               Alert Active Duration (Minutes): 480
+             Alert Inactive Duration (Minutes): 480
+               Alert Closed Duration (Minutes): 60
+                              Monitoring Admin:
+                               Monitored Group:
+                             Monitored Servers:
+             At-Risk Interval for Applications: 24
+    Skipped files as At-Risk for Applications?: Yes
+         At-Risk Interval for Virtual Machines: 24
+Skipped files as At-Risk for Virtual Machines?: Yes
+                  At-Risk Interval for Systems: 24
+         Skipped files as At-Risk for Systems?: Yes
+           At-Risk Interval for Object Clients: 24
+                         Deployment Repository:
+                   Maximum Deployment Packages: 4
+                        Deploy Package Manager: On
+                         Security Notification: On
+       Security Notification Last Update Admin:
+   Security Notification Last Update Date/Time:
+                        Deploy Package Updates: On
+
+
+ANS8002I Highest return code was 0.

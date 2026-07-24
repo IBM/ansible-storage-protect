@@ -1,0 +1,92 @@
+IBM Storage Protect
+Command Line Administrative Interface - Version 8, Release 2, Level 0.0
+(c) Copyright IBM Corp. 1990, 2025. All Rights Reserved.
+
+Session established with server TESTSERVER: Linux/x86_64
+  Server Version 8, Release 2, Level 2.000
+  Server date/time: 07/24/26   07:00:05  Last access: 07/24/26   06:58:02
+
+ANS8000I Server command: 'q status'.
+IBM Storage Protect Server for Linux/x86_64 - Version 8, Release 2, Level 2.000
+
+
+                                  Server Name: TESTSERVER
+               Server host name or IP address:
+                    Server TCP/IP port number: 1500
+                                  Crossdefine: Off
+                          Server Password Set: No
+                Server Installation Date/Time: 07/22/26   10:04:59
+                     Server Restart Date/Time: 07/23/26   11:53:57
+                               Authentication: On
+                   Password Expiration Period: 90 Day(s)
+                Invalid Sign-on Attempt Limit: 5
+                      Minimum Password Length: 15
+       Minimum Password Alphabetic Characters: 0
+        Minimum Password Uppercase Characters: 0
+        Minimum Password Lowercase Characters: 0
+          Minimum Password Numeric Characters: 0
+          Minimum Password Special Characters: 0
+                         Password Reuse Limit: 12
+                                 Registration: Closed
+                               Subfile Backup: No
+                                 Availability: Enabled
+                    Inbound Sessions Disabled:
+                   Outbound Sessions Disabled:
+                                   Accounting: Off
+                       Activity Log Retention: 30 Day(s)
+               Activity Log Number of Records: 4417
+                            Activity Log Size: <1 M
+            Activity Summary Retention Period: 30 Day(s)
+                         License Audit Period: 30 Day(s)
+                           Last License Audit: 07/23/26   05:10:06
+                    Server License Compliance: Valid
+                            Central Scheduler: Active
+                             Maximum Sessions: 75
+                   Maximum Scheduled Sessions: 37
+                Event Record Retention Period: 10 Day(s)
+                       Client Action Duration: 5 Day(s)
+            Schedule Randomization Percentage: 25
+                        Query Schedule Period: Client
+                      Maximum Command Retries: Client
+                                 Retry Period: Client
+ Client-side Deduplication Verification Level: 0 %
+                             Scheduling Modes: Any
+                             Active Receivers: CONSOLE ACTLOG SYSLOG
+                       Configuration manager?: Off
+                             Refresh interval: 60
+                       Last Refresh Date/Time:
+                            Context Messaging: On
+       Table of Contents (TOC) Load Retention: 120 Minute(s)
+                   Machine Globally Unique ID: 00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00
+                 Archive Retention Protection: Off
+                         Database Directories: /test/dbspace01,/test/dbspace02,/test/dbspace03,/test/dbspace04
+              Total Space of File System (MB): 510,709.98
+               Used Space on File System (MB): 41,931.59
+                    Free Space Available (MB): 468,778.39
+                          Encryption Strength: AES
+      Client CPU Information Refresh Interval: 180
+                         Outbound Replication: Enabled
+                    Target Replication Server:
+         Default Replication Rule for Archive: ALL_DATA
+          Default Replication Rule for Backup: ALL_DATA
+Default Replication Rule for Space Management: ALL_DATA
+          Replication Record Retention Period: 30 Day(s)
+                                    LDAP User:
+                            LDAP Password Set: No
+                       Default Authentication: Local
+                  Failover High Level Address:
+                         Scratchpad retention: 365 Day(s)
+        Replication Recovery of Damaged Files: On
+                           SUR Occupancy (TB): 0.00
+                 SUR Retention Occupancy (TB): 0.00
+                      SUR Occupancy Date/Time: 07/23/26   11:55:13
+                      Front-End Capacity (MB): 0.00
+                       Front-End Client Count: 0
+                      Front-End Capacity Date: 07/23/26   11:55:13
+                             Product Offering:
+                             Command Approval: Off
+     Approver administrators require approval: On
+                    Server Globally Unique ID: 11.11.11.11.11.11.11.11.11.11.11.11.11.11.11.11
+
+
+ANS8002I Highest return code was 0.
