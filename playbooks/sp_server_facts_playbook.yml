@@ -1,17 +1,82 @@
-- name: collect sp_server_facts 
-  hosts: "{{ target_hosts | default('all') }}" 
+---
+# IBM Storage Protect Server Facts Collection Playbook
+#
+# Purpose: Gather comprehensive facts about IBM Storage Protect Server
+# Reference: docs/design/design-sp-server.md
+# Guide: docs/guides/sp-server-lifecycle-guide.md
+#
+# Usage:
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.sp_server_facts_playbook.yml \
+#     -e "target_hosts=sp_servers"
+#
+# Environment Variables Required:
+#   - STORAGE_PROTECT_SERVERNAME: Server name (default: 'local')
+#   - STORAGE_PROTECT_USERNAME: Admin username
+#   - STORAGE_PROTECT_PASSWORD: Admin password
+#
+# Optional Variables:
+#   - target_hosts: Target host group (default: 'all')
+#   - pythonbin: Python binary path (default: 'python3')
+
+- name: Collect IBM Storage Protect Server Facts
+  hosts: "{{ target_hosts | default('all') }}"
   gather_facts: true
   become: true
+
   vars:
-    pythonbin: "{{ lookup('env','PYTHONBIN') | default('python3', true) }}"
+    pythonbin: "{{ lookup('env', 'PYTHONBIN') | default('python3', true) }}"
+
   environment:
-    STORAGE_PROTECT_SERVERNAME: "{{ lookup('env','STORAGE_PROTECT_SERVERNAME') }}"
-    STORAGE_PROTECT_USERNAME: "{{ lookup('env','STORAGE_PROTECT_USERNAME') }}"
-    STORAGE_PROTECT_PASSWORD: "{{ lookup('env','STORAGE_PROTECT_PASSWORD') }}"
+    STORAGE_PROTECT_SERVERNAME: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') | default('local', true) }}"
+    STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') }}"
+    STORAGE_PROTECT_PASSWORD: "{{ lookup('env', 'STORAGE_PROTECT_PASSWORD') }}"
+
+  pre_tasks:
+    - name: Validate environment variables
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'STORAGE_PROTECT_USERNAME') != ''
+          - lookup('env', 'STORAGE_PROTECT_PASSWORD') != ''
+        fail_msg: "Required environment variables STORAGE_PROTECT_USERNAME and STORAGE_PROTECT_PASSWORD must be set"
+        success_msg: "Environment variables are configured"
+
+    - name: Display facts collection parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "Server Name: {{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') }}"
+          - "Admin User: {{ lookup('env', 'STORAGE_PROTECT_USERNAME') }}"
+          - "Python Binary: {{ pythonbin }}"
+
   roles:
-    - role: ibm.storage_protect.sp_server_facts  
+    - role: ibm.storage_protect.sp_server_facts
 
+  post_tasks:
+    - name: Display collected facts summary
+      ansible.builtin.debug:
+        msg:
+          - "Facts collection completed for {{ ansible_hostname }}"
+          - "Server Information:"
+          - "  - Version: {{ sp_server_facts.version | default('N/A') }}"
+          - "  - Status: {{ sp_server_facts.status | default('N/A') }}"
+          - "  - Database: {{ sp_server_facts.database | default('N/A') }}"
+          - "Storage Pools: {{ sp_server_facts.storage_pools | default([]) | length }}"
+          - "Registered Nodes: {{ sp_server_facts.nodes | default([]) | length }}"
+          - "Active Sessions: {{ sp_server_facts.sessions | default([]) | length }}"
+      when: sp_server_facts is defined
 
+    - name: Save facts to file
+      ansible.builtin.copy:
+        content: "{{ sp_server_facts | to_nice_json }}"
+        dest: "/tmp/sp_server_facts_{{ ansible_hostname }}_{{ ansible_date_time.iso8601_basic_short }}.json"
+        mode: '0644'
+      when: sp_server_facts is defined
 
+    - name: Display facts file location
+      ansible.builtin.debug:
+        msg: "Facts saved to: /tmp/sp_server_facts_{{ ansible_hostname }}_{{ ansible_date_time.iso8601_basic_short }}.json"
+      when: sp_server_facts is defined
+...
 
-
+# Made with Bob

@@ -1,11 +1,94 @@
 ---
-- name: Upgrade SP Server
+# IBM Storage Protect Server Upgrade Playbook
+#
+# Purpose: Upgrade IBM Storage Protect Server to a newer version
+# Reference: docs/design/design-sp-server.md
+# Guide: docs/guides/sp-server-lifecycle-guide.md
+#
+# Usage:
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.sp_server_upgrade_playbook.yml \
+#     -e @vars/upgrade.yml \
+#     --vault-password-file .vault_pass
+#
+# Prerequisites:
+#   - SP Server must be installed and running
+#   - Database backup must be completed
+#   - Sufficient disk space for upgrade
+#   - All client sessions should be terminated
+#
+# Required Variables:
+#   - sp_server_version: Target version (e.g., "8.1.25")
+#   - sp_server_bin_repo: Path to upgrade binaries
+#
+# Optional Variables:
+#   - target_hosts: Target host group (default: 'all')
+#   - sp_server_backup_before_upgrade: Create backup before upgrade (default: true)
+#   - sp_server_stop_before_upgrade: Stop server before upgrade (default: true)
+
+- name: Upgrade IBM Storage Protect Server
   hosts: "{{ target_hosts | default('all') }}"
   become: true
-  roles:
-    - ibm.storage_protect.sp_server_install
+  gather_facts: true
+
   vars:
     sp_server_state: "upgrade"
-    sp_server_bin_repo: "/path/to/the/repo/on/control/node"
-    sp_server_version: "8.1.25"
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - sp_server_version is defined
+          - sp_server_bin_repo is defined
+        fail_msg: "Required variables are missing. Please provide sp_server_version and sp_server_bin_repo"
+        success_msg: "All required variables are defined"
+
+    - name: Display upgrade parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "Target Version: {{ sp_server_version }}"
+          - "Upgrade State: {{ sp_server_state }}"
+          - "Binary Repository: {{ sp_server_bin_repo }}"
+          - "Backup Before Upgrade: {{ sp_server_backup_before_upgrade | default(true) }}"
+
+    - name: Warning - Upgrade in progress
+      ansible.builtin.pause:
+        prompt: |
+          ========================================
+          WARNING: Server Upgrade Operation
+          ========================================
+          
+          This will upgrade the IBM Storage Protect Server to version {{ sp_server_version }}.
+          
+          Pre-upgrade checklist:
+          - [ ] Database backup completed
+          - [ ] All client sessions terminated
+          - [ ] Sufficient disk space available
+          - [ ] Upgrade binaries downloaded
+          - [ ] Maintenance window scheduled
+          
+          Press CTRL+C and then 'A' to abort, or press ENTER to continue
+        seconds: 10
+      when: sp_server_upgrade_confirm | default(true) | bool
+
+  roles:
+    - role: ibm.storage_protect.sp_server_install
+      vars:
+        sp_server_state: "upgrade"
+
+  post_tasks:
+    - name: Display upgrade completion message
+      ansible.builtin.debug:
+        msg:
+          - "IBM Storage Protect Server upgrade completed successfully"
+          - "Upgraded to Version: {{ sp_server_version }}"
+          - "Post-Upgrade Steps:"
+          - "  1. Verify server status using sp_server_facts_playbook.yml"
+          - "  2. Check database integrity"
+          - "  3. Verify client connectivity"
+          - "  4. Review upgrade logs"
+          - "  5. Test backup/restore operations"
 ...
+
+# Made with Bob

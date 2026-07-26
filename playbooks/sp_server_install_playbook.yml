@@ -1,13 +1,72 @@
 ---
-- name: Install SP Server
+# IBM Storage Protect Server Installation Playbook
+# 
+# Purpose: Install IBM Storage Protect Server on target hosts
+# Reference: docs/design/design-sp-server.md
+# Guide: docs/guides/sp-server-lifecycle-guide.md
+#
+# Usage:
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.sp_server_install_playbook.yml \
+#     -e @vars/prod.yml \
+#     --vault-password-file .vault_pass
+#
+# Required Variables:
+#   - sp_server_version: Version to install (e.g., "8.1.23")
+#   - sp_server_bin_repo: Path to installation binaries
+#   - ssl_password: SSL certificate password
+#
+# Optional Variables:
+#   - target_hosts: Target host group (default: 'all')
+#   - sp_server_install_path: Installation directory
+#   - sp_server_instance_dir: Instance directory
+#   - sp_server_db_dir: Database directory
+#   - sp_server_active_log_dir: Active log directory
+#   - sp_server_archive_log_dir: Archive log directory
+#   - sp_server_admin_user: Admin username (default: 'admin')
+#   - sp_server_admin_password: Admin password
+
+- name: Install IBM Storage Protect Server
   hosts: "{{ target_hosts | default('all') }}"
   become: true
-  roles:
-    - ibm.storage_protect.sp_server_install
+  gather_facts: true
+
   vars:
     sp_server_state: "present"
-    sp_server_version: "8.1.23"
-    sp_server_bin_repo: "/path/to/the/repo/on/control/node"
-    ssl_password: "YourPassword@@123"
-# env for bin repo
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - sp_server_version is defined
+          - sp_server_bin_repo is defined
+          - ssl_password is defined
+        fail_msg: "Required variables are missing. Please provide sp_server_version, sp_server_bin_repo, and ssl_password"
+        success_msg: "All required variables are defined"
+
+    - name: Display installation parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "SP Server Version: {{ sp_server_version }}"
+          - "Installation State: {{ sp_server_state }}"
+          - "Binary Repository: {{ sp_server_bin_repo }}"
+
+  roles:
+    - role: ibm.storage_protect.sp_server_install
+      vars:
+        sp_server_state: "present"
+
+  post_tasks:
+    - name: Display installation completion message
+      ansible.builtin.debug:
+        msg:
+          - "IBM Storage Protect Server installation completed successfully"
+          - "Server Version: {{ sp_server_version }}"
+          - "Next Steps:"
+          - "  1. Configure the server using sp_server_configure_playbook.yml"
+          - "  2. Verify installation using sp_server_facts_playbook.yml"
+          - "  3. Review logs at /opt/tivoli/tsm/server/bin/dsmserv.log"
 ...
+
+# Made with Bob

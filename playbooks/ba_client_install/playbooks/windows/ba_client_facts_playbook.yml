@@ -1,7 +1,57 @@
 ---
+# IBM Storage Protect Backup-Archive Client Facts Gathering - Windows
+#
+# Purpose: Gather comprehensive information about BA Client installation and status
+# Reference: docs/design/design-ba-client.md
+# Guide: docs/guides/ba-client-lifecycle-guide.md
+#
+# This playbook collects detailed information about the BA Client including:
+#   - Version information
+#   - Session status
+#   - Filespace information
+#   - Schedule configuration
+#   - System information
+#
+# Usage:
+#   # Gather all facts
+#   ansible-playbook -i inventory.ini \
+#     ba_client_facts_playbook.yml
+#
+#   # Gather facts with custom credentials
+#   ansible-playbook -i inventory.ini \
+#     ba_client_facts_playbook.yml \
+#     -e "storage_protect_admin_user=admin" \
+#     -e "storage_protect_admin_password=password"
+#
+# Required Variables:
+#   - storage_protect_servername: SP Server name
+#   - storage_protect_nodename: Node name (default: hostname)
+#   - storage_protect_admin_user: Admin user ID
+#   - storage_protect_admin_password: Admin password
+#
+# Optional Variables:
+#   - windows_temp_dir: Temporary directory (default: C:\temp)
+#   - windows_module_dir: Module directory
+#
+# Facts Collected:
+#   - BA Client version and build
+#   - Active sessions
+#   - Configured filespaces
+#   - Backup schedules
+#   - System configuration
+#
+# Output:
+#   - JSON file with all collected facts
+#   - Console display of key information
+#
+# Notes:
+#   - Requires BA Client to be installed
+#   - Requires valid SP Server credentials
+#   - Facts are saved to temp directory
+
 - name: Gather IBM Storage Protect BA Client Facts on Windows
   hosts: windows
-  gather_facts: yes
+  gather_facts: true
 
   vars:
     # BA Client connection details
@@ -14,29 +64,73 @@
     windows_module_dir: "C:\\temp\\ansible-ba-client"
     windows_python_module: "C:\\temp\\ansible-ba-client\\ba_client_facts_main.py"
 
+  pre_tasks:
+    - name: Display facts gathering information
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "BA Client Facts Gathering - Windows"
+          - "=========================================="
+          - ""
+          - "IBM Storage Protect Backup-Archive Client"
+          - "Comprehensive Facts Collection"
+          - ""
+          - "Target Host: {{ inventory_hostname }}"
+          - "SP Server: {{ storage_protect_servername }}"
+          - "Node Name: {{ storage_protect_nodename }}"
+          - ""
+          - "Facts to Collect:"
+          - "  - BA Client version and build"
+          - "  - Active sessions"
+          - "  - Configured filespaces"
+          - "  - Backup schedules"
+          - "  - System configuration"
+          - ""
+          - "Output Location:"
+          - "  {{ windows_temp_dir }}\\ba_client_facts_{{ ansible_hostname }}.json"
+          - ""
+          - "=========================================="
+
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - storage_protect_servername is defined
+          - storage_protect_nodename is defined
+          - storage_protect_admin_user is defined
+          - storage_protect_admin_password is defined
+        fail_msg: |
+          Required variables are missing!
+          
+          Required:
+            - storage_protect_servername: SP Server name
+            - storage_protect_nodename: Node name
+            - storage_protect_admin_user: Admin user ID
+            - storage_protect_admin_password: Admin password
+        success_msg: "All required variables are defined"
+
   tasks:
     - name: Ensure module directory exists
-      win_file:
+      ansible.windows.win_file:
         path: "{{ windows_module_dir }}"
         state: directory
 
-    - name: Copy ba_client_facts MAIN module to Windows (renamed to avoid conflict)
-      win_copy:
-        src: "/Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/modules/ba_client_facts.py"
+    - name: Copy ba_client_facts MAIN module to Windows
+      ansible.windows.win_copy:
+        src: "{{ playbook_dir }}/../../../../plugins/modules/ba_client_facts.py"
         dest: "{{ windows_module_dir }}\\ba_client_facts_main.py"
 
-    - name: Copy ba_client_facts UTILITY module to Windows (keep original name)
-      win_copy:
-        src: "/Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/module_utils/ba_client_facts.py"
+    - name: Copy ba_client_facts UTILITY module to Windows
+      ansible.windows.win_copy:
+        src: "{{ playbook_dir }}/../../../../plugins/module_utils/ba_client_facts.py"
         dest: "{{ windows_module_dir }}\\ba_client_facts.py"
 
     - name: Copy dsmc_adapter utility module to Windows
-      win_copy:
-        src: "/Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/module_utils/dsmc_adapter.py"
+      ansible.windows.win_copy:
+        src: "{{ playbook_dir }}/../../../../plugins/module_utils/dsmc_adapter.py"
         dest: "{{ windows_module_dir }}\\dsmc_adapter.py"
 
-    - name: Gather BA Client facts using Python module (Version)
-      win_command: >
+    - name: Gather BA Client version information
+      ansible.windows.win_command: >
         python {{ windows_python_module }}
         --server-name {{ storage_protect_servername }}
         --node-name {{ storage_protect_nodename }}
@@ -44,15 +138,16 @@
         --password {{ storage_protect_admin_password }}
         --q-version
       register: ba_facts_version
-      ignore_errors: yes
+      ignore_errors: true
+      changed_when: false
 
     - name: Display version facts
-      debug:
+      ansible.builtin.debug:
         msg: "{{ ba_facts_version.stdout }}"
       when: ba_facts_version.rc == 0
 
-    - name: Gather BA Client facts using Python module (Session)
-      win_command: >
+    - name: Gather BA Client session information
+      ansible.windows.win_command: >
         python {{ windows_python_module }}
         --server-name {{ storage_protect_servername }}
         --node-name {{ storage_protect_nodename }}
@@ -60,15 +155,16 @@
         --password {{ storage_protect_admin_password }}
         --q-session
       register: ba_facts_session
-      ignore_errors: yes
+      ignore_errors: true
+      changed_when: false
 
     - name: Display session facts
-      debug:
+      ansible.builtin.debug:
         msg: "{{ ba_facts_session.stdout }}"
       when: ba_facts_session.rc == 0
 
-    - name: Gather BA Client facts using Python module (Filespace)
-      win_command: >
+    - name: Gather BA Client filespace information
+      ansible.windows.win_command: >
         python {{ windows_python_module }}
         --server-name {{ storage_protect_servername }}
         --node-name {{ storage_protect_nodename }}
@@ -76,15 +172,16 @@
         --password {{ storage_protect_admin_password }}
         --q-filespace
       register: ba_facts_filespace
-      ignore_errors: yes
+      ignore_errors: true
+      changed_when: false
 
     - name: Display filespace facts
-      debug:
+      ansible.builtin.debug:
         msg: "{{ ba_facts_filespace.stdout }}"
       when: ba_facts_filespace.rc == 0
 
-    - name: Gather BA Client facts using Python module (Schedule)
-      win_command: >
+    - name: Gather BA Client schedule information
+      ansible.windows.win_command: >
         python {{ windows_python_module }}
         --server-name {{ storage_protect_servername }}
         --node-name {{ storage_protect_nodename }}
@@ -92,15 +189,16 @@
         --password {{ storage_protect_admin_password }}
         --q-schedule
       register: ba_facts_schedule
-      ignore_errors: yes
+      ignore_errors: true
+      changed_when: false
 
     - name: Display schedule facts
-      debug:
+      ansible.builtin.debug:
         msg: "{{ ba_facts_schedule.stdout }}"
       when: ba_facts_schedule.rc == 0
 
     - name: Gather comprehensive BA Client facts
-      win_command: >
+      ansible.windows.win_command: >
         python {{ windows_python_module }}
         --server-name {{ storage_protect_servername }}
         --node-name {{ storage_protect_nodename }}
@@ -112,15 +210,67 @@
         --q-schedule
         --q-systeminfo
       register: ba_facts_all
-      ignore_errors: yes
+      ignore_errors: true
+      changed_when: false
 
     - name: Display all facts
-      debug:
+      ansible.builtin.debug:
         msg: "{{ ba_facts_all.stdout }}"
       when: ba_facts_all.rc == 0
 
     - name: Save BA Client facts to file
-      win_copy:
+      ansible.windows.win_copy:
         content: "{{ ba_facts_all.stdout }}"
         dest: "{{ windows_temp_dir }}\\ba_client_facts_{{ ansible_hostname }}.json"
       when: ba_facts_all.rc == 0
+
+  post_tasks:
+    - name: Display facts gathering summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Facts Gathering Summary"
+          - "=========================================="
+          - ""
+          - "Host: {{ inventory_hostname }}"
+          - "SP Server: {{ storage_protect_servername }}"
+          - "Node Name: {{ storage_protect_nodename }}"
+          - ""
+          - "Facts Collected:"
+          - "  {{ '✓' if ba_facts_version.rc == 0 else '✗' }} Version Information"
+          - "  {{ '✓' if ba_facts_session.rc == 0 else '✗' }} Session Status"
+          - "  {{ '✓' if ba_facts_filespace.rc == 0 else '✗' }} Filespace Information"
+          - "  {{ '✓' if ba_facts_schedule.rc == 0 else '✗' }} Schedule Configuration"
+          - "  {{ '✓' if ba_facts_all.rc == 0 else '✗' }} System Information"
+          - ""
+          - "Output File:"
+          - "  {{ windows_temp_dir }}\\ba_client_facts_{{ ansible_hostname }}.json"
+          - ""
+          - "Next Steps:"
+          - "  1. Review collected facts"
+          - "  2. Verify BA Client configuration"
+          - "  3. Check for any issues or warnings"
+          - "  4. Update documentation if needed"
+          - ""
+          - "Verification Commands:"
+          - "  # View facts file"
+          - "  Get-Content {{ windows_temp_dir }}\\ba_client_facts_{{ ansible_hostname }}.json"
+          - ""
+          - "  # Check BA Client version"
+          - "  dsmc query version"
+          - ""
+          - "  # Check active sessions"
+          - "  dsmc query session"
+          - ""
+          - "  # Check filespaces"
+          - "  dsmc query filespace"
+          - ""
+          - "Documentation:"
+          - "  Design: docs/design/design-ba-client.md"
+          - "  Guide: docs/guides/ba-client-lifecycle-guide.md"
+          - "  README: playbooks/ba_client_install/playbooks/windows/README_BA_CLIENT_FACTS.md"
+          - ""
+          - "=========================================="
+...
+
+# Made with Bob

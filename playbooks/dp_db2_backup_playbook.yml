@@ -1,15 +1,83 @@
-# This playbook manages DB2 backups using Storage Protect.
-- name: Run DB2 Backups from Storage protect
+---
+# IBM Storage Protect Data Protection for DB2 - Backup Playbook
+#
+# Purpose: Perform DB2 database backup operations using Storage Protect
+# Reference: docs/design/design-sp-db2.md
+# Guide: docs/guides/data-protection-db2-guide.md
+#
+# Usage:
+#   # Full online backup with compression
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.dp_db2_backup_playbook.yml \
+#     -e "target_hosts=db2_servers" \
+#     -e "db2_database=PRODDB" \
+#     -e "db2_instance=db2inst1" \
+#     -e "db2_backup_online=true" \
+#     -e "db2_backup_compress=true"
+#
+# Required Variables:
+#   - db2_database: Name of the DB2 database to back up
+#   - db2_instance: DB2 instance name
+#
+# Optional Variables:
+#   - target_hosts: Target host group (default: 'all')
+#   - db2_user: DB2 username (optional)
+#   - db2_password: DB2 password (optional)
+#   - db2_backup_online: Online backup (default: false)
+#   - db2_backup_include_logs: Include logs (default: false)
+#   - db2_backup_compress: Enable compression (default: false)
+#   - db2_backup_encrypt: Enable encryption (default: false)
+#   - db2_backup_parallelism: Number of parallel streams (default: 1)
+#   - db2_without_prompting: Suppress prompts (default: true)
+
+- name: Perform DB2 Database Backup to Storage Protect
   hosts: "{{ target_hosts | default('all') }}"
   become: true
+  gather_facts: true
+
   vars:
-    db2_operation: "backup"               # Operation type (should be "backup" for this playbook)
-    db2_database: ""                      # Name of the DB2 database to back up
-    db2_instance: ""                      # DB2 instance name
-    db2_user: ""                          # DB2 username (optional)
-    db2_password: ""                      # DB2 password (optional)         
-    db2_backup_online: false              # Set to true for online backup
-    db2_backup_include_logs: false        # Set to true to include logs in backup
-    db2_without_prompting: true           # Set to true to suppress prompts during backup
+    db2_operation: "backup"
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - db2_database is defined
+          - db2_database | length > 0
+          - db2_instance is defined
+          - db2_instance | length > 0
+        fail_msg: "Required variables db2_database and db2_instance must be provided"
+        success_msg: "Required variables are defined"
+
+    - name: Display backup parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "Operation: {{ db2_operation }}"
+          - "Database: {{ db2_database }}"
+          - "Instance: {{ db2_instance }}"
+          - "Backup Type: {{ 'ONLINE' if db2_backup_online | default(false) else 'OFFLINE' }}"
+          - "Compression: {{ 'ENABLED' if db2_backup_compress | default(false) else 'DISABLED' }}"
+          - "Encryption: {{ 'ENABLED' if db2_backup_encrypt | default(false) else 'DISABLED' }}"
+          - "Parallelism: {{ db2_backup_parallelism | default(1) }}"
+          - "Include Logs: {{ 'YES' if db2_backup_include_logs | default(false) else 'NO' }}"
+
   roles:
-    - ibm.storage_protect.dp_db2_manage
+    - role: ibm.storage_protect.dp_db2_manage
+
+  post_tasks:
+    - name: Display backup completion message
+      ansible.builtin.debug:
+        msg:
+          - "DB2 backup completed successfully"
+          - "Database: {{ db2_database }}"
+          - "Backup Type: {{ 'ONLINE' if db2_backup_online | default(false) else 'OFFLINE' }}"
+          - "Next Steps:"
+          - "  1. Verify backup: ansible-playbook dp_db2_query_playbook.yml -e 'db2_database={{ db2_database }}'"
+          - "  2. Test restore in non-production environment"
+          - "  3. Review backup logs"
+          - "  4. Update backup documentation"
+      when: ansible_play_batch | length > 0
+...
+
+# Made with Bob

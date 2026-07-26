@@ -1,7 +1,107 @@
 ---
-- name: Perform OC operation
+# IBM Storage Protect Operations Center Configuration Playbook
+#
+# Purpose: Configure, start, stop, or restart Operations Center service
+# Reference: docs/design/design-oc.md
+# Guide: docs/guides/operations-center-guide.md
+#
+# Usage:
+#   # Configure Operations Center
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.oc_configure_playbook.yml \
+#     -e "action=configure" \
+#     -e "admin_name=admin"
+#
+#   # Restart Operations Center
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.oc_configure_playbook.yml \
+#     -e "action=restart"
+#
+#   # Stop Operations Center
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.oc_configure_playbook.yml \
+#     -e "action=stop"
+#
+# Environment Variables Required (for configure action):
+#   - STORAGE_PROTECT_SERVERNAME: Server name (default: 'local')
+#   - STORAGE_PROTECT_USERNAME: Admin username
+#   - STORAGE_PROTECT_PASSWORD: Admin password
+#
+# Required Variables:
+#   - action: Action to perform (configure/restart/stop)
+#   - admin_name: Admin username (required for configure action)
+#
+# Optional Variables:
+#   - target_hosts: Target host group (default: 'all')
+
+- name: Perform Operations Center Management
   hosts: "{{ target_hosts | default('all') }}"
   become: true
+  gather_facts: true
+
+  environment:
+    STORAGE_PROTECT_SERVERNAME: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') | default('local', true) }}"
+    STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') }}"
+    STORAGE_PROTECT_PASSWORD: "{{ lookup('env', 'STORAGE_PROTECT_PASSWORD') }}"
+
+  pre_tasks:
+    - name: Validate action parameter
+      ansible.builtin.assert:
+        that:
+          - action is defined
+          - action in ['configure', 'restart', 'stop']
+        fail_msg: "Action must be one of: configure, restart, stop"
+        success_msg: "Action '{{ action }}' is valid"
+
+    - name: Validate admin_name for configure action
+      ansible.builtin.assert:
+        that:
+          - admin_name is defined
+          - admin_name | length > 0
+        fail_msg: "admin_name is required when action is 'configure'"
+        success_msg: "admin_name is defined"
+      when: action == 'configure'
+
+    - name: Validate environment variables for configure action
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'STORAGE_PROTECT_USERNAME') != ''
+          - lookup('env', 'STORAGE_PROTECT_PASSWORD') != ''
+        fail_msg: "Environment variables STORAGE_PROTECT_USERNAME and STORAGE_PROTECT_PASSWORD must be set for configure action"
+        success_msg: "Environment variables are configured"
+      when: action == 'configure'
+
+    - name: Display operation parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "Action: {{ action }}"
+          - "Admin Name: {{ admin_name | default('N/A') }}"
+          - "Server Name: {{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') }}"
+
   roles:
-    - ibm.storage_protect.oc_configure
+    - role: ibm.storage_protect.oc_configure
+
+  post_tasks:
+    - name: Display configuration completion message
+      ansible.builtin.debug:
+        msg:
+          - "Operations Center {{ action }} completed successfully"
+          - "Access URL: https://{{ ansible_hostname }}:11090"
+          - "Next Steps:"
+          - "  1. Access the web interface"
+          - "  2. Register Storage Protect servers"
+          - "  3. Configure alerts and notifications"
+          - "  4. Set up user accounts"
+      when: action == 'configure'
+
+    - name: Display service control completion message
+      ansible.builtin.debug:
+        msg:
+          - "Operations Center service {{ action }} completed successfully"
+          - "Service Status: {{ action | upper }}"
+          - "Check service status: systemctl status opscenter.service"
+      when: action in ['restart', 'stop']
 ...
+
+# Made with Bob

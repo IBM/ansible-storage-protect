@@ -1,13 +1,61 @@
 ---
+# IBM Storage Protect Backup-Archive Client Facts Collection Playbook
+#
+# Purpose: Gather comprehensive facts about BA Client installations
+# Reference: docs/design/design-ba-client.md
+# Guide: docs/guides/ba-client-lifecycle-guide.md
+#
+# Usage:
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.ba_client_facts_playbook.yml \
+#     -e "target_hosts=ba_clients"
+#
+# Required Variables:
+#   - storage_protect_servername: TSM Server name
+#   - storage_protect_nodename: Node name (default: ansible_hostname)
+#   - storage_protect_node_password: Node password
+#
+# Optional Variables:
+#   - target_hosts: Target host group (default: 'ba_clients')
+#   - q_version: Query version information (default: true)
+#   - q_session: Query session information (default: true)
+#   - q_schedule: Query schedule information (default: true)
+#   - q_filespace: Query filespace information (default: true)
+#   - q_backup: Query backup information (default: false)
+#   - q_archive: Query archive information (default: false)
+#   - q_inclexcl: Query include/exclude rules (default: true)
+#   - q_systeminfo: Query system information (default: true)
+#   - q_options: Query client options (default: true)
+
 - name: Gather IBM Storage Protect BA Client Facts
-  hosts: ba_clients
-  gather_facts: yes
+  hosts: "{{ target_hosts | default('ba_clients') }}"
+  gather_facts: true
+  become: true
 
   vars:
-    # BA Client connection details
-    storage_protect_servername: "TSM_SERVER"
-    storage_protect_nodename: "{{ ansible_hostname }}"
-    storage_protect_node_password: "{{ ba_client_password }}"
+    storage_protect_servername: "{{ storage_protect_servername | default('TSM_SERVER') }}"
+    storage_protect_nodename: "{{ storage_protect_nodename | default(ansible_hostname) }}"
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - storage_protect_servername is defined
+          - storage_protect_nodename is defined
+          - storage_protect_node_password is defined
+        fail_msg: "Required variables are missing: storage_protect_servername, storage_protect_nodename, storage_protect_node_password"
+        success_msg: "All required variables are defined"
+
+    - name: Display facts collection parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "Server Name: {{ storage_protect_servername }}"
+          - "Node Name: {{ storage_protect_nodename }}"
+          - "Query Version: {{ q_version | default(true) }}"
+          - "Query Session: {{ q_session | default(true) }}"
+          - "Query Schedule: {{ q_schedule | default(true) }}"
+          - "Query Filespace: {{ q_filespace | default(true) }}"
 
   tasks:
     - name: Gather comprehensive BA Client facts
@@ -15,25 +63,28 @@
         server_name: "{{ storage_protect_servername }}"
         node_name: "{{ storage_protect_nodename }}"
         password: "{{ storage_protect_node_password }}"
-        q_version: true
-        q_session: true
-        q_schedule: true
-        q_filespace: true
-        q_backup: false
-        q_archive: false
-        q_inclexcl: true
-        q_systeminfo: true
-        q_options: true
+        q_version: "{{ q_version | default(true) }}"
+        q_session: "{{ q_session | default(true) }}"
+        q_schedule: "{{ q_schedule | default(true) }}"
+        q_filespace: "{{ q_filespace | default(true) }}"
+        q_backup: "{{ q_backup | default(false) }}"
+        q_archive: "{{ q_archive | default(false) }}"
+        q_inclexcl: "{{ q_inclexcl | default(true) }}"
+        q_systeminfo: "{{ q_systeminfo | default(true) }}"
+        q_options: "{{ q_options | default(true) }}"
       register: ba_client_facts
 
     - name: Display all BA Client facts
       ansible.builtin.debug:
         var: ba_client_facts.results
+      when: ba_client_facts.results is defined
 
     - name: Display BA Client version
       ansible.builtin.debug:
         msg: "BA Client Version: {{ ba_client_facts.results.q_version.client_version }}"
-      when: ba_client_facts.results.q_version is defined
+      when: 
+        - ba_client_facts.results is defined
+        - ba_client_facts.results.q_version is defined
 
     - name: Display BA Client session information
       ansible.builtin.debug:
@@ -41,19 +92,25 @@
           Server: {{ ba_client_facts.results.q_session.server_name }}
           Node: {{ ba_client_facts.results.q_session.node_name }}
           Server Address: {{ ba_client_facts.results.q_session.server_address }}:{{ ba_client_facts.results.q_session.server_port }}
-      when: ba_client_facts.results.q_session is defined
+      when:
+        - ba_client_facts.results is defined
+        - ba_client_facts.results.q_session is defined
 
     - name: Display filespace information
       ansible.builtin.debug:
         msg: "Filespace: {{ item.filespace_name }} | Platform: {{ item.platform }} | Capacity: {{ item.capacity_mb }} MB"
       loop: "{{ ba_client_facts.results.q_filespace }}"
-      when: ba_client_facts.results.q_filespace is defined
+      when:
+        - ba_client_facts.results is defined
+        - ba_client_facts.results.q_filespace is defined
 
     - name: Display schedule information
       ansible.builtin.debug:
         msg: "Schedule: {{ item.schedule_name }} | Action: {{ item.action }} | Next Run: {{ item.next_run }}"
       loop: "{{ ba_client_facts.results.q_schedule }}"
-      when: ba_client_facts.results.q_schedule is defined
+      when:
+        - ba_client_facts.results is defined
+        - ba_client_facts.results.q_schedule is defined
 
     - name: Check if client version meets minimum requirement
       ansible.builtin.assert:
@@ -61,11 +118,30 @@
           - ba_client_facts.results.q_version.client_version is version('8.1.0', '>=')
         fail_msg: "BA Client version {{ ba_client_facts.results.q_version.client_version }} is below minimum required version 8.1.0"
         success_msg: "BA Client version {{ ba_client_facts.results.q_version.client_version }} meets requirements"
-      when: ba_client_facts.results.q_version is defined
+      when:
+        - ba_client_facts.results is defined
+        - ba_client_facts.results.q_version is defined
 
     - name: Save BA Client facts to file
       ansible.builtin.copy:
         content: "{{ ba_client_facts.results | to_nice_json }}"
-        dest: "/tmp/ba_client_facts_{{ ansible_hostname }}.json"
+        dest: "/tmp/ba_client_facts_{{ ansible_hostname }}_{{ ansible_date_time.iso8601_basic_short }}.json"
+        mode: '0644'
       when: ba_client_facts.results is defined
 
+  post_tasks:
+    - name: Display facts collection summary
+      ansible.builtin.debug:
+        msg:
+          - "BA Client facts collection completed"
+          - "Host: {{ ansible_hostname }}"
+          - "Version: {{ ba_client_facts.results.q_version.client_version | default('N/A') }}"
+          - "Server: {{ ba_client_facts.results.q_session.server_name | default('N/A') }}"
+          - "Node: {{ ba_client_facts.results.q_session.node_name | default('N/A') }}"
+          - "Filespaces: {{ ba_client_facts.results.q_filespace | default([]) | length }}"
+          - "Schedules: {{ ba_client_facts.results.q_schedule | default([]) | length }}"
+          - "Facts saved to: /tmp/ba_client_facts_{{ ansible_hostname }}_{{ ansible_date_time.iso8601_basic_short }}.json"
+      when: ba_client_facts.results is defined
+...
+
+# Made with Bob

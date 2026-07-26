@@ -1,9 +1,91 @@
 ---
-- name: Uninstall Sp server
+# IBM Storage Protect Server Uninstallation Playbook
+#
+# Purpose: Uninstall IBM Storage Protect Server from target hosts
+# Reference: docs/design/design-sp-server.md
+# Guide: docs/guides/sp-server-lifecycle-guide.md
+#
+# Usage:
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.sp_server_uninstall_playbook.yml \
+#     -e "target_hosts=sp_servers" \
+#     --vault-password-file .vault_pass
+#
+# WARNING: This operation will remove the SP Server installation.
+#          Ensure all data is backed up before proceeding.
+#
+# Prerequisites:
+#   - Database backup must be completed
+#   - All client sessions must be terminated
+#   - Server must be stopped
+#
+# Optional Variables:
+#   - target_hosts: Target host group (default: 'all')
+#   - sp_server_remove_data: Remove database and logs (default: false)
+#   - sp_server_remove_config: Remove configuration files (default: false)
+
+- name: Uninstall IBM Storage Protect Server
   hosts: "{{ target_hosts | default('all') }}"
   become: true
-  roles:
-    - ibm.storage_protect.sp_server_install
+  gather_facts: true
+
   vars:
     sp_server_state: "absent"
+
+  pre_tasks:
+    - name: Critical Warning - Uninstallation Operation
+      ansible.builtin.pause:
+        prompt: |
+          ========================================
+          CRITICAL WARNING: Server Uninstallation
+          ========================================
+          
+          This will UNINSTALL the IBM Storage Protect Server.
+          
+          Pre-uninstall checklist:
+          - [ ] Database backup completed and verified
+          - [ ] All client sessions terminated
+          - [ ] Server stopped gracefully
+          - [ ] Configuration files backed up
+          - [ ] Approval obtained for uninstallation
+          
+          Data Removal Options:
+          - Remove Data: {{ sp_server_remove_data | default(false) }}
+          - Remove Config: {{ sp_server_remove_config | default(false) }}
+          
+          THIS OPERATION CANNOT BE UNDONE!
+          
+          Press CTRL+C and then 'A' to abort, or press ENTER to continue
+        seconds: 30
+      when: sp_server_uninstall_confirm | default(true) | bool
+
+    - name: Display uninstallation parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "Uninstallation State: {{ sp_server_state }}"
+          - "Remove Data: {{ sp_server_remove_data | default(false) }}"
+          - "Remove Config: {{ sp_server_remove_config | default(false) }}"
+
+  roles:
+    - role: ibm.storage_protect.sp_server_install
+      vars:
+        sp_server_state: "absent"
+
+  post_tasks:
+    - name: Display uninstallation completion message
+      ansible.builtin.debug:
+        msg:
+          - "IBM Storage Protect Server uninstallation completed"
+          - "Post-Uninstallation Notes:"
+          - "  - Server binaries have been removed"
+          - "  - Database files: {{ 'REMOVED' if sp_server_remove_data | default(false) else 'PRESERVED' }}"
+          - "  - Configuration files: {{ 'REMOVED' if sp_server_remove_config | default(false) else 'PRESERVED' }}"
+          - "  - Manual cleanup may be required for:"
+          - "    * User accounts"
+          - "    * Firewall rules"
+          - "    * Mount points"
+          - "    * Log files"
 ...
+
+# Made with Bob

@@ -1,15 +1,112 @@
+---
+# IBM Storage Protect Data Protection for DB2 - Restore Playbook
+#
+# Purpose: Restore DB2 database from Storage Protect backups
+# Reference: docs/design/design-sp-db2.md
+# Guide: docs/guides/data-protection-db2-guide.md
+#
+# Usage:
+#   # Restore database to point-in-time
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.dp_db2_restore_playbook.yml \
+#     -e "target_hosts=db2_servers" \
+#     -e "db2_database=PRODDB" \
+#     -e "db2_instance=db2inst1" \
+#     -e "db2_restore_taken_at=20260330120000" \
+#     -e "db2_restore_replace_existing=true"
+#
+# Required Variables:
+#   - db2_database: Database name to restore
+#   - db2_instance: DB2 instance name
+#
+# Optional Variables:
+#   - target_hosts: Target host group (default: 'all')
+#   - db2_user: DB2 username (optional)
+#   - db2_password: DB2 password (optional)
+#   - db2_restore_replace_existing: Replace existing database (default: true)
+#   - db2_restore_taken_at: Backup timestamp (format: YYYYMMDDHHMMSS)
+#   - db2_restore_redirect: Redirect restore to different location (default: false)
+#   - db2_restore_tablespace: Specific tablespace to restore (optional)
+#   - db2_restore_log_target: Log target directory (optional)
 
-# This playbook restores a DB2 database from TSM (Tivoli Storage Manager) backups.
-- name: Run DB2 Restore from Storage Protect
+- name: Restore DB2 Database from Storage Protect
   hosts: "{{ target_hosts | default('all') }}"
   become: true
+  gather_facts: true
+
   vars:
-    db2_operation: "restore"               # Operation type: backup, delete, query, restore
-    db2_database: ""                       # Database name to restore
-    db2_instance: ""                       # DB2 instance name
-    db2_user: ""                           # DB2 user name
-    db2_password: ""                       # DB2 user password
-    db2_restore_replace_existing: true     # Replace existing database if it exists
-    db2_restore_taken_at: ""               # Timestamp of the backup to restore, format: YYYYMMDDHHMMSS
+    db2_operation: "restore"
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - db2_database is defined
+          - db2_database | length > 0
+          - db2_instance is defined
+          - db2_instance | length > 0
+        fail_msg: "Required variables db2_database and db2_instance must be provided"
+        success_msg: "Required variables are defined"
+
+    - name: Critical Warning - Restore Operation
+      ansible.builtin.pause:
+        prompt: |
+          ========================================
+          WARNING: Database Restore Operation
+          ========================================
+          
+          This will RESTORE the database: {{ db2_database }}
+          
+          Restore Parameters:
+          - Database: {{ db2_database }}
+          - Instance: {{ db2_instance }}
+          - Replace Existing: {{ db2_restore_replace_existing | default(true) }}
+          - Timestamp: {{ db2_restore_taken_at | default('LATEST') }}
+          
+          Pre-restore checklist:
+          - [ ] Backup timestamp verified
+          - [ ] Database connections terminated
+          - [ ] Sufficient disk space available
+          - [ ] Approval obtained for restore
+          
+          THIS WILL OVERWRITE THE EXISTING DATABASE!
+          
+          Press CTRL+C and then 'A' to abort, or press ENTER to continue
+        seconds: 15
+      when: 
+        - db2_restore_replace_existing | default(true) | bool
+        - db2_restore_confirm | default(true) | bool
+
+    - name: Display restore parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "Operation: {{ db2_operation }}"
+          - "Database: {{ db2_database }}"
+          - "Instance: {{ db2_instance }}"
+          - "Replace Existing: {{ db2_restore_replace_existing | default(true) }}"
+          - "Backup Timestamp: {{ db2_restore_taken_at | default('LATEST') }}"
+          - "Redirect Restore: {{ db2_restore_redirect | default(false) }}"
+          - "Tablespace: {{ db2_restore_tablespace | default('ALL') }}"
+
   roles:
-    - ibm.storage_protect.dp_db2_manage
+    - role: ibm.storage_protect.dp_db2_manage
+
+  post_tasks:
+    - name: Display restore completion message
+      ansible.builtin.debug:
+        msg:
+          - "DB2 restore completed successfully"
+          - "Database: {{ db2_database }}"
+          - "Restored from: {{ db2_restore_taken_at | default('LATEST BACKUP') }}"
+          - "Post-Restore Steps:"
+          - "  1. Verify database integrity: db2 'CONNECT TO {{ db2_database }}'"
+          - "  2. Check tablespace status: db2 'LIST TABLESPACES'"
+          - "  3. Verify data consistency"
+          - "  4. Roll forward logs if needed"
+          - "  5. Update application configurations"
+          - "  6. Test application connectivity"
+      when: ansible_play_batch | length > 0
+...
+
+# Made with Bob

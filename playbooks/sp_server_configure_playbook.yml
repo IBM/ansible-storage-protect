@@ -1,7 +1,73 @@
 ---
-- name: Configure sp server
+# IBM Storage Protect Server Configuration Playbook
+#
+# Purpose: Configure IBM Storage Protect Server after installation
+# Reference: docs/design/design-sp-server.md
+# Guide: docs/guides/sp-server-lifecycle-guide.md
+#
+# Usage:
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.sp_server_configure_playbook.yml \
+#     -e @vars/prod.yml \
+#     --vault-password-file .vault_pass
+#
+# Prerequisites:
+#   - SP Server must be installed
+#   - Admin credentials must be configured
+#
+# Required Variables:
+#   - sp_server_admin_user: Admin username
+#   - sp_server_admin_password: Admin password
+#
+# Optional Variables:
+#   - target_hosts: Target host group (default: 'all')
+#   - sp_server_configure_storage: Configure storage pools (default: true)
+#   - sp_server_configure_policies: Configure policies (default: true)
+#   - sp_server_configure_schedules: Configure schedules (default: true)
+
+- name: Configure IBM Storage Protect Server
   hosts: "{{ target_hosts | default('all') }}"
-  become: yes
+  become: true
+  gather_facts: true
+
+  environment:
+    STORAGE_PROTECT_SERVERNAME: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') | default('local', true) }}"
+    STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') | default(sp_server_admin_user, true) }}"
+    STORAGE_PROTECT_PASSWORD: "{{ lookup('env', 'STORAGE_PROTECT_PASSWORD') | default(sp_server_admin_password, true) }}"
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - sp_server_admin_user is defined or lookup('env', 'STORAGE_PROTECT_USERNAME') != ''
+          - sp_server_admin_password is defined or lookup('env', 'STORAGE_PROTECT_PASSWORD') != ''
+        fail_msg: "Admin credentials are required. Set sp_server_admin_user/sp_server_admin_password or environment variables"
+        success_msg: "Admin credentials are configured"
+
+    - name: Display configuration parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "Admin User: {{ sp_server_admin_user | default(lookup('env', 'STORAGE_PROTECT_USERNAME')) }}"
+          - "Configure Storage: {{ sp_server_configure_storage | default(true) }}"
+          - "Configure Policies: {{ sp_server_configure_policies | default(true) }}"
+          - "Configure Schedules: {{ sp_server_configure_schedules | default(true) }}"
+
   roles:
-    - ibm.storage_protect.sp_server_install
+    - role: ibm.storage_protect.sp_server_install
+      vars:
+        sp_server_state: "configure"
+
+  post_tasks:
+    - name: Display configuration completion message
+      ansible.builtin.debug:
+        msg:
+          - "IBM Storage Protect Server configuration completed successfully"
+          - "Next Steps:"
+          - "  1. Verify configuration using sp_server_facts_playbook.yml"
+          - "  2. Register client nodes using node management playbooks"
+          - "  3. Configure backup schedules as needed"
+          - "  4. Review server logs for any warnings"
 ...
+
+# Made with Bob

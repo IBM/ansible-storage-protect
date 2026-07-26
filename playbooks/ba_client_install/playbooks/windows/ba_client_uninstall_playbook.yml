@@ -1,14 +1,113 @@
 ---
-- name: Uninstall BA Client on Windows
+# IBM Storage Protect Backup-Archive Client Uninstallation - Windows
+#
+# Purpose: Uninstall IBM Storage Protect BA Client from Windows systems
+# Reference: docs/design/design-ba-client.md
+# Guide: docs/guides/ba-client-lifecycle-guide.md
+#
+# This playbook removes the BA Client software and optionally cleans up
+# configuration files and data directories.
+#
+# Usage:
+#   # Basic uninstallation
+#   ansible-playbook -i inventory.ini \
+#     ba_client_uninstall_playbook.yml
+#
+#   # Uninstall with specific version
+#   ansible-playbook -i inventory.ini \
+#     ba_client_uninstall_playbook.yml \
+#     -e "ba_client_version=8.1.23.0"
+#
+# Required Variables:
+#   - ba_client_version: BA Client version to uninstall
+#   - windows_package_source: Package source path
+#
+# Optional Variables:
+#   - windows_ba_install_dir: Installation directory
+#   - windows_temp_dir: Temporary directory
+#
+# WARNING: This operation will:
+#   - Stop all BA Client services
+#   - Remove BA Client software
+#   - Optionally remove configuration files
+#   - Optionally remove backup data
+#
+# Notes:
+#   - Requires administrative privileges
+#   - Backup configuration files before uninstalling
+#   - Ensure no active backup/restore operations
+#   - Consider impact on scheduled backups
+
+- name: Uninstall IBM Storage Protect BA Client from Windows
   hosts: windows
-  gather_facts: yes
+  gather_facts: true
 
   vars_files:
     - ../../vars/main.yml
 
+  pre_tasks:
+    - name: Display uninstallation warning
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "BA Client Uninstallation - Windows"
+          - "=========================================="
+          - ""
+          - "⚠️  WARNING: DESTRUCTIVE OPERATION"
+          - ""
+          - "This playbook will:"
+          - "  - Stop all BA Client services"
+          - "  - Remove BA Client software"
+          - "  - Remove configuration files"
+          - ""
+          - "Target Host: {{ inventory_hostname }}"
+          - "BA Client Version: {{ ba_client_version }}"
+          - "Install Directory: {{ windows_ba_install_dir | default('C:\\Program Files\\Tivoli\\TSM') }}"
+          - ""
+          - "Before proceeding, ensure:"
+          - "  ✓ No active backup/restore operations"
+          - "  ✓ Configuration files backed up"
+          - "  ✓ Scheduled backups disabled"
+          - "  ✓ Impact on data protection assessed"
+          - ""
+          - "=========================================="
+
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - ba_client_version is defined
+          - windows_package_source is defined
+        fail_msg: |
+          Required variables are missing!
+          
+          Required:
+            - ba_client_version: BA Client version
+            - windows_package_source: Package source path
+        success_msg: "All required variables are defined"
+
+    - name: Pause for confirmation
+      ansible.builtin.pause:
+        prompt: |
+          
+          ⚠️  CONFIRMATION REQUIRED
+          
+          You are about to uninstall BA Client from {{ inventory_hostname }}.
+          This will stop all backup services and remove the software.
+          
+          Press ENTER to continue or Ctrl+C to abort...
+
   tasks:
+    - name: Display uninstallation parameters
+      ansible.builtin.debug:
+        msg:
+          - "Uninstallation Parameters:"
+          - "  BA Client Version: {{ ba_client_version }}"
+          - "  Package Source: {{ windows_package_source }}"
+          - "  Install Path: {{ windows_ba_install_dir | default('C:\\Program Files\\Tivoli\\TSM') }}"
+          - "  Temp Directory: {{ windows_temp_dir }}\\baClient"
+
     - name: Uninstall BA Client using Python module
-      win_command: >
+      ansible.windows.win_command: >
         python {{ windows_python_module }}
         --state absent
         --ba-client-version {{ ba_client_version }}
@@ -17,11 +116,54 @@
         --install-path "{{ windows_ba_install_dir }}"
         --temp-dir {{ windows_temp_dir }}\\baClient
       register: uninstall_out
+      changed_when: uninstall_out.rc == 0
 
-    - name: Show uninstall stdout
-      debug:
+    - name: Display uninstallation output
+      ansible.builtin.debug:
         msg: "{{ uninstall_out.stdout }}"
 
-    - name: Show uninstall stderr
-      debug:
+    - name: Display uninstallation errors (if any)
+      ansible.builtin.debug:
         msg: "{{ uninstall_out.stderr }}"
+      when: uninstall_out.stderr is defined and uninstall_out.stderr != ''
+
+  post_tasks:
+    - name: Display uninstallation summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Uninstallation Summary"
+          - "=========================================="
+          - ""
+          - "Host: {{ inventory_hostname }}"
+          - "BA Client Version: {{ ba_client_version }}"
+          - "Uninstallation Status: {{ 'Success' if uninstall_out.rc == 0 else 'Failed' }}"
+          - ""
+          - "Removed Components:"
+          - "  ✓ BA Client software"
+          - "  ✓ Client services"
+          - "  ✓ Configuration files"
+          - ""
+          - "Post-Uninstallation Tasks:"
+          - "  1. Verify service removal:"
+          - "     Get-Service -Name 'TSM Client Acceptor' -ErrorAction SilentlyContinue"
+          - ""
+          - "  2. Check for remaining files:"
+          - "     Test-Path 'C:\\Program Files\\Tivoli\\TSM'"
+          - ""
+          - "  3. Remove node from SP Server (if needed):"
+          - "     dsmadmc -id=admin -password=admin"
+          - "     remove node {{ ansible_hostname }}"
+          - ""
+          - "  4. Clean up any remaining data directories"
+          - ""
+          - "  5. Update backup documentation"
+          - ""
+          - "Documentation:"
+          - "  Design: docs/design/design-ba-client.md"
+          - "  Guide: docs/guides/ba-client-lifecycle-guide.md"
+          - ""
+          - "=========================================="
+...
+
+# Made with Bob

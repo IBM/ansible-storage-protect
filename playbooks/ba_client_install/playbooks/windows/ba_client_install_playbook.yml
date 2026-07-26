@@ -1,45 +1,145 @@
 ---
-- name: Install or Upgrade BA Client on Windows
+# IBM Storage Protect Backup-Archive Client Installation - Windows
+#
+# Purpose: Install or upgrade IBM Storage Protect BA Client on Windows systems
+# Reference: docs/design/design-ba-client.md
+# Guide: docs/guides/ba-client-lifecycle-guide.md
+#
+# The BA Client provides backup and archive capabilities for Windows workstations
+# and servers, enabling data protection through IBM Storage Protect infrastructure.
+#
+# Supported Operations:
+#   - Fresh installation of BA Client
+#   - Upgrade from previous versions
+#   - Version validation and compatibility checks
+#
+# Usage:
+#   # Basic installation
+#   ansible-playbook -i inventory.ini \
+#     ba_client_install_playbook.yml \
+#     -e "ba_client_version=8.1.23.0" \
+#     -e "windows_package_source=C:\\packages\\ba-client"
+#
+#   # Installation with custom paths
+#   ansible-playbook -i inventory.ini \
+#     ba_client_install_playbook.yml \
+#     -e "ba_client_version=8.1.23.0" \
+#     -e "windows_ba_install_dir=C:\\Program Files\\Tivoli\\TSM"
+#
+# Required Variables:
+#   - ba_client_version: BA Client version to install (e.g., "8.1.23.0")
+#   - windows_package_source: Path to installation package
+#
+# Optional Variables:
+#   - windows_ba_install_dir: Installation directory (default: C:\Program Files\Tivoli\TSM)
+#   - windows_temp_dir: Temporary directory (default: C:\temp)
+#
+# Supported Platforms:
+#   - Windows Server 2016, 2019, 2022
+#   - Windows 10, 11 (Professional/Enterprise)
+#
+# Installation Components:
+#   - dsmc.exe: Command-line backup client
+#   - dsmcad.exe: Client Acceptor Daemon (scheduler)
+#   - dsm.opt: Client options file
+#   - dsm.sys: System options file
+#
+# Architecture:
+#   Ansible Controller → Python Module → Windows Installer → BA Client
+#
+# Notes:
+#   - Requires administrative privileges
+#   - Python must be installed on Windows target
+#   - Installation package must be accessible
+#   - Existing installations will be upgraded
+
+- name: Install or Upgrade IBM Storage Protect BA Client on Windows
   hosts: windows
-  gather_facts: yes
+  gather_facts: true
 
   vars_files:
     - ../../vars/main.yml
 
+  pre_tasks:
+    - name: Display installation information
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "BA Client Installation - Windows"
+          - "=========================================="
+          - ""
+          - "IBM Storage Protect Backup-Archive Client"
+          - "Windows Platform Installation"
+          - ""
+          - "Target Host: {{ inventory_hostname }}"
+          - "OS: {{ ansible_os_family }} {{ ansible_distribution_version }}"
+          - "BA Client Version: {{ ba_client_version }}"
+          - "Package Source: {{ windows_package_source }}"
+          - "Install Directory: {{ windows_ba_install_dir | default('C:\\Program Files\\Tivoli\\TSM') }}"
+          - ""
+          - "Installation Components:"
+          - "  - dsmc.exe (Command-line client)"
+          - "  - dsmcad.exe (Client Acceptor Daemon)"
+          - "  - dsm.opt (Client options)"
+          - "  - dsm.sys (System options)"
+          - ""
+          - "=========================================="
+
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - ba_client_version is defined
+          - windows_package_source is defined
+        fail_msg: |
+          Required variables are missing!
+          
+          Required:
+            - ba_client_version: BA Client version (e.g., "8.1.23.0")
+            - windows_package_source: Path to installation package
+          
+          Example:
+            ansible-playbook playbook.yml \
+              -e "ba_client_version=8.1.23.0" \
+              -e "windows_package_source=C:\\packages\\ba-client"
+        success_msg: "All required variables are defined"
+
   tasks:
-    - name: Ensure temp directory exists
-      win_file:
+    - name: Ensure temporary directory exists
+      ansible.windows.win_file:
         path: "{{ windows_temp_dir }}\\ansible-storage-protect"
         state: directory
 
     - name: Ensure plugins/modules directory exists
-      win_file:
+      ansible.windows.win_file:
         path: "{{ windows_temp_dir }}\\ansible-storage-protect\\plugins\\modules"
         state: directory
 
     - name: Ensure plugins/module_utils directory exists
-      win_file:
+      ansible.windows.win_file:
         path: "{{ windows_temp_dir }}\\ansible-storage-protect\\plugins\\module_utils"
         state: directory
 
-    - name: Copy Python module
-      win_copy:
-        src: /Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/modules/ba_client_install.py
+    - name: Copy Python installation module
+      ansible.windows.win_copy:
+        src: "{{ playbook_dir }}/../../../../plugins/modules/ba_client_install.py"
         dest: "{{ windows_temp_dir }}\\ansible-storage-protect\\plugins\\modules\\ba_client_install.py"
 
-    - name: Copy Python module utils
-      win_copy:
-        src: /Users/shalumishra/Desktop/Shalu/ansible-storage-protect/plugins/module_utils/ba_client_utils.py
+    - name: Copy Python module utilities
+      ansible.windows.win_copy:
+        src: "{{ playbook_dir }}/../../../../plugins/module_utils/ba_client_utils.py"
         dest: "{{ windows_temp_dir }}\\ansible-storage-protect\\plugins\\module_utils\\ba_client_utils.py"
 
-    - name: Debug version variables
-      debug:
+    - name: Display installation parameters
+      ansible.builtin.debug:
         msg:
-          - "ba_client_version = {{ ba_client_version }}"
-          - "windows_package_source = {{ windows_package_source }}"
+          - "Installation Parameters:"
+          - "  BA Client Version: {{ ba_client_version }}"
+          - "  Package Source: {{ windows_package_source }}"
+          - "  Install Path: {{ windows_ba_install_dir | default('C:\\Program Files\\Tivoli\\TSM') }}"
+          - "  Temp Directory: {{ windows_temp_dir }}\\baClient"
 
     - name: Install BA Client using Python module
-      win_command: >
+      ansible.windows.win_command: >
         python {{ windows_temp_dir }}\\ansible-storage-protect\\plugins\\modules\\ba_client_install.py
         --state present
         --ba-client-version {{ ba_client_version }}
@@ -48,12 +148,56 @@
         --install-path "{{ windows_ba_install_dir }}"
         --temp-dir {{ windows_temp_dir }}\\baClient
       register: install_out
+      changed_when: install_out.rc == 0
 
-    - name: Show install stdout
-      debug:
+    - name: Display installation output
+      ansible.builtin.debug:
         msg: "{{ install_out.stdout }}"
 
-    - name: Show install stderr
-      debug:
+    - name: Display installation errors (if any)
+      ansible.builtin.debug:
         msg: "{{ install_out.stderr }}"
+      when: install_out.stderr is defined and install_out.stderr != ''
 
+  post_tasks:
+    - name: Display installation summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Installation Summary"
+          - "=========================================="
+          - ""
+          - "Host: {{ inventory_hostname }}"
+          - "BA Client Version: {{ ba_client_version }}"
+          - "Installation Status: {{ 'Success' if install_out.rc == 0 else 'Failed' }}"
+          - ""
+          - "Installed Components:"
+          - "  ✓ dsmc.exe (Command-line client)"
+          - "  ✓ dsmcad.exe (Client Acceptor Daemon)"
+          - "  ✓ Configuration files (dsm.opt, dsm.sys)"
+          - ""
+          - "Next Steps:"
+          - "  1. Configure dsm.opt with server connection details"
+          - "  2. Configure dsm.sys with node information"
+          - "  3. Start Client Acceptor Daemon service"
+          - "  4. Test connectivity: dsmc query session"
+          - "  5. Perform test backup"
+          - ""
+          - "Verification Commands:"
+          - "  # Check version"
+          - "  dsmc query version"
+          - ""
+          - "  # Check service status"
+          - "  Get-Service -Name 'TSM Client Acceptor'"
+          - ""
+          - "  # Test server connectivity"
+          - "  dsmc query session"
+          - ""
+          - "Documentation:"
+          - "  Design: docs/design/design-ba-client.md"
+          - "  Guide: docs/guides/ba-client-lifecycle-guide.md"
+          - ""
+          - "=========================================="
+...
+
+# Made with Bob

@@ -1,13 +1,112 @@
-# 
-- name: Run DB2 Delete Backup from TSM
+---
+# IBM Storage Protect Data Protection for DB2 - Delete Playbook
+#
+# Purpose: Delete DB2 backup data from Storage Protect
+# Reference: docs/design/design-sp-db2.md
+# Guide: docs/guides/data-protection-db2-guide.md
+#
+# Usage:
+#   # Delete old backups (older than 30 days)
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.dp_db2_delete_playbook.yml \
+#     -e "target_hosts=db2_servers" \
+#     -e "db2_database=PRODDB" \
+#     -e "db2_instance=db2inst1" \
+#     -e "db2_delete_older_than=30"
+#
+#   # Delete specific backup type
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.dp_db2_delete_playbook.yml \
+#     -e "db2_database=PRODDB" \
+#     -e "db2_delete_type=incremental"
+#
+# Required Variables:
+#   - db2_database: Database name to delete backups from
+#   - db2_instance: DB2 instance name
+#
+# Optional Variables:
+#   - target_hosts: Target host group (default: 'all')
+#   - db2_delete_type: Type of delete (full/incremental/log)
+#   - db2_delete_filter_type: Filter type (taken_at/backup_level/tablespace)
+#   - db2_delete_filter_value: Filter value (e.g., timestamp, backup level)
+#   - db2_delete_older_than: Delete backups older than N days
+
+- name: Delete DB2 Backups from Storage Protect
   hosts: "{{ target_hosts | default('all') }}"
   become: true
+  gather_facts: true
+
   vars:
-    db2_operation: "delete"        # Operation type: backup, delete, query, restore
-    db2_database: ""               # Database name to delete backups from
-    db2_instance: ""               # DB2 instance name
-    db2_delete_type: ""            # Type of delete operation: full, incremental, or log
-    db2_delete_filter_type: ""     # Type of filter for delete operation: taken at, backup level, or tablespace
-    db2_delete_filter_value: ""    # Value for the filter, e.g., timestamp for taken at, or backup level for backup level
+    db2_operation: "delete"
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - db2_database is defined
+          - db2_database | length > 0
+          - db2_instance is defined
+          - db2_instance | length > 0
+        fail_msg: "Required variables db2_database and db2_instance must be provided"
+        success_msg: "Required variables are defined"
+
+    - name: Critical Warning - Delete Operation
+      ansible.builtin.pause:
+        prompt: |
+          ========================================
+          WARNING: Backup Deletion Operation
+          ========================================
+          
+          This will DELETE backups for database: {{ db2_database }}
+          
+          Deletion Parameters:
+          - Database: {{ db2_database }}
+          - Instance: {{ db2_instance }}
+          - Delete Type: {{ db2_delete_type | default('ALL') }}
+          - Filter Type: {{ db2_delete_filter_type | default('NONE') }}
+          - Filter Value: {{ db2_delete_filter_value | default('N/A') }}
+          - Older Than: {{ db2_delete_older_than | default('N/A') }} days
+          
+          Pre-deletion checklist:
+          - [ ] Backup retention policy reviewed
+          - [ ] Recent backups verified
+          - [ ] Approval obtained for deletion
+          - [ ] Backup catalog reviewed
+          
+          THIS OPERATION CANNOT BE UNDONE!
+          
+          Press CTRL+C and then 'A' to abort, or press ENTER to continue
+        seconds: 20
+      when: db2_delete_confirm | default(true) | bool
+
+    - name: Display deletion parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "Operation: {{ db2_operation }}"
+          - "Database: {{ db2_database }}"
+          - "Instance: {{ db2_instance }}"
+          - "Delete Type: {{ db2_delete_type | default('ALL') }}"
+          - "Filter Type: {{ db2_delete_filter_type | default('NONE') }}"
+          - "Filter Value: {{ db2_delete_filter_value | default('N/A') }}"
+          - "Older Than: {{ db2_delete_older_than | default('N/A') }} days"
+
   roles:
-    - ibm.storage_protect.dp_db2_manage
+    - role: ibm.storage_protect.dp_db2_manage
+
+  post_tasks:
+    - name: Display deletion completion message
+      ansible.builtin.debug:
+        msg:
+          - "DB2 backup deletion completed"
+          - "Database: {{ db2_database }}"
+          - "Deleted Type: {{ db2_delete_type | default('ALL') }}"
+          - "Post-Deletion Steps:"
+          - "  1. Verify remaining backups: ansible-playbook dp_db2_query_playbook.yml"
+          - "  2. Update backup documentation"
+          - "  3. Review retention policies"
+          - "  4. Check storage space reclaimed"
+      when: ansible_play_batch | length > 0
+...
+
+# Made with Bob

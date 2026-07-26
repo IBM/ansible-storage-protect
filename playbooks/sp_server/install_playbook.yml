@@ -1,0 +1,344 @@
+---
+# IBM Storage Protect Server Installation Playbook
+#
+# Purpose: Install IBM Storage Protect Server on Windows, Linux, and AIX platforms
+# Reference: docs/design/design-sp-server.md
+# Guide: docs/guides/sp-server-lifecycle-guide.md
+#
+# This playbook orchestrates SP Server installation by copying Python modules
+# to target hosts and executing the sp_server.py module with appropriate parameters.
+#
+# Supported Platforms:
+#   - Windows Server 2016, 2019, 2022
+#   - Red Hat Enterprise Linux 7.x, 8.x, 9.x
+#   - SUSE Linux Enterprise Server 12.x, 15.x
+#   - Ubuntu 18.04, 20.04, 22.04
+#   - AIX 7.1, 7.2, 7.3
+#
+# Usage:
+#   # Install SP Server on Windows hosts
+#   ansible-playbook -i inventory.ini install_playbook.yml \
+#     -e "sp_mode=install" \
+#     -e "sp_server_version=8.1.23.0"
+#
+#   # Install SP Server on Linux/AIX hosts
+#   ansible-playbook -i inventory.ini install_playbook.yml \
+#     -e "sp_mode=install" \
+#     -e "sp_server_version=8.1.23.0" \
+#     --limit sp_server_linux
+#
+# Required Variables:
+#   - sp_mode: Operation mode (install/upgrade/uninstall)
+#   - sp_server_version: SP Server version (for install/upgrade)
+#   - sp_pwd: Server admin password
+#
+# Optional Variables:
+#   - sp_sync_scripts: Sync Python modules to target (default: true)
+#   - sp_log_level: Logging level (default: INFO)
+#   - sp_source_module_dir: Source directory for Python modules
+#
+# Architecture:
+#   Control Node → Playbook → Copy Modules → Execute sp_server.py → Target Host
+#
+# Notes:
+#   - This playbook uses direct Python module execution for flexibility
+#   - Modules are copied to target hosts for execution
+#   - Supports both Windows and Unix-like systems
+#   - Requires Python 3.9+ on managed nodes
+
+############################################################
+# PLAY 1: Windows SP Server Installation
+############################################################
+- name: Install IBM Storage Protect Server - Windows
+  hosts: sp_server_windows
+  gather_facts: true
+  become: false
+
+  vars_files:
+    - vars/sp_server.yml
+
+  vars:
+    sp_python_exe: "python"
+    # External location of modules (NOT in playbook folder)
+    sp_source_module_dir: "{{ sp_source_module_dir | default('/opt/ansible-storage-protect/plugins') }}"
+
+  pre_tasks:
+    - name: Display Windows installation information
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "SP Server Installation - Windows"
+          - "=========================================="
+          - ""
+          - "Target Host: {{ inventory_hostname }}"
+          - "Operation Mode: {{ sp_mode }}"
+          - "SP Server Version: {{ sp_server_version | default('N/A') }}"
+          - "Working Directory: {{ sp_server_install_dest_win }}"
+          - ""
+          - "=========================================="
+
+    - name: Validate required variables for Windows
+      ansible.builtin.assert:
+        that:
+          - sp_mode is defined
+          - sp_pwd is defined
+          - sp_mode in ['install', 'upgrade', 'uninstall']
+        fail_msg: |
+          Required variables are missing!
+          - sp_mode: Operation mode (install/upgrade/uninstall)
+          - sp_pwd: Server admin password
+        success_msg: "All required variables are defined"
+
+    - name: Validate version for install/upgrade operations
+      ansible.builtin.assert:
+        that:
+          - sp_server_version is defined
+        fail_msg: "sp_server_version is required for install/upgrade operations"
+        success_msg: "SP Server version is defined: {{ sp_server_version }}"
+      when: sp_mode in ['install', 'upgrade']
+
+  tasks:
+    - name: Ensure working directory exists
+      ansible.windows.win_file:
+        path: "{{ sp_server_install_dest_win }}"
+        state: directory
+
+    - name: Ensure module_utils directory exists
+      ansible.windows.win_file:
+        path: "{{ sp_server_install_dest_win }}/module_utils"
+        state: directory
+
+    - name: Copy sp_server module to Windows target
+      ansible.windows.win_copy:
+        src: "{{ sp_source_module_dir }}/modules/sp_server.py"
+        dest: "{{ sp_server_install_dest_win }}/sp_server.py"
+      when: sp_sync_scripts | bool
+
+    - name: Copy module_utils files to Windows target
+      ansible.windows.win_copy:
+        src: "{{ sp_source_module_dir }}/module_utils/{{ item }}"
+        dest: "{{ sp_server_install_dest_win }}/module_utils/{{ item }}"
+      loop:
+        - sp_server_utils.py
+        - sp_server_constants.py
+      when: sp_sync_scripts | bool
+
+    - name: Clean Python cache files (Windows)
+      ansible.windows.win_shell: |
+        Get-ChildItem -Path "{{ sp_server_install_dest_win }}" -Recurse -Include *.pyc,__pycache__ | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+      when: sp_sync_scripts | bool
+
+    - name: Convert vars/sp_server.yml to JSON and save on target
+      ansible.builtin.copy:
+        dest: "{{ sp_server_install_dest_win }}/ansible-vars.json"
+        content: >-
+          {{
+            (lookup('file', 'vars/sp_server.yml')
+             | regex_replace('(?m)^\\s*#.*$', '')
+             | regex_replace('(?m)\\s+#.*$', '')
+             | trim
+             | from_yaml
+             )
+             | to_nice_json
+          }}
+      when: sp_sync_scripts | bool
+
+    - name: Execute SP Server installation (Windows)
+      ansible.windows.win_command: >
+        {{ sp_python_exe }} "{{ sp_server_install_dest_win }}\\sp_server.py"
+        --mode={{ sp_mode }}
+        --serverpassword="{{ sp_pwd }}"
+        --componentname="server"
+        {% if sp_mode == "install" or sp_mode == "upgrade" %}
+        --newversion={{ sp_server_version }}
+        {% endif %}
+        --log-level={{ sp_log_level }}
+      args:
+        chdir: "{{ sp_server_install_dest_win }}"
+      register: sp_windows_output
+      no_log: false
+
+    - name: Display installation output (Windows)
+      ansible.builtin.debug:
+        var: sp_windows_output.stdout_lines
+
+  post_tasks:
+    - name: Display Windows installation summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Windows Installation Complete"
+          - "=========================================="
+          - ""
+          - "Host: {{ inventory_hostname }}"
+          - "Operation: {{ sp_mode }}"
+          - "Status: {{ 'Success' if sp_windows_output.rc == 0 else 'Failed' }}"
+          - ""
+          - "Next Steps:"
+          - "  1. Verify installation: Check service status"
+          - "  2. Configure server: Run configure_playbook.yml"
+          - "  3. Prepare storage: Run storage preparation"
+          - ""
+          - "=========================================="
+
+
+############################################################
+# PLAY 2: Linux/AIX SP Server Installation
+############################################################
+- name: Install IBM Storage Protect Server - Linux/AIX
+  hosts: sp_server_linux:sp_server_aix
+  gather_facts: true
+  become: true
+
+  vars_files:
+    - vars/sp_server.yml
+
+  vars:
+    sp_python_exe: "python3"
+    sp_source_module_dir: "{{ sp_source_module_dir | default('/opt/ansible-storage-protect/plugins') }}"
+
+  pre_tasks:
+    - name: Display Linux/AIX installation information
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "SP Server Installation - Linux/AIX"
+          - "=========================================="
+          - ""
+          - "Target Host: {{ inventory_hostname }}"
+          - "OS Family: {{ ansible_os_family }}"
+          - "Operation Mode: {{ sp_mode }}"
+          - "SP Server Version: {{ sp_server_version | default('N/A') }}"
+          - "Working Directory: {{ sp_server_install_dest_lin }}"
+          - ""
+          - "=========================================="
+
+    - name: Validate required variables for Linux/AIX
+      ansible.builtin.assert:
+        that:
+          - sp_mode is defined
+          - sp_pwd is defined
+          - sp_mode in ['install', 'upgrade', 'uninstall']
+        fail_msg: |
+          Required variables are missing!
+          - sp_mode: Operation mode (install/upgrade/uninstall)
+          - sp_pwd: Server admin password
+        success_msg: "All required variables are defined"
+
+    - name: Validate version for install/upgrade operations
+      ansible.builtin.assert:
+        that:
+          - sp_server_version is defined
+        fail_msg: "sp_server_version is required for install/upgrade operations"
+        success_msg: "SP Server version is defined: {{ sp_server_version }}"
+      when: sp_mode in ['install', 'upgrade']
+
+    - name: Check Python version
+      ansible.builtin.command: "{{ sp_python_exe }} --version"
+      register: python_version_check
+      changed_when: false
+      failed_when: false
+
+    - name: Display Python version
+      ansible.builtin.debug:
+        msg: "Python version: {{ python_version_check.stdout }}"
+
+  tasks:
+    - name: Ensure working directory exists
+      ansible.builtin.file:
+        path: "{{ sp_server_install_dest_lin }}"
+        state: directory
+        mode: "0755"
+
+    - name: Ensure module_utils directory exists
+      ansible.builtin.file:
+        path: "{{ sp_server_install_dest_lin }}/module_utils"
+        state: directory
+        mode: "0755"
+
+    - name: Copy sp_server module to Linux/AIX target
+      ansible.builtin.copy:
+        src: "{{ sp_source_module_dir }}/modules/sp_server.py"
+        dest: "{{ sp_server_install_dest_lin }}/sp_server.py"
+        mode: "0644"
+      when: sp_sync_scripts | bool
+
+    - name: Copy module_utils files to Linux/AIX target
+      ansible.builtin.copy:
+        src: "{{ sp_source_module_dir }}/module_utils/{{ item }}"
+        dest: "{{ sp_server_install_dest_lin }}/module_utils/{{ item }}"
+        mode: "0644"
+      loop:
+        - sp_server_utils.py
+        - sp_server_constants.py
+      when: sp_sync_scripts | bool
+
+    - name: Clean Python cache files (Linux/AIX)
+      ansible.builtin.shell: |
+        find "{{ sp_server_install_dest_lin }}" -type f -name "*.pyc" -delete
+        find "{{ sp_server_install_dest_lin }}" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+      when: sp_sync_scripts | bool
+      changed_when: false
+
+    - name: Convert vars/sp_server.yml to JSON and save on target
+      ansible.builtin.copy:
+        dest: "{{ sp_server_install_dest_lin }}/ansible-vars.json"
+        mode: '0644'
+        content: >-
+          {{
+            (lookup('file', 'vars/sp_server.yml')
+             | regex_replace('(?m)^\\s*#.*$', '')
+             | regex_replace('(?m)\\s+#.*$', '')
+             | trim
+             | from_yaml
+            )
+             | to_nice_json
+          }}
+      when: sp_sync_scripts | bool
+
+    - name: Execute SP Server installation (Linux/AIX)
+      ansible.builtin.command: >
+        {{ sp_python_exe }} "{{ sp_server_install_dest_lin }}/sp_server.py"
+        --mode={{ sp_mode }}
+        --serverpassword="{{ sp_pwd }}"
+        --componentname="server"
+        {% if sp_mode == "install" or sp_mode == "upgrade" %}
+        --newversion={{ sp_server_version }}
+        {% endif %}
+        --log-level={{ sp_log_level }}
+      args:
+        chdir: "{{ sp_server_install_dest_lin }}"
+      register: sp_linux_output
+      no_log: false
+
+    - name: Display installation output (Linux/AIX)
+      ansible.builtin.debug:
+        var: sp_linux_output.stdout_lines
+
+  post_tasks:
+    - name: Display Linux/AIX installation summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Linux/AIX Installation Complete"
+          - "=========================================="
+          - ""
+          - "Host: {{ inventory_hostname }}"
+          - "OS: {{ ansible_os_family }}"
+          - "Operation: {{ sp_mode }}"
+          - "Status: {{ 'Success' if sp_linux_output.rc == 0 else 'Failed' }}"
+          - ""
+          - "Next Steps:"
+          - "  1. Verify installation: systemctl status dsmserv"
+          - "  2. Configure server: Run configure_playbook.yml"
+          - "  3. Prepare storage: Run storage preparation"
+          - "  4. Start service: systemctl start dsmserv"
+          - ""
+          - "Documentation:"
+          - "  Design: docs/design/design-sp-server.md"
+          - "  Guide: docs/guides/sp-server-lifecycle-guide.md"
+          - ""
+          - "=========================================="
+...
+
+# Made with Bob

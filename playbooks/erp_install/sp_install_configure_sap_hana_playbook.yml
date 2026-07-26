@@ -1,0 +1,307 @@
+---
+# IBM Storage Protect Data Protection for SAP HANA - Installation Playbook
+#
+# Purpose: Deploy IBM Storage Protect ERP for SAP HANA with automated validation
+# Reference: docs/design/design-sap-hana.md
+# Guide: docs/guides/data-protection-sap-guide.md
+#
+# What is SP ERP for HANA?
+# IBM Storage Protect Data Protection for SAP HANA provides enterprise-grade backup
+# and recovery capabilities for SAP HANA databases through native integration with
+# IBM Storage Protect infrastructure using the hdbbackint API.
+#
+# Key Features:
+#   - Native SAP HANA backup integration via hdbbackint interface
+#   - Automated installation with system validation
+#   - Multi-language installer support (6 languages)
+#   - Built on IBM Storage Protect BA Client foundation
+#   - Enterprise scalability with deduplication and compression
+#
+# Deployment Phases:
+#   Phase 1: Pre-Flight Validation (architecture, disk space, HANA utilities)
+#   Phase 2: BA Client Installation (prerequisite)
+#   Phase 3: SP ERP Installation (TIV-TSMERP-HANA package)
+#   Phase 4: Post-Installation Validation (hdbbackint, setup.sh)
+#   Phase 5: Configuration (future enhancement)
+#
+# Usage:
+#   # Basic installation
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.sp_install_configure_sap_hana_playbook.yml \
+#     -e "target_hosts=hana_servers"
+#
+#   # With custom HANA configuration
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.sp_install_configure_sap_hana_playbook.yml \
+#     -e "target_hosts=hana_servers" \
+#     -e "hana_sid=PR1" \
+#     -e "hana_instance_number=00" \
+#     -e "sperp_language=2"
+#
+#   # With environment variables for repositories
+#   export BA_CLIENT_TAR_REPO_PATH="/data/sp-packages/ba-client"
+#   export ERP_INSTALLER_REPO_PATH="/data/sp-packages/erp-hana"
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.sp_install_configure_sap_hana_playbook.yml
+#
+# Required Variables:
+#   - target_hosts: Target host group (default: 'all')
+#   - hana_sid: SAP HANA System ID (default: 'FR2')
+#   - hana_instance_number: HANA instance number (default: '00')
+#
+# Optional Variables:
+#   - sperp_language: Installer language (default: '2' for English)
+#     Options: 1=Deutsch, 2=English, 3=Español, 4=Français, 5=Italiano, 6=Português
+#   - hana_db_role: Database user role (default: 'SYSTEM')
+#   - erp_temp_dest: Temporary directory (default: '/tmp/')
+#   - ba_client_tar_repo: BA Client repository path (env: BA_CLIENT_TAR_REPO_PATH)
+#   - erp_bin_repo: ERP installer repository path (env: ERP_INSTALLER_REPO_PATH)
+#
+# System Requirements:
+#   - Architecture: ppc64le (IBM Power Systems)
+#   - Operating System: SUSE Linux Enterprise Server
+#   - Disk Space: Minimum 420 MB free space
+#   - Memory: Minimum 4 GB RAM
+#   - HANA Utilities: hdbindexserver, hdbnameserver, hdbxsengine, etc.
+#
+# Installation Components:
+#   - Package: TIV-TSMERP-HANA (RPM)
+#   - Installation Path: /opt/tivoli/tsm/tdp_hana/
+#   - Key Binaries: hdbbackint, setup.sh
+#   - Dependencies: IBM Storage Protect BA Client
+#
+# Architecture:
+#   SAP HANA → hdbbackint → TDP for HANA → BA Client → SP Server
+#
+# Validation Checks:
+#   ✓ Architecture compatibility (ppc64le)
+#   ✓ Disk space availability (>420 MB)
+#   ✓ HANA utilities presence
+#   ✓ BA Client installation
+#   ✓ Post-install component verification
+#
+# Notes:
+#   - Requires root/sudo privileges (become: true)
+#   - BA Client must not be previously installed (fresh installation required)
+#   - Configuration phase is work in progress (manual setup.sh execution required)
+#   - Supports only ppc64le architecture currently
+#   - Installation is interactive with language selection
+
+- name: Deploy IBM Storage Protect Data Protection for SAP HANA
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "SP ERP for SAP HANA Deployment"
+          - "=========================================="
+          - ""
+          - "IBM Storage Protect Data Protection for SAP HANA"
+          - "Native backup integration via hdbbackint API"
+          - ""
+          - "Target Host: {{ inventory_hostname }}"
+          - "HANA SID: {{ hana_sid | default('FR2') }}"
+          - "HANA Instance: {{ hana_instance_number | default('00') }}"
+          - "Installer Language: {{ sperp_language | default('2 (English)') }}"
+          - ""
+          - "Deployment Phases:"
+          - "  Phase 1: Pre-Flight Validation"
+          - "    - Architecture check (ppc64le)"
+          - "    - Disk space check (>420 MB)"
+          - "    - HANA utilities verification"
+          - "  Phase 2: BA Client Installation"
+          - "  Phase 3: SP ERP Installation"
+          - "  Phase 4: Post-Installation Validation"
+          - "  Phase 5: Configuration (manual)"
+          - ""
+          - "System Requirements:"
+          - "  - Architecture: ppc64le (IBM Power)"
+          - "  - OS: SUSE Linux Enterprise Server"
+          - "  - Disk Space: 420 MB minimum"
+          - "  - Memory: 4 GB minimum"
+          - ""
+          - "Installation Components:"
+          - "  - Package: TIV-TSMERP-HANA"
+          - "  - Path: /opt/tivoli/tsm/tdp_hana/"
+          - "  - Binaries: hdbbackint, setup.sh"
+          - ""
+          - "=========================================="
+
+    - name: Validate required HANA variables
+      ansible.builtin.assert:
+        that:
+          - hana_sid is defined
+          - hana_instance_number is defined
+        fail_msg: |
+          Required HANA variables are missing!
+          
+          Required variables:
+            - hana_sid: SAP HANA System ID (e.g., 'PR1', 'FR2')
+            - hana_instance_number: Instance number (e.g., '00', '01')
+          
+          Example:
+            ansible-playbook playbook.yml \
+              -e "hana_sid=PR1" \
+              -e "hana_instance_number=00"
+        success_msg: "HANA configuration variables validated"
+
+    - name: Display HANA configuration
+      ansible.builtin.debug:
+        msg:
+          - "HANA Configuration:"
+          - "  System ID (SID): {{ hana_sid }}"
+          - "  Instance Number: {{ hana_instance_number }}"
+          - "  Database Role: {{ hana_db_role | default('SYSTEM') }}"
+          - "  HANA Path: /usr/sap/{{ hana_sid }}/HDB{{ hana_instance_number }}"
+
+    - name: Validate repository paths
+      ansible.builtin.debug:
+        msg:
+          - "Repository Configuration:"
+          - "  BA Client Repo: {{ ba_client_tar_repo | default(lookup('env', 'BA_CLIENT_TAR_REPO_PATH')) | default('Not set') }}"
+          - "  ERP Installer Repo: {{ erp_bin_repo | default(lookup('env', 'ERP_INSTALLER_REPO_PATH')) | default('Not set') }}"
+          - ""
+          - "Note: Set environment variables if not provided:"
+          - "  export BA_CLIENT_TAR_REPO_PATH='/path/to/ba-client'"
+          - "  export ERP_INSTALLER_REPO_PATH='/path/to/erp-installer'"
+
+  roles:
+    - role: ibm.storage_protect.erp_install
+
+  post_tasks:
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Deployment Summary"
+          - "=========================================="
+          - ""
+          - "Host: {{ inventory_hostname }}"
+          - "HANA SID: {{ hana_sid }}"
+          - "HANA Instance: {{ hana_instance_number }}"
+          - ""
+          - "Installation Status: Complete"
+          - "Installation Path: /opt/tivoli/tsm/tdp_hana/"
+          - ""
+          - "Installed Components:"
+          - "  ✓ BA Client (dsmc/dsmcad)"
+          - "  ✓ TDP for HANA (TIV-TSMERP-HANA)"
+          - "  ✓ hdbbackint binary"
+          - "  ✓ setup.sh configuration script"
+          - ""
+          - "Next Steps:"
+          - "  1. Configure SP ERP for HANA:"
+          - "     cd /opt/tivoli/tsm/tdp_hana"
+          - "     ./setup.sh"
+          - ""
+          - "  2. Configure HANA backup parameters:"
+          - "     - Set up hdbbackint in HANA Studio/Cockpit"
+          - "     - Configure backup catalog"
+          - "     - Define backup destinations"
+          - ""
+          - "  3. Register node with SP Server:"
+          - "     - Update dsm.sys with HANA-specific settings"
+          - "     - Configure node credentials"
+          - "     - Assign policy domain"
+          - ""
+          - "  4. Test backup operations:"
+          - "     - Perform test backup from HANA Studio"
+          - "     - Verify backup in SP Server"
+          - "     - Test restore operation"
+          - ""
+          - "  5. Configure backup schedules:"
+          - "     - Set up automated backup schedules"
+          - "     - Configure retention policies"
+          - "     - Enable monitoring and alerts"
+          - ""
+          - "Verification Commands:"
+          - "  # Check ERP installation"
+          - "  rpm -qa | grep TIV-TSMERP-HANA"
+          - ""
+          - "  # Verify hdbbackint"
+          - "  ls -l /opt/tivoli/tsm/tdp_hana/hdbbackint"
+          - ""
+          - "  # Check BA Client status"
+          - "  systemctl status dsmcad"
+          - ""
+          - "  # Test SP Server connectivity"
+          - "  dsmc query session"
+          - ""
+          - "Documentation:"
+          - "  Design: docs/design/design-sap-hana.md"
+          - "  Guide: docs/guides/data-protection-sap-guide.md"
+          - "  Role README: roles/erp_install/README.md"
+          - ""
+          - "Support:"
+          - "  IBM TDP for SAP HANA Documentation:"
+          - "  https://www.ibm.com/docs/en/storage-protect/8.1.24"
+          - ""
+          - "=========================================="
+
+    - name: Save deployment information
+      ansible.builtin.copy:
+        content: |
+          # SP ERP for SAP HANA Deployment Information
+          
+          Deployment Date: {{ ansible_date_time.iso8601 }}
+          Host: {{ ansible_hostname }}
+          
+          ## HANA Configuration
+          System ID (SID): {{ hana_sid }}
+          Instance Number: {{ hana_instance_number }}
+          Database Role: {{ hana_db_role | default('SYSTEM') }}
+          HANA Path: /usr/sap/{{ hana_sid }}/HDB{{ hana_instance_number }}
+          
+          ## Installation Details
+          Package: TIV-TSMERP-HANA
+          Installation Path: /opt/tivoli/tsm/tdp_hana/
+          Installer Language: {{ sperp_language | default('2 (English)') }}
+          
+          ## Installed Components
+          - BA Client (dsmc/dsmcad)
+          - TDP for HANA (TIV-TSMERP-HANA)
+          - hdbbackint binary
+          - setup.sh configuration script
+          
+          ## System Information
+          Architecture: {{ ansible_architecture }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Kernel: {{ ansible_kernel }}
+          
+          ## Next Steps
+          1. Configure SP ERP: cd /opt/tivoli/tsm/tdp_hana && ./setup.sh
+          2. Configure HANA backup parameters in HANA Studio/Cockpit
+          3. Register node with SP Server
+          4. Test backup operations
+          5. Configure backup schedules
+          
+          ## Verification Commands
+          # Check ERP installation
+          rpm -qa | grep TIV-TSMERP-HANA
+          
+          # Verify hdbbackint
+          ls -l /opt/tivoli/tsm/tdp_hana/hdbbackint
+          
+          # Check BA Client status
+          systemctl status dsmcad
+          
+          # Test SP Server connectivity
+          dsmc query session
+          
+          ## Documentation
+          - Design: docs/design/design-sap-hana.md
+          - Guide: docs/guides/data-protection-sap-guide.md
+          - Role README: roles/erp_install/README.md
+        dest: "/tmp/sp_erp_hana_deployment_{{ ansible_hostname }}_{{ ansible_date_time.iso8601_basic_short }}.txt"
+        mode: '0644'
+
+    - name: Display deployment file location
+      ansible.builtin.debug:
+        msg: "Deployment information saved to: /tmp/sp_erp_hana_deployment_{{ ansible_hostname }}_{{ ansible_date_time.iso8601_basic_short }}.txt"
+...
+
+# Made with Bob

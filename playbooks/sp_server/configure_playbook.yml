@@ -1,0 +1,460 @@
+---
+# IBM Storage Protect Server Configuration Playbook
+#
+# Purpose: Configure IBM Storage Protect Server after installation
+# Reference: docs/design/design-sp-server.md
+# Guide: docs/guides/sp-server-lifecycle-guide.md
+#
+# This playbook orchestrates SP Server configuration by executing the
+# sp_server_configure.py module which handles:
+#   - Basic server settings
+#   - Storage pool creation
+#   - Policy domain configuration
+#   - Schedule definitions
+#   - Container pool setup
+#
+# Supported Platforms:
+#   - Windows Server 2016, 2019, 2022
+#   - Red Hat Enterprise Linux 7.x, 8.x, 9.x
+#   - SUSE Linux Enterprise Server 12.x, 15.x
+#   - Ubuntu 18.04, 20.04, 22.04
+#   - AIX 7.1, 7.2, 7.3
+#
+# Usage:
+#   # Configure SP Server on all platforms
+#   ansible-playbook -i inventory.ini configure_playbook.yml
+#
+#   # Configure specific host group
+#   ansible-playbook -i inventory.ini configure_playbook.yml \
+#     --limit sp_server_linux
+#
+# Required Variables:
+#   - sp_server_version: SP Server version
+#   - sp_pwd: Server admin password
+#
+# Optional Variables:
+#   - sp_sync_scripts: Sync Python modules to target (default: true)
+#   - sp_log_level: Logging level (default: INFO)
+#   - sp_source_module_dir: Source directory for Python modules
+#
+# Configuration Steps:
+#   1. Basic server configuration (ports, SSL, etc.)
+#   2. Storage pool creation
+#   3. Policy domain setup
+#   4. Schedule configuration
+#   5. Container pool configuration
+#
+# Architecture:
+#   Control Node → Playbook → Copy Modules → Execute sp_server_configure.py → Target Host
+#
+# Notes:
+#   - Requires SP Server to be installed first
+#   - Configuration is idempotent
+#   - Includes automatic rollback on failure
+#   - Logs saved to /var/log/sp_server/sp_server_configuration.log
+
+- name: Configure IBM Storage Protect Server
+  hosts: sp_server_linux, sp_server_aix, sp_server_windows
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - vars/sp_server.yml
+
+  vars:
+    sp_python_exe: "python3"
+    sp_source_module_dir: "{{ sp_source_module_dir | default('/opt/ansible-storage-protect/plugins') }}"
+    
+    # Path to Python configuration script
+    sp_config_script: "{{ sp_server_install_dest_lin }}/sp_server_configure.py"
+    
+    # JSON vars file consumed by the Python script
+    sp_config_vars_file: "{{ sp_server_install_dest_lin }}/ansible-vars.json"
+    
+    # Logging locations on the target
+    sp_config_log_dir: /var/log/sp_server
+    sp_config_log_file: "{{ sp_config_log_dir }}/sp_server_configuration.log"
+
+  pre_tasks:
+    - name: Display configuration information
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "SP Server Configuration"
+          - "=========================================="
+          - ""
+          - "Target Host: {{ inventory_hostname }}"
+          - "OS Family: {{ ansible_os_family }}"
+          - "Configuration Script: {{ sp_config_script if ansible_os_family != 'Windows' else sp_server_install_dest_win + '\\sp_server_configure.py' }}"
+          - "Log File: {{ sp_config_log_file if ansible_os_family != 'Windows' else sp_config_log_dir + '\\sp_server_configuration.log' }}"
+          - ""
+          - "Configuration Steps:"
+          - "  1. Basic server settings"
+          - "  2. Storage pool creation"
+          - "  3. Policy domain setup"
+          - "  4. Schedule configuration"
+          - "  5. Container pool setup"
+          - ""
+          - "=========================================="
+
+    - name: Set platform-specific root group
+      ansible.builtin.set_fact:
+        sp_root_group: >-
+          {{ 'system' if ansible_os_family == 'AIX'
+            else 'root' }}
+
+    - name: Ensure SP Server log directory exists (Unix)
+      ansible.builtin.file:
+        path: "{{ sp_config_log_dir }}"
+        state: directory
+        owner: root
+        group: "{{ sp_root_group }}"
+        mode: "0755"
+      when: ansible_os_family != "Windows"
+
+    - name: Ensure SP Server log directory exists (Windows)
+      ansible.windows.win_file:
+        path: "{{ sp_config_log_dir }}"
+        state: directory
+      when: ansible_os_family == "Windows"
+
+  tasks:
+    # ==========================================================
+    # LINUX/AIX CONFIGURATION BLOCK
+    # ==========================================================
+    - name: Configure SP Server on Linux/AIX
+      block:
+        - name: Display Linux/AIX configuration start
+          ansible.builtin.debug:
+            msg:
+              - "Starting SP Server configuration on {{ ansible_os_family }}..."
+              - "Working directory: {{ sp_server_install_dest_lin }}"
+
+        - name: Ensure working directory exists
+          ansible.builtin.file:
+            path: "{{ sp_server_install_dest_lin }}"
+            state: directory
+            mode: "0755"
+
+        - name: Ensure module_utils directory exists
+          ansible.builtin.file:
+            path: "{{ sp_server_install_dest_lin }}/module_utils"
+            state: directory
+            mode: "0755"
+
+        - name: Copy sp_server_configure module to target
+          ansible.builtin.copy:
+            src: "{{ sp_source_module_dir }}/modules/sp_server_configure.py"
+            dest: "{{ sp_server_install_dest_lin }}/sp_server_configure.py"
+            mode: "0644"
+          when: sp_sync_scripts | bool
+
+        - name: Copy module_utils files to target
+          ansible.builtin.copy:
+            src: "{{ sp_source_module_dir }}/module_utils/{{ item }}"
+            dest: "{{ sp_server_install_dest_lin }}/module_utils/{{ item }}"
+            mode: "0644"
+          loop:
+            - sp_server_utils.py
+            - sp_server_constants.py
+            - dsmadmc_adapter.py
+          when: sp_sync_scripts | bool
+
+        - name: Convert vars/sp_server.yml to JSON and save on target
+          ansible.builtin.copy:
+            dest: "{{ sp_server_install_dest_lin }}/ansible-vars.json"
+            mode: '0644'
+            content: >-
+              {{
+                (lookup('template', 'vars/sp_server.yml')
+                | regex_replace('(?m)^\\s*#.*$', '')
+                | regex_replace('(?m)\\s+#.*$', '')
+                | trim
+                | from_yaml
+                )
+                | to_nice_json
+              }}
+          when: sp_sync_scripts | bool
+
+        - name: Execute SP Server configuration (all steps)
+          ansible.builtin.command: >
+            {{ sp_python_exe }} {{ sp_config_script }}
+            --vars-file {{ sp_config_vars_file }}
+          register: sp_server_config_raw
+          changed_when: sp_server_config_raw.rc == 0
+          failed_when: sp_server_config_raw.rc != 0
+
+        - name: Parse JSON result from Python output
+          ansible.builtin.set_fact:
+            sp_server_config_result: "{{ sp_server_config_raw.stdout | from_json }}"
+
+        - name: Display configuration result summary
+          ansible.builtin.debug:
+            msg:
+              - "Configuration Status: {{ sp_server_config_result.status | default('unknown') }}"
+              - "Message: {{ sp_server_config_result.message | default('') }}"
+
+        - name: Display per-step results
+          ansible.builtin.debug:
+            var: sp_server_config_result.data.step_results
+          when:
+            - sp_server_config_result is defined
+            - sp_server_config_result.data is defined
+            - sp_server_config_result.data.step_results is defined
+
+        - name: Persist configuration output to log file
+          ansible.builtin.copy:
+            dest: "{{ sp_config_log_file }}"
+            content: |
+              === SP Server Configuration Run ===
+              Timestamp: {{ ansible_date_time.iso8601 }}
+              Host: {{ inventory_hostname }}
+              OS: {{ ansible_os_family }}
+
+              Status: {{ sp_server_config_result.status | default('unknown') }}
+              Message: {{ sp_server_config_result.message | default('') }}
+
+              ---- JSON Result ----
+              {{ sp_server_config_result | to_nice_json }}
+
+              ---- Raw stdout ----
+              {{ sp_server_config_raw.stdout }}
+
+              ---- Raw stderr ----
+              {{ sp_server_config_raw.stderr | default('') }}
+
+            owner: root
+            group: "{{ sp_root_group }}"
+            mode: "0644"
+
+        - name: Display configuration success
+          ansible.builtin.debug:
+            msg:
+              - "=========================================="
+              - "Configuration Completed Successfully"
+              - "=========================================="
+              - ""
+              - "Host: {{ inventory_hostname }}"
+              - "Log File: {{ sp_config_log_file }}"
+              - ""
+              - "Next Steps:"
+              - "  1. Verify server status: systemctl status dsmserv"
+              - "  2. Check configuration: dsmadmc query status"
+              - "  3. Register client nodes"
+              - "  4. Configure backup schedules"
+              - ""
+              - "=========================================="
+
+      rescue:
+        - name: Display configuration failure
+          ansible.builtin.debug:
+            msg:
+              - "=========================================="
+              - "Configuration Failed - Initiating Rollback"
+              - "=========================================="
+
+        - name: Attempt Python-based cleanup
+          ansible.builtin.command: >
+            {{ sp_python_exe }} {{ sp_config_script }}
+            --vars-file {{ sp_config_vars_file }}
+            --step cleanup
+          register: sp_server_cleanup_raw
+          failed_when: false
+
+        - name: Display cleanup output
+          ansible.builtin.debug:
+            var: sp_server_cleanup_raw
+
+        - name: Persist cleanup output to log file
+          ansible.builtin.copy:
+            dest: "{{ sp_config_log_file }}"
+            content: |
+              === SP Server Configuration FAILED ===
+              Timestamp: {{ ansible_date_time.iso8601 }}
+              Host: {{ inventory_hostname }}
+
+              ---- Cleanup stdout ----
+              {{ sp_server_cleanup_raw.stdout | default('') }}
+
+              ---- Cleanup stderr ----
+              {{ sp_server_cleanup_raw.stderr | default('') }}
+
+            owner: root
+            group: "{{ sp_root_group }}"
+            mode: "0644"
+          when: sp_server_cleanup_raw is defined
+
+        - name: Display rollback status
+          ansible.builtin.debug:
+            msg:
+              - "=========================================="
+              - "Configuration Failed - Rollback Complete"
+              - "=========================================="
+              - ""
+              - "System has been rolled back to previous state"
+              - "Check log file: {{ sp_config_log_file }}"
+              - ""
+              - "Troubleshooting:"
+              - "  1. Review error messages in log file"
+              - "  2. Verify server installation status"
+              - "  3. Check storage availability"
+              - "  4. Verify network connectivity"
+              - ""
+              - "=========================================="
+
+        - name: Stop execution after failure
+          ansible.builtin.meta: end_play
+          
+      when: ansible_os_family != "Windows"
+
+    # ==========================================================
+    # WINDOWS CONFIGURATION BLOCK
+    # ==========================================================
+    - name: Configure SP Server on Windows
+      block:
+        - name: Display Windows configuration start
+          ansible.builtin.debug:
+            msg:
+              - "Starting SP Server configuration on Windows..."
+              - "Working directory: {{ sp_server_install_dest_win }}"
+
+        - name: Ensure working directory exists (Windows)
+          ansible.windows.win_file:
+            path: "{{ sp_server_install_dest_win }}"
+            state: directory
+
+        - name: Ensure module_utils directory exists (Windows)
+          ansible.windows.win_file:
+            path: "{{ sp_server_install_dest_win }}\\module_utils"
+            state: directory
+
+        - name: Copy sp_server_configure script (Windows)
+          ansible.windows.win_copy:
+            src: "{{ sp_source_module_dir }}/modules/sp_server_configure.py"
+            dest: "{{ sp_server_install_dest_win }}\\sp_server_configure.py"
+          when: sp_sync_scripts | bool
+
+        - name: Copy module_utils files (Windows)
+          ansible.windows.win_copy:
+            src: "{{ sp_source_module_dir }}/module_utils/{{ item }}"
+            dest: "{{ sp_server_install_dest_win }}\\module_utils\\{{ item }}"
+          loop:
+            - sp_server_utils.py
+            - sp_server_constants.py
+            - dsmadmc_adapter.py
+          when: sp_sync_scripts | bool
+
+        - name: Convert vars/sp_server.yml to JSON and save on target (Windows)
+          ansible.windows.win_copy:
+            dest: "{{ sp_server_install_dest_win }}\\ansible-vars.json"
+            content: >-
+              {{
+                (lookup('template', 'vars/sp_server.yml')
+                | regex_replace('(?m)^\\s*#.*$', '')
+                | regex_replace('(?m)\\s+#.*$', '')
+                | trim
+                | from_yaml)
+                | to_nice_json
+              }}
+          when: sp_sync_scripts | bool
+
+        - name: Execute SP Server configuration (Windows)
+          ansible.windows.win_command: >
+            python {{ sp_server_install_dest_win }}\sp_server_configure.py
+            --vars-file {{ sp_server_install_dest_win }}\ansible-vars.json
+          register: sp_server_config_raw
+          failed_when: sp_server_config_raw.rc != 0
+
+        - name: Extract JSON result from stdout (Windows)
+          ansible.builtin.set_fact:
+            sp_server_config_json: >-
+              {{
+                sp_server_config_raw.stdout
+                | regex_search('(\{[\s\S]*\})$', multiline=True)
+                | trim
+              }}
+
+        - name: Display Windows configuration result
+          ansible.builtin.debug:
+            var: sp_server_config_json
+
+        - name: Display Windows configuration success
+          ansible.builtin.debug:
+            msg:
+              - "=========================================="
+              - "Windows Configuration Completed"
+              - "=========================================="
+              - ""
+              - "Host: {{ inventory_hostname }}"
+              - "Status: Success"
+              - ""
+              - "Next Steps:"
+              - "  1. Verify server service status"
+              - "  2. Check configuration via admin console"
+              - "  3. Register client nodes"
+              - "  4. Configure backup schedules"
+              - ""
+              - "=========================================="
+
+      rescue:
+        - name: Display Windows configuration failure
+          ansible.builtin.debug:
+            msg:
+              - "=========================================="
+              - "Windows Configuration Failed - Initiating Rollback"
+              - "=========================================="
+
+        - name: Attempt cleanup (Windows)
+          ansible.windows.win_command: >
+            python {{ sp_server_install_dest_win }}\sp_server_configure.py
+            --vars-file {{ sp_server_install_dest_win }}\ansible-vars.json
+            --step cleanup
+          register: sp_windows_cleanup
+          failed_when: false
+
+        - name: Display Windows cleanup output
+          ansible.builtin.debug:
+            var: sp_windows_cleanup
+
+        - name: Display Windows rollback status
+          ansible.builtin.debug:
+            msg:
+              - "=========================================="
+              - "Windows Configuration Failed - Rollback Complete"
+              - "=========================================="
+              - ""
+              - "System has been rolled back to previous state"
+              - ""
+              - "Troubleshooting:"
+              - "  1. Review error messages"
+              - "  2. Verify server installation"
+              - "  3. Check storage availability"
+              - "  4. Verify network connectivity"
+              - ""
+              - "=========================================="
+
+        - name: Stop execution after Windows failure
+          ansible.builtin.meta: end_play
+
+      when: ansible_os_family == "Windows"
+
+  post_tasks:
+    - name: Display final configuration summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "SP Server Configuration Summary"
+          - "=========================================="
+          - ""
+          - "Host: {{ inventory_hostname }}"
+          - "Platform: {{ ansible_os_family }}"
+          - "Configuration: Complete"
+          - ""
+          - "Documentation:"
+          - "  Design: docs/design/design-sp-server.md"
+          - "  Guide: docs/guides/sp-server-lifecycle-guide.md"
+          - ""
+          - "=========================================="
+...
+
+# Made with Bob

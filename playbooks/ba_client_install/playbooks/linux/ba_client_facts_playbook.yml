@@ -1,35 +1,92 @@
 ---
+# IBM Storage Protect BA Client Facts Collection Playbook - Linux
+#
+# Purpose: Gather comprehensive facts about BA Client on Linux systems
+# Reference: docs/design/design-ba-client.md
+# Guide: docs/guides/ba-client-lifecycle-guide.md
+#
+# Usage:
+#   ansible-playbook -i inventory.ini \
+#     ba_client_facts_playbook.yml \
+#     -e "server_name=TSM_SERVER" \
+#     -e "admin=admin_user" \
+#     -e "admin_password=password"
+#
+# Required Variables:
+#   - server_name: Storage Protect server name
+#   - admin: Admin username
+#   - admin_password: Admin password
+#
+# Optional Variables:
+#   - q_version: Query version (default: true)
+#   - q_session: Query session (default: true)
+#   - q_schedule: Query schedules (default: true)
+#   - q_filespace: Query filespaces (default: true)
+#   - q_systeminfo: Query system info (default: true)
+
 - name: Gather IBM Storage Protect BA Client Facts on Linux
   hosts: linux_clients
-  gather_facts: yes
+  gather_facts: true
+  become: true
 
   vars:
-    # BA Client connection details
     storage_protect_servername: "{{ server_name }}"
     storage_protect_nodename: "{{ ansible_hostname }}"
     storage_protect_admin_user: "{{ admin }}"
     storage_protect_admin_password: "{{ admin_password }}"
 
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - server_name is defined
+          - admin is defined
+          - admin_password is defined
+        fail_msg: "Required variables server_name, admin, and admin_password must be defined"
+        success_msg: "All required variables are defined"
+
+    - name: Display facts collection parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "Server Name: {{ storage_protect_servername }}"
+          - "Node Name: {{ storage_protect_nodename }}"
+          - "Admin User: {{ storage_protect_admin_user }}"
+
   tasks:
     - name: Gather all BA Client facts
-      ba_client_facts:
+      ibm.storage_protect.ba_client_facts:
         server_name: "{{ storage_protect_servername }}"
         node_name: "{{ storage_protect_nodename }}"
         user_id: "{{ storage_protect_admin_user }}"
         password: "{{ storage_protect_admin_password }}"
-        q_version: true
-        q_session: true
-        q_schedule: true
-        q_filespace: true
-        q_systeminfo: true
+        q_version: "{{ q_version | default(true) }}"
+        q_session: "{{ q_session | default(true) }}"
+        q_schedule: "{{ q_schedule | default(true) }}"
+        q_filespace: "{{ q_filespace | default(true) }}"
+        q_systeminfo: "{{ q_systeminfo | default(true) }}"
       register: ba_client_facts
 
     - name: Display BA Client facts
-      debug:
+      ansible.builtin.debug:
         var: ba_client_facts
+      when: ba_client_facts is defined
 
     - name: Save BA Client facts to file
-      copy:
+      ansible.builtin.copy:
         content: "{{ ba_client_facts | to_nice_json }}"
-        dest: "/tmp/ba_client_facts_{{ ansible_hostname }}.json"
+        dest: "/tmp/ba_client_facts_{{ ansible_hostname }}_{{ ansible_date_time.iso8601_basic_short }}.json"
+        mode: '0644'
       when: ba_client_facts is defined
+
+  post_tasks:
+    - name: Display facts collection summary
+      ansible.builtin.debug:
+        msg:
+          - "BA Client facts collection completed"
+          - "Host: {{ ansible_hostname }}"
+          - "Facts saved to: /tmp/ba_client_facts_{{ ansible_hostname }}_{{ ansible_date_time.iso8601_basic_short }}.json"
+      when: ba_client_facts is defined
+...
+
+# Made with Bob

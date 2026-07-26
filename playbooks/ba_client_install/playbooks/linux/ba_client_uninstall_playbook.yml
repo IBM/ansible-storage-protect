@@ -1,21 +1,83 @@
 ---
-- name: Uninstall BA Client on Linux
+# IBM Storage Protect BA Client Uninstallation Playbook - Linux
+#
+# Purpose: Uninstall BA Client from Linux systems
+# Reference: docs/design/design-ba-client.md
+# Guide: docs/guides/ba-client-lifecycle-guide.md
+#
+# Usage:
+#   ansible-playbook -i inventory.ini \
+#     ba_client_uninstall_playbook.yml \
+#     -e @../../vars/main.yml
+#
+# WARNING: This will remove the BA Client installation
+#
+# Required Variables:
+#   - ba_client_version: BA Client version
+#   - linux_package_source: Path to installation packages
+#
+# Optional Variables:
+#   - install_path: Installation directory (default: /opt/tivoli/tsm/client/ba/bin)
+
+- name: Uninstall IBM Storage Protect BA Client on Linux
   hosts: linux
-  gather_facts: yes
+  gather_facts: true
   become: true
 
   vars_files:
     - ../../vars/main.yml
 
+  pre_tasks:
+    - name: Critical Warning - Uninstallation Operation
+      ansible.builtin.pause:
+        prompt: |
+          ========================================
+          WARNING: BA Client Uninstallation
+          ========================================
+          
+          This will UNINSTALL the IBM Storage Protect BA Client.
+          
+          Pre-uninstall checklist:
+          - [ ] All backup/restore operations completed
+          - [ ] Configuration files backed up
+          - [ ] Approval obtained for uninstallation
+          
+          THIS OPERATION CANNOT BE UNDONE!
+          
+          Press CTRL+C and then 'A' to abort, or press ENTER to continue
+        seconds: 15
+      when: ba_client_uninstall_confirm | default(true) | bool
+
+    - name: Display uninstallation parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "BA Client Version: {{ ba_client_version }}"
+          - "Install Path: {{ install_path | default('/opt/tivoli/tsm/client/ba/bin') }}"
+
   tasks:
     - name: Uninstall BA Client
-      ba_client_install:
+      ibm.storage_protect.ba_client_install:
         ba_client_version: "{{ ba_client_version }}"
         state: absent
         package_source: "{{ linux_package_source }}"
-        install_path: "/opt/tivoli/tsm/client/ba/bin"
+        install_path: "{{ install_path | default('/opt/tivoli/tsm/client/ba/bin') }}"
       register: uninstall_result
 
     - name: Show uninstall result
-      debug:
+      ansible.builtin.debug:
         var: uninstall_result
+
+  post_tasks:
+    - name: Display uninstallation completion message
+      ansible.builtin.debug:
+        msg:
+          - "BA Client uninstallation completed"
+          - "Manual cleanup may be required for:"
+          - "  - Configuration files in /opt/tivoli/tsm/client/"
+          - "  - Log files"
+          - "  - Scheduled tasks"
+      when: uninstall_result is succeeded
+...
+
+# Made with Bob

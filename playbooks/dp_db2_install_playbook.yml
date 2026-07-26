@@ -1,34 +1,67 @@
 ---
-- name: Precheck for DP for DB2 with IBM Storage Protect
+# IBM Storage Protect Data Protection for DB2 - Installation Playbook
+#
+# Purpose: Install and configure Data Protection for DB2 with IBM Storage Protect
+# Reference: docs/design/design-sp-db2.md
+# Guide: docs/guides/data-protection-db2-guide.md
+#
+# Usage:
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.dp_db2_install_playbook.yml \
+#     -e @vars/dp_db2_install.yml \
+#     --vault-password-file .vault_pass
+#
+# Prerequisites:
+#   - IBM DB2 Database installed and running
+#   - IBM Storage Protect Server configured
+#   - Network connectivity between DB2 host and SP Server
+#
+# Required Variables:
+#   - storage_protect_server_name: SP Server name
+#   - storage_protect_server_ip: SP Server IP address
+#   - db2_instance: DB2 instance name
+#   - db2_database: DB2 database name
+#   - ba_client_version: BA Client version to install
+
+- name: Precheck for Data Protection for DB2
   hosts: storage_protect_client
-  become: true 
+  become: true
+  gather_facts: true
+
   vars_files:
     - vars/dp_db2_client_vars.yml
+
+  pre_tasks:
+    - name: Display installation parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "DB2 Instance: {{ db2_instance }}"
+          - "DB2 Database: {{ db2_database }}"
+          - "SP Server: {{ storage_protect_server_name }}"
+          - "BA Client Version: {{ ba_client_version }}"
+
   tasks:
-    # Run the prerequisites for DP for DB2
     - name: Run dp_db2_precheck role
-      include_role:
+      ansible.builtin.include_role:
         name: ibm.storage_protect.dp_db2_precheck
       register: precheck_result
 
-    # Query the API version to check if installed
-    - name: Query the API installed version
+    - name: Query the TSM API installed version
       ansible.builtin.command: rpm -q TIVsm-API64
       register: installed_version_check
       ignore_errors: true
       changed_when: false
       when: precheck_result is succeeded
 
-    # Install the BA Client packages if precheck succeeds
-    - name: Run ba_client_install role if dp_db2_precheck succeeds
-      include_role:
+    - name: Install BA Client if not present
+      ansible.builtin.include_role:
         name: ibm.storage_protect.ba_client_install
       when: installed_version_check.rc != 0
       register: ba_client_result
 
-    # Configure dsm.opt file after installation
-    - name: Run dsm_opt role if ba_client_install succeeds
-      include_role:
+    - name: Configure dsm.opt file
+      ansible.builtin.include_role:
         name: ibm.storage_protect.dsm_opt
       vars:
         dsm_opt_optfile_path: "/opt/tivoli/tsm/client/api/bin64/dsm.opt"
@@ -36,8 +69,7 @@
       when: ba_client_result is succeeded or installed_version_check.rc == 0
       register: dsm_opt_result
 
-    # Configure dsm.sys file after installation
-    - name: Create dsm.sys file if dsm_opt succeeds
+    - name: Create dsm.sys configuration file
       ibm.storage_protect.dsm_sysfile:
         server_name: "{{ storage_protect_server_name }}"
         tcp_server_address: "{{ storage_protect_server_ip }}"
@@ -45,25 +77,49 @@
       when: dsm_opt_result is succeeded
       register: dsm_sysfile_result
 
-# Register the client node in IBM Storage Protect Server
-- name: Register client node in IBM Storage Protect Server
+- name: Register client node on Storage Protect Server
   hosts: storage_protect_server
-  become: true 
+  become: true
+  gather_facts: true
+
   vars_files:
     - vars/dp_db2_server_vars.yml
+
   pre_tasks:
-    - name: Create dsm.sys
+    - name: Create dsm.sys on server
       ibm.storage_protect.dsm_sysfile:
         server_name: "{{ storage_protect_server_name }}"
         tcp_server_address: "{{ ansible_host }}"
-  roles:
-    - ibm.storage_protect.nodes
 
-# Perform postchecks for DP for DB2
-- name: Perform postchecks for DP for DB2 configuration
+  roles:
+    - role: ibm.storage_protect.nodes
+
+- name: Perform postchecks for Data Protection for DB2
   hosts: storage_protect_client
-  become: true 
+  become: true
+  gather_facts: true
+
   vars_files:
     - vars/dp_db2_client_vars.yml
+
   roles:
-    - ibm.storage_protect.dp_db2_postcheck
+    - role: ibm.storage_protect.dp_db2_postcheck
+
+  post_tasks:
+    - name: Display installation completion message
+      ansible.builtin.debug:
+        msg:
+          - "Data Protection for DB2 installation completed successfully"
+          - "Configuration Details:"
+          - "  - DB2 Instance: {{ db2_instance }}"
+          - "  - DB2 Database: {{ db2_database }}"
+          - "  - TSM API: Installed and configured"
+          - "  - Node: Registered on SP Server"
+          - "Next Steps:"
+          - "  1. Test backup: ansible-playbook dp_db2_backup_playbook.yml"
+          - "  2. Query backups: ansible-playbook dp_db2_query_playbook.yml"
+          - "  3. Configure automated backups"
+          - "  4. Review DSMI logs: /opt/tivoli/tsm/client/api/bin64/dsmerror.log"
+...
+
+# Made with Bob

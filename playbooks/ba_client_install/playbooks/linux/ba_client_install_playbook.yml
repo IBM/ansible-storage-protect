@@ -1,21 +1,75 @@
 ---
-- name: Install BA Client on Linux
+# IBM Storage Protect BA Client Installation Playbook - Linux
+#
+# Purpose: Install or upgrade BA Client on Linux systems
+# Reference: docs/design/design-ba-client.md
+# Guide: docs/guides/ba-client-lifecycle-guide.md
+#
+# Usage:
+#   ansible-playbook -i inventory.ini \
+#     ba_client_install_playbook.yml \
+#     -e @../../vars/main.yml
+#
+# Required Variables:
+#   - ba_client_version: BA Client version to install
+#   - linux_package_source: Path to installation packages
+#
+# Optional Variables:
+#   - install_path: Installation directory (default: /opt/tivoli/tsm/client/ba/bin)
+#   - state: Installation state (present/absent) (default: present)
+
+- name: Install IBM Storage Protect BA Client on Linux
   hosts: linux
-  gather_facts: yes
+  gather_facts: true
   become: true
 
   vars_files:
     - ../../vars/main.yml
 
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - ba_client_version is defined
+          - linux_package_source is defined
+        fail_msg: "Required variables ba_client_version and linux_package_source must be defined"
+        success_msg: "All required variables are defined"
+
+    - name: Display installation parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "BA Client Version: {{ ba_client_version }}"
+          - "Package Source: {{ linux_package_source }}"
+          - "Install Path: {{ install_path | default('/opt/tivoli/tsm/client/ba/bin') }}"
+          - "State: {{ state | default('present') }}"
+
   tasks:
     - name: Install or upgrade BA Client
-      ba_client_install:
+      ibm.storage_protect.ba_client_install:
         ba_client_version: "{{ ba_client_version }}"
-        state: present
+        state: "{{ state | default('present') }}"
         package_source: "{{ linux_package_source }}"
-        install_path: "/opt/tivoli/tsm/client/ba/bin"
+        install_path: "{{ install_path | default('/opt/tivoli/tsm/client/ba/bin') }}"
       register: install_result
 
     - name: Show installation result
-      debug:
+      ansible.builtin.debug:
         var: install_result
+
+  post_tasks:
+    - name: Display installation completion message
+      ansible.builtin.debug:
+        msg:
+          - "BA Client installation completed successfully"
+          - "Version: {{ ba_client_version }}"
+          - "Install Path: {{ install_path | default('/opt/tivoli/tsm/client/ba/bin') }}"
+          - "Next Steps:"
+          - "  1. Configure dsm.sys and dsm.opt files"
+          - "  2. Register node with Storage Protect server"
+          - "  3. Test client connectivity: dsmc query session"
+          - "  4. Configure backup schedules"
+      when: install_result is succeeded
+...
+
+# Made with Bob

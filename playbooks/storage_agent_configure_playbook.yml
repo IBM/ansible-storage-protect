@@ -1,45 +1,141 @@
 ---
-- name: Configure Storage Agent
-  hosts: "{{ target_hosts | default('all') }}"
-  become: yes
-  environment:
-    STORAGE_PROTECT_SERVERNAME: "server_name_for_dsmadmc cli"
-    STORAGE_PROTECT_USERNAME: "user_name for dsmadmc cli"
-    STORAGE_PROTECT_PASSWORD: "password for dsmadmc cli"
-  roles:
-    - ibm.storage_protect.storage_agent_configure
-  vars:
-    stg_agent_name: "stgagent16"
-    stg_agent_password: "STGAGENT@123456789"
-    stg_agent_server_name: "server2"
-    stg_agent_hl_add: "9.11.69.158"
-    lladdress: "1502"
-    server_tcp_port: "1500"
-    server_hl_address: "9.47.89.61"
-    server_password: "ServerPassword@@12345"
-    stg_agent_path_name: "drv1"
-    stg_agent_path_dest: "drive"
-    library: "MSLG3LIB"
-    device: "/dev/sg1"
-    copygroup_domain: "lanfreedomain"
-    copygroup_policyset: "standard"
-    copygroup_mngclass: "LANFREEMGMT"
-    copygroup_destination: "LANFREEPOOL"
-    validate_lan_free: false
-    node_name: "lanfreeclient"
-    stg_pool: "LANFREEPOOL"
+# IBM Storage Protect Storage Agent Configuration Playbook
+#
+# Purpose: Configure Storage Agent for LAN-Free backup operations
+# Reference: docs/design/design-storage-agent.md
+# Guide: docs/guides/storage-agent-lifecycle-guide.md
+#
+# Usage:
+#   # Configure Storage Agent
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.storage_agent_configure_playbook.yml \
+#     -e @vars/storage_agent_config.yml
+#
+#   # Validate LAN-Free configuration
+#   ansible-playbook -i inventory.ini \
+#     ibm.storage_protect.storage_agent_configure_playbook.yml \
+#     -e "validate_lan_free=true" \
+#     -e "node_name=lanfreeclient" \
+#     -e "stg_agent_name=stgagent16"
+#
+# Environment Variables Required:
+#   - STORAGE_PROTECT_SERVERNAME: Server name for dsmadmc CLI
+#   - STORAGE_PROTECT_USERNAME: Admin username for dsmadmc CLI
+#   - STORAGE_PROTECT_PASSWORD: Admin password for dsmadmc CLI
+#
+# Required Variables (Configuration Mode):
+#   - stg_agent_name: Storage Agent name
+#   - stg_agent_password: Storage Agent password
+#   - stg_agent_server_name: Server name
+#   - stg_agent_hl_add: Agent high-level address
+#   - server_hl_address: Server high-level address
+#   - server_password: Server-to-server password
+#   - stg_agent_path_name: SCSI path name
+#   - library: Tape library name
+#   - device: Device path
+#   - copygroup_domain: Policy domain
+#   - copygroup_policyset: Policy set
+#   - copygroup_mngclass: Management class
+#   - copygroup_destination: Storage pool destination
+#
+# Required Variables (Validation Mode):
+#   - validate_lan_free: Set to true
+#   - node_name: Client node name
+#   - stg_agent_name: Storage Agent name
 
-- name: Validate lanfree
+- name: Configure Storage Agent for LAN-Free Operations
   hosts: "{{ target_hosts | default('all') }}"
-  become: yes
+  become: true
+  gather_facts: true
+
   environment:
-    STORAGE_PROTECT_SERVERNAME: "server2"
-    STORAGE_PROTECT_USERNAME: "tsmuser1"
-    STORAGE_PROTECT_PASSWORD: "tsmuser1@@123456789"
+    STORAGE_PROTECT_SERVERNAME: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') }}"
+    STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') }}"
+    STORAGE_PROTECT_PASSWORD: "{{ lookup('env', 'STORAGE_PROTECT_PASSWORD') }}"
+
+  pre_tasks:
+    - name: Validate environment variables
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'STORAGE_PROTECT_SERVERNAME') != ''
+          - lookup('env', 'STORAGE_PROTECT_USERNAME') != ''
+          - lookup('env', 'STORAGE_PROTECT_PASSWORD') != ''
+        fail_msg: "Required environment variables must be set: STORAGE_PROTECT_SERVERNAME, STORAGE_PROTECT_USERNAME, STORAGE_PROTECT_PASSWORD"
+        success_msg: "Environment variables are configured"
+
+    - name: Validate configuration mode variables
+      ansible.builtin.assert:
+        that:
+          - stg_agent_name is defined
+          - stg_agent_password is defined
+          - stg_agent_server_name is defined
+          - stg_agent_hl_add is defined
+          - server_hl_address is defined
+          - server_password is defined
+          - stg_agent_path_name is defined
+          - library is defined
+          - device is defined
+          - copygroup_domain is defined
+          - copygroup_policyset is defined
+          - copygroup_mngclass is defined
+          - copygroup_destination is defined
+        fail_msg: "Required configuration variables are missing. Please provide all storage agent configuration parameters"
+        success_msg: "All configuration variables are defined"
+      when: not (validate_lan_free | default(false) | bool)
+
+    - name: Validate validation mode variables
+      ansible.builtin.assert:
+        that:
+          - node_name is defined
+          - stg_agent_name is defined
+        fail_msg: "For LAN-Free validation, both node_name and stg_agent_name must be provided"
+        success_msg: "Validation variables are defined"
+      when: validate_lan_free | default(false) | bool
+
+    - name: Display configuration parameters
+      ansible.builtin.debug:
+        msg:
+          - "Target Host: {{ ansible_hostname }}"
+          - "Mode: {{ 'VALIDATION' if validate_lan_free | default(false) else 'CONFIGURATION' }}"
+          - "Storage Agent: {{ stg_agent_name }}"
+          - "Server: {{ stg_agent_server_name | default('N/A') }}"
+          - "Device: {{ device | default('N/A') }}"
+          - "Library: {{ library | default('N/A') }}"
+          - "Node Name: {{ node_name | default('N/A') }}"
+
   roles:
-    - ibm.storage_protect.storage_agent_configure
-  vars:
-    validate_lan_free: false
-    node_name: "lanfreeclient"
-    stg_agent_name: "stgagent16"
-    max_attempts: 2
+    - role: ibm.storage_protect.storage_agent_configure
+
+  post_tasks:
+    - name: Display configuration completion message
+      ansible.builtin.debug:
+        msg:
+          - "Storage Agent configuration completed successfully"
+          - "Storage Agent: {{ stg_agent_name }}"
+          - "Server: {{ stg_agent_server_name }}"
+          - "SCSI Path: {{ stg_agent_path_name }}"
+          - "Device: {{ device }}"
+          - "Library: {{ library }}"
+          - "Next Steps:"
+          - "  1. Validate LAN-Free: ansible-playbook storage_agent_configure_playbook.yml -e 'validate_lan_free=true' -e 'node_name=<client>'"
+          - "  2. Configure client for LAN-Free backup"
+          - "  3. Test LAN-Free backup operation"
+          - "  4. Monitor storage agent logs: /opt/tivoli/tsm/StorageAgent/bin/dsmsta.log"
+      when: not (validate_lan_free | default(false) | bool)
+
+    - name: Display validation completion message
+      ansible.builtin.debug:
+        msg:
+          - "LAN-Free validation completed"
+          - "Node: {{ node_name }}"
+          - "Storage Agent: {{ stg_agent_name }}"
+          - "Review the validation output above"
+          - "Next Steps:"
+          - "  1. Verify client can perform LAN-Free backups"
+          - "  2. Test backup operation"
+          - "  3. Monitor backup performance"
+          - "  4. Review logs for any issues"
+      when: validate_lan_free | default(false) | bool
+...
+
+# Made with Bob
