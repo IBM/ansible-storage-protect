@@ -58,6 +58,8 @@ directories:
 
 sp_server_compatible_architectures:
   - x86_64
+  - ppc64le
+  - s390x
 
 server_size: 'xsmall'
 act_log_size:

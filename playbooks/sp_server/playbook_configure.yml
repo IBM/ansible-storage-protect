@@ -1,6 +1,6 @@
 ---
 - name: Configuring SP Server using Python implementation
-  hosts: sp_server_linux, sp_server_aix, sp_server_windows
+  hosts: sp_server_linux, sp_server_aix, sp_server_windows, sp_server_ppc64le
   become: true
   gather_facts: true
 

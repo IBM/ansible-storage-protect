@@ -266,6 +266,19 @@ ARTIFACT_PATTERNS = {
 
     # Example: 1.2.1.0-ORGI-SPOC-AixPPC.bin
     "aix": r"([0-9]+(?:\\.[0-9]+){1,3})-[A-Za-z0-9_-]+-AixPPC\\.bin$",
+
+    # NEW: Additional platform support
+    # Example: 1.2.1.0-IBM-SPOC-Linuxppc64le.bin
+    "linuxppc64le": r"([0-9]+(?:\\.[0-9]+){1,3})-[A-Za-z0-9_-]+-Linuxppc64le\\.bin$",
+
+    # Example: 1.2.1.0-IBM-SPOC-Linuxs390x.bin
+    "linuxs390x": r"([0-9]+(?:\\.[0-9]+){1,3})-[A-Za-z0-9_-]+-Linuxs390x\\.bin$",
+
+    # Example: 1.2.1.0-IBM-SPOC-SolarisX86.bin
+    "solarisx86": r"([0-9]+(?:\\.[0-9]+){1,3})-[A-Za-z0-9_-]+-SolarisX86\\.bin$",
+
+    # Example: 1.2.1.0-IBM-SPOC-SLES15X64.bin
+    "sles15": r"([0-9]+(?:\\.[0-9]+){1,3})-[A-Za-z0-9_-]+-SLES15X64\\.bin$",
 }
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -723,7 +736,7 @@ class BA_SERVER_SETUP:
         # linux line endings for linux playform execution
         # TODO: is this required (or need to fix in build only?)
 
-        if (os_name.lower().strip() == "linux"):
+        if os_name.lower().strip() in ["linux", "linuxppc64le", "linuxs390x", "solarisx86", "sles15"]:
             # cmd = "sudo sed -i 's/\r$//' " + install_script_fullfilepath
             cmd = "dos2unix " + install_script_fullfilepath
             print(":::::")
@@ -739,8 +752,8 @@ class BA_SERVER_SETUP:
         
         # For upgrade scenarios, patch install.sh to filter -skipUpgradeCheck before calling imcl
         # The install.sh has contradictory logic: it requires the flag but passes it to imcl which rejects it
-        # This applies to both Linux and AIX
-        if is_upgrade and os_name.lower().strip() in ["linux", "aix"]:
+        # This applies to Linux, AIX, and all new Unix-based platforms
+        if is_upgrade and os_name.lower().strip() in ["linux", "aix", "linuxppc64le", "linuxs390x", "solarisx86", "sles15"]:
             self.log.info("Upgrade scenario detected - patching install.sh to filter -skipUpgradeCheck")
             
             # Create a patch script that modifies install.sh in place

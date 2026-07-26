@@ -75,6 +75,7 @@ def os_oskey(context: Dict[str, Any]) -> Dict[str, str]:
     os_data = context.get("os", {}) or {}
     family = (os_data.get("family") or "").lower()
     distro_id = (os_data.get("id") or "").lower()
+    arch = (os_data.get("arch") or "").lower()  # NEW: Get architecture
 
     # Normalize OS family
     if family == "windows":
@@ -83,17 +84,34 @@ def os_oskey(context: Dict[str, Any]) -> Dict[str, str]:
         os_family = "linux"
     elif family in {"aix", "unix"}:
         os_family = family
+    elif family == "sunos":  # NEW: Solaris detection
+        os_family = "solaris"
     else:
         os_family = family or "unknown"
 
-    # Determine distro / specific OS name
+    # Determine distro / specific OS name with architecture awareness
     if os_family == "linux":
-        # Normalize common RHEL-family distros under "rhel"
-        rhel_like = {"rhel", "centos", "rocky", "almalinux", "oraclelinux"}
-        if distro_id in rhel_like:
-            os_name = "rhel"
+        # NEW: Check for specific architectures first
+        if arch in {"ppc64le", "ppc64"}:
+            os_name = "linuxppc64le"
+        elif arch in {"s390x", "s390"}:
+            os_name = "linuxs390x"
         else:
-            os_name = distro_id or "linux"
+            # Check for SLES (SUSE Linux Enterprise Server)
+            if distro_id in {"sles", "suse", "sles_sap"}:
+                os_name = "sles15"
+            else:
+                # Normalize common RHEL-family distros under "rhel"
+                rhel_like = {"rhel", "centos", "rocky", "almalinux", "oraclelinux"}
+                if distro_id in rhel_like:
+                    os_name = "rhel"
+                else:
+                    os_name = distro_id or "linux"
+    elif os_family == "solaris":  # NEW: Solaris handling
+        if arch in {"i86pc", "x86_64", "amd64"}:
+            os_name = "solarisx86"
+        else:
+            os_name = "solaris"
     else:
         # For non-Linux OS, prefer reported id; fallback to family
         os_name = distro_id or os_family
@@ -762,7 +780,16 @@ def svc_delete(context: dict[str, Any], name: str) -> bool:
             _warning(context, "Failed to delete AIX service %s (rc=%s)", name, r["rc"])
         return ok
     
-    # Linux: Stop and disable service first, then remove unit file
+    elif system == "sunos":  # Solaris SMF
+        # Disable and delete the service
+        exec_run(context, f"svcadm disable {name}")
+        r = exec_run(context, f"svccfg delete {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to delete Solaris service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    # Default: Linux systemd - Stop and disable service first, then remove unit file
     exec_run(context, f"systemctl stop {name}")
     exec_run(context, f"systemctl disable {name}")
     
@@ -797,6 +824,14 @@ def svc_stop(context: dict[str, Any], name: str) -> bool:
             _warning(context, "Failed to stop AIX service %s (rc=%s)", name, r["rc"])
         return ok
     
+    elif system == "sunos":  # Solaris SMF
+        r = exec_run(context, f"svcadm disable -t {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to stop Solaris service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    # Default: Linux systemd
     r = exec_run(context, "systemctl stop " + str(name))
     ok = r["rc"] == 0
     if not ok:
@@ -820,6 +855,14 @@ def svc_start(context: dict[str, Any], name: str) -> bool:
             _warning(context, "Failed to start AIX service %s (rc=%s)", name, r["rc"])
         return ok
     
+    elif system == "sunos":  # Solaris SMF
+        r = exec_run(context, f"svcadm enable {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to start Solaris service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    # Default: Linux systemd
     r = exec_run(context, "systemctl start " + str(name))
     ok = r["rc"] == 0
     if not ok:
@@ -852,6 +895,15 @@ def svc_enable(context: dict[str, Any], name: str) -> bool:
             return ok
         return True  # Already enabled
     
+    elif system == "sunos":  # Solaris SMF
+        # In Solaris SMF, enable also starts the service
+        r = exec_run(context, f"svcadm enable {name}")
+        ok = r["rc"] == 0
+        if not ok:
+            _warning(context, "Failed to enable Solaris service %s (rc=%s)", name, r["rc"])
+        return ok
+    
+    # Default: Linux systemd
     r = exec_run(context, f"systemctl enable {name}")
     ok = r["rc"] == 0
     if not ok:
@@ -1030,7 +1082,7 @@ def find_installer(
     print(ok)
     if ok in ("windows", "win"):
         ext = ".exe"
-    elif ok in ("linux", "lin", "aix"):
+    elif ok in ("linux", "lin", "aix", "linuxppc64le", "linuxs390x", "solarisx86", "solaris", "sles15", "sles"):
         ext = ".bin"
     elif ok in ("rhel", "centos"):
         ext = ".bin"

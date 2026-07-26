@@ -5,6 +5,25 @@ ibm.storage_protect Release Notes
 .. contents:: Topics
 
 
+
+v1.1.0
+======
+
+Major Changes
+-------------
+
+- Added PPC64LE (IBM Power Architecture) support to SP Server orchestration playbooks
+- Added PLAY 3 in playbooks/sp_server/playbook.yml for PPC64LE platform
+- Updated playbooks/sp_server/playbook_configure.yml to include sp_server_ppc64le host group
+- Created comprehensive documentation in playbooks/sp_server/README.md
+
+Minor Changes
+-------------
+
+- Enhanced platform support documentation in CHANGES_SUMMARY.md
+- Added inventory configuration examples for PPC64LE hosts
+- Documented PPC64LE-specific requirements and binary naming conventions
+
 v1.0.0
 ======
 

@@ -151,7 +151,7 @@ ansible-playbook -i inventory.ini ibm.storage_protect.sp_server_blueprint_playbo
     ansible-playbook -i inventory.ini ibm.storage_protect.sp_server_blueprint_playbook.yml -e @encrypted_file.yml
 
 ## Requirements
-- **Operating System**: Linux (x86_64 architecture).
+- **Operating System**: Linux (x86_64, ppc64le, s390x architectures), AIX, Windows.
 - **Disk Space**: Ensure you satisfy the system requirements for blueprint implementation/installation of server.
 - The playbook should be executed with `become: true`.
 - Install the following collections from ansible galaxy on control node.

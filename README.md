@@ -60,6 +60,56 @@ Some Ansible collections (including baclient-installation) require Python 3.9 or
 
 To address this without modifying the collection code, you can use the `python_version_install.yml` playbook to automatically install Python 3.9+ from source on the remote host. After installation, you can instruct Ansible to use the new Python interpreter for all tasks.
 
+## Supported Platforms
+
+This collection supports IBM Storage Protect Server installation and management on the following platforms:
+
+- **Windows** (x64)
+- **Linux** (x86_64, ppc64le, s390x)
+- **AIX** (Power)
+- **Solaris** (x86)
+- **SLES** (SUSE Linux Enterprise Server)
+
+### Platform-Specific Notes
+
+#### PPC64LE (IBM Power Architecture)
+- Supported on Linux distributions running on IBM Power Systems
+- Requires Python 3.9 or higher
+- Uses systemd for service management
+- Binary naming: `<version>-IBM-SPOC-Linuxppc64le.bin`
+- See [playbooks/sp_server/README.md](playbooks/sp_server/README.md) for detailed information
+
+## Getting Started
+
+### Inventory Configuration
+
+An example inventory file is provided at `inventory.example.ini`. Copy and customize it for your environment:
+
+```bash
+cp inventory.example.ini inventory.ini
+# Edit inventory.ini with your host details
+```
+
+The inventory includes host groups for all supported platforms:
+- `sp_server_windows` - Windows SP Servers
+- `sp_server_linux` - Linux x86_64 SP Servers
+- `sp_server_aix` - AIX SP Servers
+- `sp_server_ppc64le` - PPC64LE (IBM Power) SP Servers
+
+### Quick Start - SP Server Installation
+
+```bash
+# Install SP Server on all platforms
+ansible-playbook playbooks/sp_server/playbook.yml -i inventory.ini -e "sp_mode=install"
+
+# Install on specific platform (e.g., PPC64LE)
+ansible-playbook playbooks/sp_server/playbook.yml -i inventory.ini -e "sp_mode=install" --limit sp_server_ppc64le
+
+# Configure SP Server
+ansible-playbook playbooks/sp_server/playbook_configure.yml -i inventory.ini
+```
+
+
 ## Use Cases
 
 ### Preparing Storage Protect client system-option file
