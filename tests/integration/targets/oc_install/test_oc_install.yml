@@ -1,0 +1,17 @@
+---
+- name: Install Operations Center
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: true
+  become: "{{ ansible_os_family != 'Windows' }}"
+  tasks:
+    - name: Install Operations Center from GSA
+      ibm.storage_protect.oc_install:
+        oc_version: "{{ oc_version | default('8.2.2.000') }}"
+        gsa_base_url: "{{ gsa_base_url }}"
+        ssl_password: "{{ ssl_password }}"
+        admin_name: "{{ admin_name | default(omit) }}"
+        configure: "{{ configure | default(true) }}"
+      environment:
+        STORAGE_PROTECT_SERVERNAME: "{{ lookup('env', 'STORAGE_PROTECT_SERVERNAME') }}"
+        STORAGE_PROTECT_USERNAME: "{{ lookup('env', 'STORAGE_PROTECT_USERNAME') }}"
+        STORAGE_PROTECT_PASSWORD: "{{ lookup('env', 'STORAGE_PROTECT_PASSWORD') }}"

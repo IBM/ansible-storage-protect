@@ -18,6 +18,8 @@ Naming convention: <area>_<action>
   ba_*        : BA Server tiny utilities (paths/version)
 """
 
+from __future__ import annotations
+
 import os
 import re
 import sys
@@ -32,7 +34,12 @@ from typing import Any, Dict, List, Optional, Tuple, Mapping
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 from xml.dom import minidom
-import sp_server_constants
+
+try:
+    from . import sp_server_constants
+except ImportError:
+    import sp_server_constants  # standalone / sp_server.py CLI
+
 import socket
 
 
@@ -169,6 +176,16 @@ def get_os_info() -> Dict[str, Any]:
             {
                 "name": "macOS",
                 "version": mac_ver[0],
+                "release": platform.release(),
+                "arch": platform.machine(),
+            }
+        )
+    elif sysname == "AIX":
+        info.update(
+            {
+                "id": "aix",
+                "name": "AIX",
+                "version": platform.version(),
                 "release": platform.release(),
                 "arch": platform.machine(),
             }
@@ -350,6 +367,75 @@ def extract_binary_package(src, dest, *, context: dict[str, Any]):
             _error(context=context, msg=str(e))
             return False
 
+def patch_install_sh_for_upgrade(install_script_path: str, *, context: dict[str, Any]) -> bool:
+    """
+    Patch install.sh so -skipUpgradeCheck satisfies install.sh but is filtered before imcl.
+    Required for silent upgrade on Linux/AIX when SP components already exist on the host.
+    """
+    extracted_dir = os.path.dirname(install_script_path)
+    patch_script = os.path.join(extracted_dir, "patch_install.sh")
+    patch_content = f"""#!/bin/sh
+# Patch install.sh to filter -skipUpgradeCheck before calling imcl
+# Compatible with both Linux and AIX (POSIX shell syntax, no bash arrays)
+
+INSTALL_SH="{install_script_path}"
+TEMP_FILE="${{INSTALL_SH}}.tmp"
+
+cp "$INSTALL_SH" "${{INSTALL_SH}}.backup"
+
+{{
+  head -1 "$INSTALL_SH"
+  cat << 'FILTER_FUNC'
+# Function to filter out -skipUpgradeCheck argument (POSIX-compliant)
+filter_args() {{
+  FILTERED_ARGS=""
+  for arg in "$@"; do
+    case "$arg" in
+      -skipUpgradeCheck)
+        ;;
+      *)
+        if [ -z "$FILTERED_ARGS" ]; then
+          FILTERED_ARGS="$arg"
+        else
+          FILTERED_ARGS="$FILTERED_ARGS $arg"
+        fi
+        ;;
+    esac
+  done
+}}
+FILTER_FUNC
+  tail -n +2 "$INSTALL_SH"
+}} > "$TEMP_FILE"
+
+sed 's/\\$command "\\$@"/filter_args "$@"; eval \\$command $FILTERED_ARGS/g' "$TEMP_FILE" > "${{TEMP_FILE}}.2"
+mv "${{TEMP_FILE}}.2" "$INSTALL_SH"
+rm -f "$TEMP_FILE"
+chmod +x "$INSTALL_SH"
+
+if grep -q "filter_args" "$INSTALL_SH"; then
+    exit 0
+fi
+echo "ERROR: Patch verification failed - filter_args not found"
+exit 1
+"""
+    try:
+        with open(patch_script, "w", encoding="utf-8") as handle:
+            handle.write(patch_content)
+    except OSError as exc:
+        _error(context, "Failed to write install.sh patch script: %s", exc)
+        return False
+
+    sp_utils_chmod = exec_run(context=context, cmd=f"chmod +x {patch_script}", shell=True)
+    if sp_utils_chmod.get("rc") != 0:
+        _error(context, "Failed to chmod patch script: %s", sp_utils_chmod)
+        return False
+
+    patch_resp = exec_run(context=context, cmd=patch_script, shell=True)
+    if patch_resp.get("rc") != 0:
+        _error(context, "install.sh upgrade patch failed: %s", patch_resp)
+        return False
+    return True
+
 def update_package_offering(xml_filepath: str, install_data: Dict[str, Dict[str, Any]]) -> None:
 
     tree = ET.parse(xml_filepath)
@@ -438,7 +524,7 @@ def replace_text_in_file(
                            use_regex=True, replace_line=True)
         
         # Regex pattern replacement without replacing entire line
-        replace_text_in_file("config.txt", r"port=\d+", "port=8080", use_regex=True)
+        replace_text_in_file("config.txt", r"port=\\d+", "port=8080", use_regex=True)
     """
     try:
         content = file_read_text(path=file_path)
@@ -1015,6 +1101,7 @@ def find_installer(
     base_dir: str,
     case_insensitive: bool = False,
     version: Optional[str] = None,
+    name_markers: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Artifact naming pattern:
@@ -1026,8 +1113,6 @@ def find_installer(
     """
     # Resolve extension
     ok = oskey.lower()
-    print("="*5)
-    print(ok)
     if ok in ("windows", "win"):
         ext = ".exe"
     elif ok in ("linux", "lin", "aix"):
@@ -1037,7 +1122,6 @@ def find_installer(
     else:
         ext = oskey if oskey.startswith(".") else f".{oskey}"
 
-    print(ext)
     base_path = Path(base_dir)
     if not base_path.is_dir():
         return {
@@ -1057,6 +1141,15 @@ def find_installer(
         else:
             if entry.suffix == ext:
                 candidates.append(entry)
+
+    if name_markers:
+        def _matches_markers(path: Path) -> bool:
+            name = path.name.lower() if case_insensitive else path.name
+            return any(marker.lower() in name for marker in name_markers)
+
+        filtered = [path for path in candidates if _matches_markers(path)]
+        if filtered:
+            candidates = filtered
 
     if not candidates:
         return {
@@ -1432,7 +1525,7 @@ def ba_binary_path(context: dict[str, Any], oskey: Optional[str] = None) -> Path
 
 
 def ba_is_installed(context: dict[str, Any], oskey: Optional[str] = None, install_data: Dict[str, Dict[str, Any]] = {}) -> dict:
-    print(install_data)
+    _debug(context, "ba_is_installed check for %s", install_data.get("id") if install_data else install_data)
 
     ret_data = {"status": True, "message": "", "data": {"installedpackages": {}}}
 
@@ -1640,17 +1733,22 @@ class AgentInputXMLBuilder:
         SubElement(variables, "variable", {"name": "enable.SP800131a", "value": ""})
 
         v_install = SubElement(variables, "variable", {"name": "install.dir", "value": install_dir})
-        # Optional Windows override (harmless on non-Windows)
+        # Optional platform overrides (harmless when install_dir already matches)
         SubElement(
             v_install,
             "if",
             {"name": "platform:os", "equals": "win32", "value": r"C:\Program Files\Tivoli\TSM"},
         )
+        SubElement(
+            v_install,
+            "if",
+            {"name": "platform:os", "equals": "aix", "value": "/usr/tivoli/tsm"},
+        )
 
         # repository
-        # repository_location = inputdata.get("sp_server_install_dest_win", "C:/temp/baserver" ) if self.os_family == "windows" else inputdata.get("sp_server_install_dest_lin", "/tmp/baserver")
-        # repository_location = repository_location + "/artifacts/extracted/repository"
-        repository_location = "repository"
+        repository_location = (
+            inputdata.get("repository_location") or self.default_repository_location
+        )
         self.add_repository(root, repository_location)
 
         # profile data keys that align with common IM response usage
@@ -1674,7 +1772,12 @@ class AgentInputXMLBuilder:
 
         # offerings (selected=true for install)
         install = SubElement(root, "install", {"modify": "false"})
-        self._add_selected_offerings_block(install, inputdata.get("offerings", {}), selected=True)
+        self._add_selected_offerings_block(
+            install,
+            inputdata.get("offerings", {}),
+            selected=True,
+            profile_override=inputdata.get("profile_id"),
+        )
 
         # preferences
         self.add_preferences(root, self.constants.preferences)
@@ -1689,7 +1792,12 @@ class AgentInputXMLBuilder:
         self.add_repository(root, inputdata.get("repository_location"))
 
         install = SubElement(root, "install", {"modify": "false"})
-        self._add_selected_offerings_block(install, inputdata.get("offerings", {}), selected=True)
+        self._add_selected_offerings_block(
+            install,
+            inputdata.get("offerings", {}),
+            selected=True,
+            profile_override=inputdata.get("profile_id"),
+        )
 
         self.add_preferences(root, self.constants.preferences)
         return root
@@ -1741,6 +1849,7 @@ class AgentInputXMLBuilder:
         offerings_flags: Mapping[str, bool],
         *,
         selected: bool,
+        profile_override: Optional[str] = None,
     ) -> None:
         """
         Add offerings to a given block (<install>), honoring boolean flags.
@@ -1754,4 +1863,7 @@ class AgentInputXMLBuilder:
             if not meta:
                 # Unknown offering name -> skip silently for resilience
                 continue
-            self.add_offering(parent_block, meta, selected=selected)
+            offering_meta = dict(meta)
+            if profile_override:
+                offering_meta["profile"] = profile_override
+            self.add_offering(parent_block, offering_meta, selected=selected)

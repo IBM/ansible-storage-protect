@@ -101,6 +101,7 @@ def linux_main():
     temp_dir = module.params['temp_dir']
 
     installed, installed_version = utils.check_installed()
+    package_source = utils.resolve_package_source(package_source)
 
     try:
         # Handle uninstall first, regardless of other conditions
@@ -117,10 +118,11 @@ def linux_main():
         version_available = utils.file_exists(package_source)
         installed_version_list = normalize_version(installed_version) if installed_version else []
         user_version_list = normalize_version(desired_version) if desired_version else []
+        client_present = bool(installed and installed_version)
 
-        if installed_version and user_version_list > installed_version_list and version_available:
+        if client_present and user_version_list > installed_version_list and version_available:
             action = "upgrade"
-        elif not installed_version and version_available:
+        elif not client_present and version_available:
             action = "install"
         else:
             action = "none"
@@ -130,7 +132,12 @@ def linux_main():
         if action == 'install':
             installed, _ = utils.check_installed()
             if installed and not force:
-                module.exit_json(changed=False, msg="BA Client already installed after extraction check")
+                module.exit_json(
+                    changed=False,
+                    msg="BA Client already installed after extraction check",
+                    installed=installed,
+                    installed_version=installed_version,
+                )
             precheck = utils.verify_system_prereqs()
             if not utils.file_exists(package_source):
                 module.fail_json(msg=f"Package source not found on remote host: {package_source}")
@@ -142,7 +149,36 @@ def linux_main():
             upgrade_result = utils.upgrade_ba_client(package_source, desired_version, install_path, ba_client_version, state, temp_dir)
             module.exit_json(**upgrade_result)
 
-        module.exit_json(changed=False, msg="No action taken: BA Client is already at the desired state or no package available")
+        if not version_available:
+            skip_reason = f"Package source not found on target host: {package_source}"
+        elif client_present and installed_version_list == user_version_list:
+            skip_reason = (
+                f"BA Client already installed at version {installed_version}, "
+                f"matches requested {desired_version}"
+            )
+        elif client_present and user_version_list < installed_version_list:
+            skip_reason = (
+                f"Installed version {installed_version} is newer than requested {desired_version}"
+            )
+        elif installed and not installed_version:
+            skip_reason = (
+                "Incomplete BA Client detection (no lslpp version); "
+                "use force=true to reinstall"
+            )
+        else:
+            skip_reason = "BA Client is already at the desired state or no package available"
+
+        module.exit_json(
+            changed=False,
+            msg=f"No action taken: {skip_reason}",
+            installed=installed,
+            installed_version=installed_version,
+            client_present=client_present,
+            requested_version=desired_version,
+            package_source=package_source,
+            package_source_exists=version_available,
+            action=action,
+        )
     except Exception as e:
         module.fail_json(msg=f"Unhandled exception: {str(e)}")
 
@@ -178,7 +214,7 @@ def windows_main():
 
     if installed_version and user_version_list > installed_version_list and version_available:
         action = "upgrade"
-    elif not installed_version and version_available:
+    elif not installed and version_available:
         action = "install"
     else:
         action = "none"
@@ -189,7 +225,12 @@ def windows_main():
         if action == 'install':
             installed, _ = utils.check_installed()
             if installed and not force:
-                module.exit_json(changed=False, msg="BA Client already installed after extraction check")
+                module.exit_json(
+                    changed=False,
+                    msg="BA Client already installed after extraction check",
+                    installed=installed,
+                    installed_version=installed_version,
+                )
             precheck = utils.verify_system_prereqs()
             if not utils.file_exists(package_source):
                 module.fail_json(msg=f"Package source not found on remote host: {package_source}")

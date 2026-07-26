@@ -1,0 +1,55 @@
+---
+- name: Install IBM Storage Protect Operations Center on AIX
+  hosts: "{{ target_hosts | default('aix_clients') }}"
+  gather_facts: true
+  become: true
+
+  vars:
+    oc_version: "8.2.2.000"
+    gsa_base_url: ""
+    # AIX defaults applied automatically when these match Linux paths:
+    install_location_tsm: "/usr/tivoli/tsm"
+    install_location_im: "/usr/IBM/InstallationManager"
+    oc_install_dest: "/tmp/oc_binary"
+    profile_id: "IBM Storage Protect"
+    gsa_validate_certs: false
+    configure: false
+
+  tasks:
+    - name: Install Operations Center
+      ibm.storage_protect.oc_install:
+        state: present
+        oc_version: "{{ oc_version }}"
+        gsa_base_url: "{{ gsa_base_url }}"
+        gsa_username: "{{ gsa_username | default(omit) }}"
+        gsa_password: "{{ gsa_password | default(omit) }}"
+        ssl_password: "{{ ssl_password }}"
+        install_location_tsm: "{{ install_location_tsm }}"
+        install_location_im: "{{ install_location_im }}"
+        oc_install_dest: "{{ oc_install_dest }}"
+        profile_id: "{{ profile_id }}"
+        secure_port: "{{ secure_port | default('9443') }}"
+        configure: "{{ configure | default(false) }}"
+        admin_name: "{{ admin_name | default(omit) }}"
+        artifact_path: "{{ artifact_path | default(omit) }}"
+      register: oc_install_result
+
+    - name: Show Operations Center status
+      ansible.builtin.debug:
+        msg:
+          platform: "{{ oc_install_result.platform | default('') }}"
+          changed: "{{ oc_install_result.changed }}"
+          installed_version: "{{ oc_install_result.installed_version | default('') }}"
+          msg: "{{ oc_install_result.msg }}"
+          success: "{{ oc_install_result.success | default(false) }}"
+          validation: "{{ oc_install_result.validation | default({}) }}"
+
+    - name: Verify opscenter SRC subsystem (AIX)
+      ansible.builtin.command: lssrc -s opscenter
+      register: opscenter_src
+      changed_when: false
+      failed_when: false
+
+    - name: Show opscenter service status
+      ansible.builtin.debug:
+        var: opscenter_src.stdout_lines
