@@ -1,0 +1,60 @@
+---
+# Global variables for all hosts in the petascale deployment
+# These variables apply to ALL nodes unless overridden by host_vars
+#
+# CUSTOMER: Edit this file to set global defaults for your environment
+
+# ============================================================================
+# Global Software Settings
+# ============================================================================
+
+# Default software version (can be overridden per host)
+software_version: "8.2.1.0"
+
+# Default OS type (can be overridden per host)
+os_type: "LinuxX86"
+
+# Default package location on remote nodes (can be overridden per host)
+package_location: "/tmp"
+
+# ============================================================================
+# Python Configuration
+# ============================================================================
+
+# Python interpreter path (ensure Python 3.9+ is installed on all nodes)
+ansible_python_interpreter: /usr/bin/python3.9
+
+# ============================================================================
+# Connection Settings
+# ============================================================================
+
+# SSH connection settings
+ansible_connection: ssh
+ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+# Privilege escalation
+ansible_become: yes
+ansible_become_method: sudo
+
+# ============================================================================
+# Deployment Settings
+# ============================================================================
+
+# Parallel execution (forks)
+# Adjust based on your control node capacity and network bandwidth
+# ansible_forks: 20
+
+# Timeout settings (in seconds)
+# ansible_timeout: 300
+
+# ============================================================================
+# Logging and Debugging
+# ============================================================================
+
+# Enable verbose output (uncomment for debugging)
+# ansible_verbosity: 1
+
+# Log file location (uncomment to enable logging)
+# ansible_log_path: /var/log/ansible/petascale_deployment.log
+
+# Made with Bob

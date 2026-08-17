@@ -1,0 +1,24 @@
+---
+- name: Uninstall HSM Client on Linux
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: yes
+  become: true
+
+  vars_files:
+    - ../../vars/main.yml
+
+  tasks:
+    - name: Uninstall HSM Client
+      hsm_client_install:
+        hsm_client_version: "{{ hsm_client_version }}"
+        state: absent
+        package_source: "{{ linux_package_source }}"
+        install_path: "{{ hsm_install_path }}"
+        temp_dir: "{{ hsm_temp_dir }}"
+      register: uninstall_result
+
+    - name: Show uninstallation result
+      debug:
+        var: uninstall_result
+
+# Made with Bob

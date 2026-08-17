@@ -1,3 +1,10 @@
+- name: Initialize installation status variables
+  ansible.builtin.set_fact:
+    sp_server_installation_status: false
+    oc_installation_status: false
+    ossm_installation_status: false
+    stagent_installation_status: false
+
 - name: Check if Installation Manager (IMCL) exists
   ansible.builtin.stat:
     path: "{{ imcl_path }}"

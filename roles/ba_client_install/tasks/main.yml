@@ -1,40 +1,119 @@
 # ========================================================================
 # Flow:
 # if state == 'present'
-  #  1) local_repo_check.yml :- validates whether the passed version is available in local repo on control node.
-  #  2) determine_action.yml :- if passed version is available in local_repo , role checks whether the passed version is upper or lower.
-  #      if version passed is greater than the already installed then ba_client_action is set to 'upgrade'
-  #      if version passed is lower than already installed, role execution is stopped
-  #      if no version is available on remote vm's then ba_client_action is set to 'install'
-  #  3) system_info :- this role collects the system facts , which are used to perform pre-checks on remote vm's
-  #  4) if ba_client_action == 'install' :- ba_client_install.yml is executed
-  #  5) if ba_client_action == 'upgrade' :- ba_client_upgrade.yml is executed
+#   #  1) local_repo_check.yml :- validates whether the passed version is available in local repo on control node.
+#   #  2) determine_action.yml :- if passed version is available in local_repo , role checks whether the passed version is upper or lower.
+#   #      if version passed is greater than the already installed then ba_client_action is set to 'upgrade'
+#   #      if version passed is lower than already installed, role execution is stopped
+#   #      if no version is available on remote vm's then ba_client_action is set to 'install'
+#   #  3) system_info :- this role collects the system facts , which are used to perform pre-checks on remote vm's
+#   #  4) if ba_client_action == 'install' :- ba_client_install_linux.yml or ba_client_install_aix.yml is executed
+#   #  5) if ba_client_action == 'upgrade' :- ba_client_upgrade_linux.yml or ba_client_upgrade_aix.yml is executed
 #
 # ========================================================================
 # if state == 'absent'
-#   1) ba_client_uninstall.yml is executed
+#   1) ba_client_uninstall_linux.yml or ba_client_uninstall_aix.yml is executed
 ---
+# Detect actual OS using uname (more reliable than Ansible facts for AIX)
+- name: Detect operating system using uname
+  ansible.builtin.command: uname -s
+  register: uname_result
+  changed_when: false
+
+- name: Set OS type fact
+  ansible.builtin.set_fact:
+    detected_os: "{{ 'AIX' if 'AIX' in uname_result.stdout else 'Linux' }}"
+
+- name: Display detected OS
+  ansible.builtin.debug:
+    msg: "Detected OS: {{ detected_os }}"
+
+# Skip local_repo_check when ba_client_package_path is defined (package on remote node)
 - name: Set ba_client_action dynamically based on state
   ansible.builtin.include_tasks: local_repo_check.yml
-  when: ba_client_state == "present"
+  when:
+    - ba_client_state == "present"
+    - ba_client_package_path is not defined
+  tags:
+    - install
+    - upgrade
+    - never
 
 - name: Set ba_client_action dynamically based on state
   ansible.builtin.include_tasks: determine_action.yml
   when: ba_client_state == "present"
+  tags:
+    - install
+    - upgrade
+    - never
 
 - name: Gather system info for compatibility checks
   ansible.builtin.include_role:
-    name: system_info
+    name: ../roles/system_info
   when: ba_client_action is defined and ba_client_state == "present"
+  tags:
+    - install
+    - upgrade
+    - never
 
-- name: Run install tasks
+- name: Run install tasks (AIX)
+  ansible.builtin.include_tasks: ba_client_install_aix.yml
+  when:
+    - ba_client_action is defined
+    - ba_client_action == "install"
+    - ba_client_state == "present"
+    - detected_os == "AIX"
+  tags:
+    - install
+    - never
+
+- name: Run install tasks (Linux)
   ansible.builtin.include_tasks: ba_client_install_linux.yml
-  when: ba_client_action is defined and ba_client_action == "install" and ba_client_state == "present"
+  when:
+    - ba_client_action is defined
+    - ba_client_action == "install"
+    - ba_client_state == "present"
+    - detected_os == "Linux"
+  tags:
+    - install
+    - never
 
-- name: Run upgrade tasks
+- name: Run upgrade tasks (AIX)
+  ansible.builtin.include_tasks: ba_client_upgrade_aix.yml
+  when:
+    - ba_client_action is defined
+    - ba_client_action == "upgrade"
+    - ba_client_state == "present"
+    - detected_os == "AIX"
+  tags:
+    - upgrade
+    - never
+
+- name: Run upgrade tasks (Linux)
   ansible.builtin.include_tasks: ba_client_upgrade_linux.yml
-  when: ba_client_action is defined and ba_client_action == "upgrade" and ba_client_state == "present"
+  when:
+    - ba_client_action is defined
+    - ba_client_action == "upgrade"
+    - ba_client_state == "present"
+    - detected_os == "Linux"
+  tags:
+    - upgrade
+    - never
 
-- name: Run uninstall tasks
+- name: Run uninstall tasks (AIX)
+  ansible.builtin.include_tasks: ba_client_uninstall_aix.yml
+  when:
+    - ba_client_state == "absent"
+    - detected_os == "AIX"
+  tags:
+    - uninstall
+    - always
+
+- name: Run uninstall tasks (Linux)
   ansible.builtin.include_tasks: ba_client_uninstall_linux.yml
-  when: ba_client_state == "absent"
+  when:
+    - ba_client_state == "absent"
+    - detected_os == "Linux"
+  tags:
+    - uninstall
+    - always

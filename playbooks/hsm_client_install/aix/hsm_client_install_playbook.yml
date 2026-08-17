@@ -1,0 +1,19 @@
+---
+- name: Install HSM Client on AIX
+  hosts: "{{ target_hosts | default('aix') }}"
+  gather_facts: yes
+  become: true
+
+  vars_files:
+    - ../../vars/main.yml
+
+  roles:
+    - role: hsm_client_install
+      vars:
+        hsm_client_state: "present"
+        hsm_client_version: "{{ hsm_client_version }}"
+        tar_file_path: "{{ aix_package_source }}"
+        hsm_client_temp_dest: "{{ hsm_temp_dir }}/"
+        hsm_client_extract_dest: "{{ hsm_temp_dir }}"
+
+# Made with Bob

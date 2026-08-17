@@ -1,0 +1,148 @@
+---
+# ============================================================================
+# PETASCALE SYSTEM PRECHECKS PLAYBOOK
+# ============================================================================
+#
+# This playbook runs ONLY the system dependency validation checks without
+# performing any installation. Use this to verify system readiness before
+# running the full installation.
+#
+# ============================================================================
+# WHAT THIS PLAYBOOK DOES
+# ============================================================================
+#
+# 1. Detects OS (Linux/AIX) and sets Python interpreter
+# 2. Validates all required dependencies:
+#    - Python 3.9+
+#    - Java 8+
+#    - lsof package
+#    - rsync package
+#    - /tmp permissions (1777)
+#    - /tmp mount options (no noexec)
+#    - /tmp disk space (2GB minimum)
+# 3. Generates detailed remediation report if issues found
+# 4. Optionally auto-installs missing dependencies
+#
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+#
+# Run prechecks on all nodes (validation only):
+#   ansible-playbook playbooks/petascale_prechecks.yml \
+#     -i playbooks/inventory/petascale.ini
+#
+# Run prechecks on specific group:
+#   ansible-playbook playbooks/petascale_prechecks.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     --limit sp_servers
+#
+# Run prechecks on specific hosts:
+#   ansible-playbook playbooks/petascale_prechecks.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     --limit sp-server-01,ba-client-01
+#
+# Run prechecks with auto-install (non-production only):
+#   ansible-playbook playbooks/petascale_prechecks.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "install_dependencies=true"
+#
+# Run prechecks without failing (report only):
+#   ansible-playbook playbooks/petascale_prechecks.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "fail_on_missing_dependencies=false"
+#
+# ============================================================================
+
+# ============================================================================
+# Detect OS and Set Python Interpreter Path
+# ============================================================================
+- name: Detect OS and set Python interpreter
+  hosts: all
+  gather_facts: false
+  become: false
+  
+  tasks:
+    - name: Detect operating system
+      raw: uname -s
+      register: os_detection
+      changed_when: false
+      failed_when: false
+    
+    - name: Set Python interpreter path based on OS
+      ansible.builtin.set_fact:
+        ansible_python_interpreter: >-
+          {% if 'AIX' in os_detection.stdout %}
+          /opt/freeware/bin/python3.9
+          {% else %}
+          /usr/bin/python3.9
+          {% endif %}
+    
+    - name: Display detected OS and Python path
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          OS: {{ 'AIX' if 'AIX' in os_detection.stdout else 'Linux' }}
+          Python interpreter: {{ ansible_python_interpreter }}
+
+# ============================================================================
+# System Dependencies Validation
+# ============================================================================
+- name: Validate system dependencies on all nodes
+  hosts: all
+  gather_facts: false
+  become: true
+  ignore_errors: false
+  
+  tasks:
+    # Try to gather facts, but don't fail if Python is missing
+    - name: Attempt to gather facts
+      ansible.builtin.setup:
+      register: facts_result
+      failed_when: false
+      ignore_errors: true
+    
+    - name: Set fact gathering status
+      ansible.builtin.set_fact:
+        facts_gathered: "{{ facts_result is succeeded }}"
+    
+    # Include the dependency check role
+    - name: Run dependency validation
+      ansible.builtin.include_role:
+        name: ../roles/system_dependencies_check
+      vars:
+        install_dependencies: false  # Prechecks never auto-install
+        fail_on_missing_dependencies: true  # Always fail if issues found
+        generate_remediation_report: true
+        skip_fact_gathering: "{{ not facts_gathered }}"
+        continue_on_error: true  # Collect all issues before failing
+
+# ============================================================================
+# Precheck Summary
+# ============================================================================
+- name: Display precheck summary
+  hosts: localhost
+  gather_facts: false
+  
+  tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          PETASCALE SYSTEM PRECHECKS COMPLETED
+          ============================================================
+          
+          All system dependency checks have been completed.
+          
+          Review the output above for:
+          - Validation results for each host
+          - Remediation reports (if dependencies are missing)
+          - Next steps for resolving issues
+          
+          If all dependencies are met, you can proceed with:
+            ansible-playbook playbooks/petascale_install.yml \
+              -i playbooks/inventory/petascale.ini \
+              --tags install
+          
+          ============================================================
+
+# Made with Bob

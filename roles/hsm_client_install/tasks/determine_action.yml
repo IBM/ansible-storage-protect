@@ -54,29 +54,22 @@
   ansible.builtin.set_fact:
     hsm_client_action: >-
       {{
+        "upgrade" if
+        (installed_version is defined and user_version_list > installed_version_list and version_available)
+        else
         "install" if
         (installed_version is not defined and version_available)
         else
         "none"
       }}
 
-- name: Fail if HSM Client is already installed
+- name: Fail if no hsm_client_action can be determined
   ansible.builtin.fail:
     msg: >-
-      HSM Client version {{ installed_version }} is already installed.
-      To reinstall, first uninstall the existing version using state: absent.
-      Installed version: {{ installed_version }}
-      Requested version: {{ hsm_client_version }}
-  when:
-    - hsm_client_action == 'none'
-    - installed_version is defined
+      Unable to determine hsm_client_action. Either:
+      - Specified version {{ hsm_client_version }} is not available locally, or
+      - Installed version {{ installed_version | default('None') }} is greater or equal to the specified version.
+      The specified version should be greater than the already installed version {{ installed_version | default('None') }}.
+  when: hsm_client_action == 'none'
 
-- name: Fail if version is not available locally
-  ansible.builtin.fail:
-    msg: >-
-      Unable to determine hsm_client_action.
-      Specified version {{ hsm_client_version }} is not available locally.
-      Please ensure the package file exists in the specified location.
-  when:
-    - hsm_client_action == 'none'
-    - installed_version is not defined
+# Made with Bob

@@ -1,0 +1,211 @@
+---
+# Host-specific variables for hsm-client-02
+# This file contains configuration specific to this HSM Client node
+# 
+# CUSTOMER: Edit this file to customize settings for hsm-client-02
+#
+# IMPORTANT: HSM Client requires GPFS (IBM Spectrum Scale) to be installed
+# and configured on the target system before installation.
+
+# ============================================================================
+# HSM Client Installation Settings
+# ============================================================================
+
+# HSM Client version to install
+# Must match the package file available on the remote node
+hsm_client_version: "8.2.0.0"
+
+# Operating system type for package selection
+# Options: LinuxX86, LinuxX86_64, LinuxS390X, LinuxPPC64LE
+# Note: Same as BA Client, HSM packages use standard OS type naming
+os_type: "LinuxX86"
+
+# ============================================================================
+# Package Location on Remote Node
+# ============================================================================
+
+# Full path to the HSM Client installation package on THIS remote node
+# The package must exist at this location before running the playbook
+# Format for AIX: <version>-TIV-TSMHSM-AIXGPFS.tar.Z (compressed)
+# Format for Linux: <version>-TIV-TSMHSM-<os_type>.tar (uncompressed)
+hsm_client_package_path: "/tmp/8.2.0.0-20251225A-TIV-TSMHSM-LinuxPLEGPFS.tar"
+
+# Location of the tar file
+# Options: "remote" (file is on target host), "controller" (file is on Ansible controller)
+tar_file_location: "remote"
+
+# ============================================================================
+# Installation Directories
+# ============================================================================
+
+# Directory where HSM Client will be extracted and installed
+hsm_client_extract_dest: "/opt/hsmClient"
+
+# Temporary directory for installation files
+hsm_client_temp_dest: "/tmp/"
+
+# ============================================================================
+# Service Configuration
+# ============================================================================
+
+# Whether to start the HSM Client daemon after installation
+# Options: true, false
+hsm_client_start_daemon: false
+
+# ============================================================================
+# Installation State
+# ============================================================================
+
+# Desired state of HSM Client
+# Options: present (install), absent (uninstall)
+hsm_client_state: "present"
+
+# ============================================================================
+# GPFS Configuration (Required for HSM)
+# ============================================================================
+
+# GPFS filesystem that will be managed by HSM
+# This filesystem must already exist and be mounted
+# gpfs_filesystem: "/gpfs/data"
+
+# GPFS cluster name
+# gpfs_cluster_name: "gpfs-cluster-01"
+
+# ============================================================================
+# SP Server Connection (Required for HSM operations)
+# ============================================================================
+
+# SP Server connection details for HSM operations
+# Uncomment and configure these settings
+# sp_server_name: "PETASCALE-SP01"
+# sp_server_address: "192.168.1.100"
+# sp_server_port: "1500"
+# node_name: "hsm-client-02"
+
+# HSM node password (for server registration)
+# hsm_node_password: "YourHSMNodePassword@@123"
+
+# ============================================================================
+# HSM Policy Configuration (Optional)
+# ============================================================================
+
+# HSM management class
+# hsm_mgmt_class: "HSM_STANDARD"
+
+# HSM policy domain
+# hsm_policy_domain: "HSM_DOMAIN"
+
+# HSM policy set
+# hsm_policy_set: "ACTIVE"
+
+# ============================================================================
+# Advanced Settings (Optional)
+# ============================================================================
+
+# Compatible architectures (commented out - orphaned list items)
+# hsm_client_compatible_architectures:
+#   - s390x
+#   - ppc64le
+#   - powerpc
+#   - ppc64
+
+# HSM Client configuration file location
+# hsm_client_config_file: "/opt/tivoli/tsm/client/hsm/bin/dsm.opt"
+
+# Additional installation options (uncomment if needed)
+# hsm_client_install_options: ""
+
+# ============================================================================
+# Prerequisites Validation
+# ============================================================================
+
+# The HSM Client installation role will automatically check for:
+# - GPFS (IBM Spectrum Scale) installation
+# - GPFS filesystem availability
+# - Required system packages
+# - Network connectivity to SP Server
+
+# ============================================================================
+# Usage Notes
+# ============================================================================
+
+# 1. Install GPFS first:
+#    - Ensure IBM Spectrum Scale (GPFS) is installed and configured
+#    - Verify GPFS cluster is operational
+#    - Confirm GPFS filesystems are mounted
+#
+# 2. Prepare SP Server:
+#    - Ensure SP Server is installed and running
+#    - Create HSM storage pool on SP Server
+#    - Configure HSM policy domain and management class
+#
+# 3. Install HSM Client:
+#    - Copy HSM Client package to remote node
+#    - Update this file with correct paths and settings
+#    - Run: ansible-playbook playbooks/petascale_install.yml -i playbooks/inventory/petascale.ini --limit hsm-client-02
+#
+# 4. Post-Installation:
+#    - Register node with SP Server
+#    - Configure HSM policies
+#    - Test migration and recall operations
+
+
+# ============================================================================
+# SP Server Connection (Required for configuration)
+# ============================================================================
+
+# Multi-Server Configuration (Option 1: Multiple servers with different filesets)
+# Each server backs up different GPFS filesets
+sp_servers:
+  - name: "PETASCALE-SP01"
+    address: "9.11.53.28"
+    port: "1500"
+    node_name: "hsm-client-03-sp01"
+    domain: "/gpfs_main/fileset_2"
+    inventory_name: "sp-server-01"  # Maps to inventory host for credential lookup
+  - name: "PETASCALE-SP03"
+    address: "9.11.53.254"
+    port: "1500"
+    node_name: "hsm-client-03-sp03"
+    domain: "/gpfs_main/fileset_3"
+    inventory_name: "sp-server-02"  # Maps to inventory host for credential lookup
+
+# Default server for dsm.opt (used when no server is specified)
+default_server: "PETASCALE-SP01"
+
+# ============================================================================
+# Legacy Single-Server Configuration (Option 2: Backward compatibility)
+# ============================================================================
+# If sp_servers is not defined, these variables will be used for single-server setup
+# Uncomment these and comment out sp_servers above for single-server configuration
+
+# sp_server_name: "PETASCALE-SP03"
+# sp_server_address: "9.11.53.254"
+# sp_server_port: "1500"
+# node_name: "hsm-client-03"
+# gpfs_filesystem: "/gpfs_main"
+
+# ============================================================================
+# Ansible Connection Variables (Client)
+# ============================================================================
+# hsm-client-03 ansible_host=p9d-vm4.storage.tucson.ibm.com ansible_user=root ansible_password=Carve!58boiltug
+ansible_host: "p9d-vm4.storage.tucson.ibm.com"
+ansible_user: "root"
+ansible_password: "Carve!58boiltug"
+
+# ============================================================================
+# SP Server Ansible Details (for reference / inventory usage)
+# ============================================================================
+
+sp_server_ansible_host: "9.11.53.254"
+sp_server_inventory_name: "sp-server-03"
+
+# ============================================================================
+# Minimal GPFS / HSM Policy Bootstrap (used by SP server automation)
+# ============================================================================
+hsm_node_password: "P9dVm4Password@@123"
+hsm_policy_domain: "GPFS_DOMAIN"
+hsm_storage_pool_name: "GPFSPOOL"
+hsm_storage_pool_directory: "/tmp/data"
+hsm_storage_pool_max_size: "100G"
+hsm_mgmt_class: "GPFS_DAILY"

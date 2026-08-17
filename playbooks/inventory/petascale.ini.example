@@ -1,0 +1,124 @@
+# Petascale Data Protection - Inventory Example
+#
+# Simple inventory template for petascale IBM Storage Protect deployments
+#
+# Steps to use:
+# 1. Copy this file: cp petascale.ini.example petascale.ini
+# 2. Edit petascale.ini with your actual host information
+# 3. Test connectivity: ansible -i playbooks/inventory/petascale.ini all -m ping
+#
+# Reference:
+# - Configuration Guide: playbooks/CONFIGURATION_GUIDE.md
+# - Design: docs/design/design-peta-scale.md
+
+# ============================================================================
+# SP Server Hosts (Petascale Configuration)
+# ============================================================================
+
+[sp_servers]
+# Primary petascale SP Server
+# sp-server-01 ansible_host=192.168.1.100 ansible_user=root
+
+# Additional servers for horizontal scaling (optional)
+# sp-server-02 ansible_host=192.168.1.101 ansible_user=root
+# sp-server-03 ansible_host=192.168.1.102 ansible_user=root
+
+[sp_servers:vars]
+# Python interpreter (ensure Python 3.9+ is installed)
+ansible_python_interpreter=/usr/bin/python3.9
+
+# Connection settings
+ansible_connection=ssh
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+# Privilege escalation
+ansible_become=yes
+ansible_become_method=sudo
+
+# ============================================================================
+# BA Client Hosts (Backup-Archive Clients)
+# ============================================================================
+
+[ba_clients]
+# Uncomment and configure BA Client hosts
+# Each host should have a corresponding host_vars file for customization
+# Example: playbooks/host_vars/ba-client-01.yml
+# ba-client-01 ansible_host=192.168.2.10 ansible_user=root
+# ba-client-02 ansible_host=192.168.2.11 ansible_user=root
+# ba-client-03 ansible_host=192.168.2.12 ansible_user=root
+
+# Additional BA clients (uncomment as needed)
+# ba-client-04 ansible_host=192.168.2.13 ansible_user=root
+# ba-client-05 ansible_host=192.168.2.14 ansible_user=root
+
+[ba_clients:vars]
+# Python interpreter (ensure Python 3.9+ is installed)
+ansible_python_interpreter=/usr/bin/python3.9
+
+# Connection settings
+ansible_connection=ssh
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+# Privilege escalation (BA Client installation requires root)
+ansible_become=yes
+ansible_become_method=sudo
+
+# NOTE: Per-host configuration should be set in:
+# - playbooks/host_vars/ba-client-01.yml
+# - playbooks/host_vars/ba-client-02.yml
+# - playbooks/host_vars/ba-client-03.yml
+# Each host can have different BA Client versions and settings
+
+# ============================================================================
+# HSM Client Hosts (Hierarchical Storage Management for Petascale)
+# ============================================================================
+
+[hsm_clients]
+# Uncomment and configure HSM Client hosts for petascale deployments
+# HSM clients are used for hierarchical storage management
+# Each host should have a corresponding host_vars file for customization
+# Example: playbooks/host_vars/hsm-client-01.yml
+# hsm-client-01 ansible_host=192.168.3.10 ansible_user=root
+# hsm-client-02 ansible_host=192.168.3.11 ansible_user=root
+# hsm-client-03 ansible_host=192.168.3.12 ansible_user=root
+
+[hsm_clients:vars]
+# Python interpreter (ensure Python 3.9+ is installed)
+ansible_python_interpreter=/usr/bin/python3.9
+
+# Connection settings
+ansible_connection=ssh
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+# Privilege escalation (HSM Client installation requires root)
+ansible_become=yes
+ansible_become_method=sudo
+
+# NOTE: Per-host configuration should be set in:
+# - playbooks/host_vars/hsm-client-01.yml
+# - playbooks/host_vars/hsm-client-02.yml
+# - playbooks/host_vars/hsm-client-03.yml
+# Each host can have different HSM Client versions and settings
+
+# ============================================================================
+# All Petascale Infrastructure
+# ============================================================================
+
+[petascale_infrastructure:children]
+sp_servers
+ba_clients
+hsm_clients
+
+# ============================================================================
+# Testing Connectivity
+# ============================================================================
+
+# Test basic connectivity:
+#   ansible -i playbooks/inventory/petascale.ini sp_servers -m ping
+#   ansible -i playbooks/inventory/petascale.ini ba_clients -m ping
+#
+# Test privilege escalation:
+#   ansible -i playbooks/inventory/petascale.ini sp_servers -m shell -a "whoami" -b
+#
+# Gather facts:
+#   ansible -i playbooks/inventory/petascale.ini all -m setup

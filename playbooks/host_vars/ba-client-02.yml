@@ -1,0 +1,80 @@
+---
+# Host-specific variables for ba-client-02
+# This file contains configuration specific to this BA Client node
+# 
+# CUSTOMER: Edit this file to customize settings for ba-client-02
+# NOTE: This example shows a DIFFERENT version than ba-client-01
+
+# ============================================================================
+# BA Client Installation Settings
+# ============================================================================
+
+# BA Client version to install (SAME as ba-client-01 since same package is available)
+# Must match the package file available on the remote node
+ba_client_version: "8.2.1.0"
+
+# Operating system type for package selection
+# Options: LinuxX86, LinuxX86_64, LinuxS390X, LinuxPPC64LE
+os_type: "LinuxX86"
+
+# ============================================================================
+# Package Location on Remote Node
+# ============================================================================
+
+# Full path to the BA Client installation package on THIS remote node
+# The package must exist at this location before running the playbook
+# Format: <version>-TIV-TSMBAC-<os_type>.tar
+ba_client_package_path: "/tmp/8.2.1.0-TIV-TSMBAC-LinuxX86.tar"
+
+# Alternative: Custom location example
+# ba_client_package_path: "/opt/software/8.2.1.0-TIV-TSMBAC-LinuxX86.tar"
+
+# ============================================================================
+# Installation Directories
+# ============================================================================
+
+# Directory where BA Client will be extracted and installed
+ba_client_extract_dest: "/opt/baClient"
+
+# Temporary directory for installation files
+ba_client_temp_dest: "/tmp/"
+
+# ============================================================================
+# Service Configuration
+# ============================================================================
+
+# Whether to start the BA Client daemon after installation
+# Options: true, false
+# This node will auto-start the daemon (different from ba-client-01)
+ba_client_start_daemon: true
+
+# ============================================================================
+# Installation State
+# ============================================================================
+
+# Desired state of BA Client
+# Options: present (install), absent (uninstall)
+ba_client_state: "present"
+
+# ============================================================================
+# SP Server Connection (Optional - for dsm.sys configuration)
+# ============================================================================
+
+# Uncomment and configure if you want to pre-configure server connection
+# sp_server_name: "PETASCALE-SP01"
+# sp_server_address: "192.168.1.100"
+# sp_server_port: "1500"
+# node_name: "ba-client-02"
+
+# ============================================================================
+# Advanced Settings (Optional)
+# ============================================================================
+
+# Supported architectures (for reference)
+# supported_architectures:
+#   - s390x
+#   - ppc64le
+
+# Additional installation options (uncomment if needed)
+# ba_client_install_options: ""
+# ba_client_config_file: "/opt/tivoli/tsm/client/ba/bin/dsm.opt"

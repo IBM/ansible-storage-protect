@@ -1,0 +1,41 @@
+---
+galaxy_info:
+  role_name: system_dependencies_check
+  author: IBM Storage Protect Team
+  description: Validates all required system dependencies before IBM Storage Protect installation
+  company: IBM
+  license: Apache-2.0
+  min_ansible_version: "2.9"
+  
+  platforms:
+    - name: EL
+      versions:
+        - "7"
+        - "8"
+        - "9"
+    - name: Debian
+      versions:
+        - buster
+        - bullseye
+    - name: Ubuntu
+      versions:
+        - bionic
+        - focal
+        - jammy
+    - name: AIX
+      versions:
+        - "7.1"
+        - "7.2"
+
+  galaxy_tags:
+    - system
+    - dependencies
+    - validation
+    - precheck
+    - ibm
+    - storage
+    - protect
+
+dependencies: []
+
+# Made with Bob

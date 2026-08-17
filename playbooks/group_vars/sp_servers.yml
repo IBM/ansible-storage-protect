@@ -1,0 +1,174 @@
+---
+# Group variables for SP Server nodes
+# This file contains default settings for all SP Server installations
+#
+# CUSTOMER: Edit this file to set defaults for all SP Servers
+# Individual servers can override these in playbooks/host_vars/<hostname>.yml
+
+# ============================================================================
+# SP Server Installation Settings
+# ============================================================================
+
+# SP Server version to install
+sp_server_version: "8.2.2.000"
+
+# Installation state
+# Options: present (install), absent (uninstall), upgrade
+sp_server_state: "present"
+
+# Installation action
+# Options: install, upgrade
+sp_server_action: "install"
+
+# ============================================================================
+# Installation Directories
+# ============================================================================
+
+# Directory for SP Server installation binaries
+sp_server_install_dest: "/opt/sp_server_binary/"
+
+# Directory for SP Server upgrade binaries
+sp_server_upgrade_dest: "/opt/sp_server_upgrade_binary"
+
+# Repository location
+repository_location: "/opt/sp_server_binary/repository"
+
+# DB2 instance path
+db2_instance_path: "/opt/tivoli/tsm/db2/instance"
+
+# Installation Manager command line path
+imcl_path: "/opt/IBM/InstallationManager/eclipse/tools/imcl"
+
+# ============================================================================
+# SP Server Configuration
+# ============================================================================
+
+# Server name
+server_name: "PETASCALE-SP01"
+
+# Server password
+server_password: "IBMSPServer@@123456789"
+
+# Admin user
+admin_name: "admin"
+admin_password: "admin@@123456789"
+
+# ============================================================================
+# TSM User Configuration
+# ============================================================================
+
+# TSM group
+tsm_group: "tsmusers"
+tsm_group_gid: "10001"
+
+# TSM user
+tsm_user: "tsminst1"
+tsm_user_uid: "10001"
+tsm_user_password: "Tsmuser@@123456789"
+
+# ============================================================================
+# Server Sizing
+# ============================================================================
+
+# Server size: xsmall, small, medium, large
+server_size: "medium"
+
+# Active log size (MB)
+sp_server_active_log_size: 131072
+
+# Maximum sessions
+# Automatically set based on server_size, but can be overridden
+# max_sessions:
+#   xsmall: 75
+#   small: 250
+#   medium: 500
+#   large: 1000
+
+# ============================================================================
+# SSL Configuration
+# ============================================================================
+
+# Secure port
+secure_port: "9443"
+
+# SSL password
+ssl_password: "YourSSLPassword@@123"
+ssl_password_confirm: "{{ ssl_password }}"
+
+# ============================================================================
+# License Configuration
+# ============================================================================
+
+# License value
+license_value: "tsm"
+
+# License option
+license_option: "A"
+
+# ============================================================================
+# Component Selection
+# ============================================================================
+
+# Components to install
+offerings:
+  server: true          # SP Server
+  stagent: true         # Storage Agent
+  devices: true         # Device drivers
+  oc: true              # Operations Center
+  ossm: true            # OSSM
+
+# ============================================================================
+# Database Configuration
+# ============================================================================
+
+# Database directories
+directories:
+  - TSMdbspace01
+  - TSMdbspace02
+  - TSMdbspace03
+  - TSMdbspace04
+  - TSMalog
+  - TSMarchlog
+
+# ============================================================================
+# Backup Configuration
+# ============================================================================
+
+# Database backup settings
+backup_start_time: "12:00"
+backup_start_time_string: "12PM"
+backup_start_plus_fourteen: "14:00"
+backup_start_plus_ten: "10:00"
+
+# Maximum capacity
+maxcap: "100G"
+
+# Database backup streams
+dbbk_streams: "4"
+
+# Database backup compression
+dbbk_compress: "YES"
+
+# Database backup password
+dbbk_password: "YourDBkPassword@@123456789"
+
+# ============================================================================
+# Architecture Compatibility
+# ============================================================================
+
+# sp_server_compatible_architectures - using role defaults
+
+# ============================================================================
+# Advanced Settings
+# ============================================================================
+
+# Profile ID
+profile_id: "IBM Storage Protect"
+
+# Installation location
+install_location: "/opt/IBM/InstallationManager/eclipse"
+
+# Server blueprint mode
+server_blueprint: false
+
+# Made with Bob

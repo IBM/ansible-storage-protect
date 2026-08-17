@@ -1,0 +1,1696 @@
+---
+# ============================================================================
+# PETASCALE CONFIGURE PLAYBOOK
+# ============================================================================
+#
+# This playbook configures IBM Storage Protect components on nodes based on
+# inventory groups. It is designed to align with the existing petascale
+# lifecycle playbooks without modifying install, upgrade, or uninstall flows.
+#
+# CURRENT SCOPE:
+#   - SP Server configuration (from sp_servers group)
+#
+# FUTURE EXTENSIONS:
+#   - HSM Client configuration
+#   - BA Client configuration
+#   - Operations Center post-install configuration
+#
+# ============================================================================
+# CONFIGURATION FILES
+# ============================================================================
+#
+# CUSTOMER: Before running this playbook, ensure:
+#
+# 1. Inventory File: playbooks/inventory/petascale.ini
+#    - Verify the hosts you want to configure are listed
+#    - Check the appropriate groups:
+#      * [sp_servers] - For SP Server configuration
+#
+# 2. Host Variables: playbooks/host_vars/<hostname>.yml
+#    - Variables are loaded automatically for each host
+#    - Set SP Server configuration values as needed
+#
+# 3. Group Variables: playbooks/group_vars/
+#    - sp_servers.yml - SP Server defaults
+#    - all.yml - Global defaults
+#
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+#
+# Configure all components (servers and clients):
+#   ansible-playbook playbooks/petascale_configure.yml \
+#     -i playbooks/inventory/petascale.ini
+#
+# Configure ONLY SP Servers (skip BA Clients):
+#   ansible-playbook playbooks/petascale_configure.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "configure_clients=false"
+#
+# Configure ONLY BA Clients (skip SP Servers):
+#   ansible-playbook playbooks/petascale_configure.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "configure_servers=false"
+#
+# Configure specific hosts using --limit:
+#   ansible-playbook playbooks/petascale_configure.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     --limit sp-server-01
+#
+# Configure specific group using --limit:
+#   ansible-playbook playbooks/petascale_configure.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     --limit sp_servers
+#
+# Combine selective execution with --limit:
+#   ansible-playbook playbooks/petascale_configure.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "configure_clients=false" \
+#     --limit sp-server-03
+#
+# Dry run (check mode):
+#   ansible-playbook playbooks/petascale_configure.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     --check
+#
+# ============================================================================
+# Detect OS and Set Python Interpreter Path
+# ============================================================================
+- name: Detect OS and set Python interpreter
+  hosts: all
+  gather_facts: false
+  become: false
+  tags:
+    - always
+
+  tasks:
+    - name: Detect operating system
+      raw: uname -s
+      register: os_detection
+      changed_when: false
+      failed_when: false
+
+    - name: Set Python interpreter path based on OS
+      ansible.builtin.set_fact:
+        ansible_python_interpreter: >-
+          {% if 'AIX' in os_detection.stdout %}
+          /opt/freeware/bin/python3.9
+          {% else %}
+          /usr/bin/python3.9
+          {% endif %}
+
+    - name: Display detected OS and Python path
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HOST ENVIRONMENT DETECTION
+          ============================================================
+          Host               : {{ inventory_hostname }}
+          OS                 : {{ 'AIX' if 'AIX' in os_detection.stdout else 'Linux' }}
+          Python interpreter : {{ ansible_python_interpreter | trim }}
+          ============================================================
+
+# ============================================================================
+# Display Configure Banner
+# ============================================================================
+- name: Display configure banner
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Record playbook start time
+      ansible.builtin.set_fact:
+        petascale_configure_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
+        petascale_configure_start_time: "{{ lookup('pipe', 'date') }}"
+
+    - name: Display configure message
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          PETASCALE CONFIGURE PLAYBOOK
+          ============================================================
+          Started At   : {{ petascale_configure_start_time }}
+          SP Servers   : {{ groups['sp_servers'] | default([]) | join(', ') or 'None configured' }}
+          BA Clients   : {{ groups['ba_clients'] | default([]) | join(', ') or 'None configured' }}
+          HSM Clients  : {{ groups['hsm_clients'] | default([]) | join(', ') or 'None configured' }}
+
+          CURRENTLY IMPLEMENTED
+          - SP Server post-install configuration
+          - BA Client configuration (with optional GPFS DOMAIN)
+          - HSM Client configuration (with GPFS DOMAIN)
+
+          SEPARATE PLAYBOOKS
+          - petascale_install.yml
+          - petascale_upgrade.yml
+          - petascale_uninstall.yml
+
+          ============================================================
+      run_once: true
+
+# ============================================================================
+# Check Python 3.9 presence on all target nodes
+# ============================================================================
+- name: Check Python 3.9 presence on all nodes
+  hosts: all
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: Check if Python 3.9 is installed
+      raw: python3.9 --version
+      register: python39_check
+      failed_when: false
+      changed_when: false
+
+    - name: Report Python 3.9 absence
+      ansible.builtin.debug:
+        msg: "⚠️  WARNING: Python 3.9 is ABSENT on {{ inventory_hostname }} ({{ group_names | join(', ') }})"
+      when: python39_check.rc != 0
+
+    - name: Set Python 3.9 status fact
+      ansible.builtin.set_fact:
+        python39_present: "{{ python39_check.rc == 0 }}"
+
+# ============================================================================
+# Pre-Configure Checks for SP Servers
+# ============================================================================
+- name: Pre-configure checks on SP server nodes
+  hosts: sp_servers
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Check if SP Server configuration is enabled
+      ansible.builtin.meta: end_host
+      when: not (configure_servers | default(true) | bool)
+
+    - name: Gather facts for SP Server configuration
+      ansible.builtin.setup:
+      when: configure_servers | default(true) | bool
+
+    - name: Display configure start message
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Starting SP Server Configure Check on {{ inventory_hostname }}
+          ============================================================
+          Host: {{ inventory_hostname }}
+          IP: {{ ansible_host | default(inventory_hostname) }}
+          OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+          ============================================================
+
+    - name: Check if SP Server is currently installed
+      ansible.builtin.command: "{{ imcl_path | default('/opt/IBM/InstallationManager/eclipse/tools/imcl') }} listInstalledPackages"
+      register: sp_server_check
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+
+    - name: Set SP Server installation status fact
+      ansible.builtin.set_fact:
+        sp_server_installed: "{{ sp_server_check.rc == 0 and 'com.tivoli.dsm.server' in sp_server_check.stdout }}"
+
+    - name: Display SP Server current status
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP SERVER INSTALLATION STATUS
+          ============================================================
+          Host   : {{ inventory_hostname }}
+          Status : {{ 'INSTALLED' if sp_server_installed else 'NOT INSTALLED' }}
+          Action : {{ 'Proceed with configuration' if sp_server_installed else 'Skip configuration for this host' }}
+          ============================================================
+
+# ============================================================================
+# Configure SP Server
+# ============================================================================
+- name: Configure SP Server on sp_servers nodes
+  hosts: sp_servers
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Record SP Server configure start time
+      ansible.builtin.set_fact:
+        sp_configure_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
+        sp_configure_start_time: "{{ lookup('pipe', 'date') }}"
+
+    - name: Check if SP Server configuration is enabled
+      ansible.builtin.meta: end_host
+      when: not (configure_servers | default(true) | bool)
+
+    - name: Gather facts for SP Server configuration
+      ansible.builtin.setup:
+      when: configure_servers | default(true) | bool
+
+    - name: Display SP Server configure configuration
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP SERVER CONFIGURE INPUT
+          ============================================================
+          Host        : {{ inventory_hostname }}
+          Server Name : {{ server_name | default('NOT SET') }}
+          TSM User    : {{ tsm_user | default('tsminst1') }}
+          Server Size : {{ server_size | default('medium') }}
+
+          Configuration sources:
+            - playbooks/host_vars/{{ inventory_hostname }}.yml
+            - playbooks/group_vars/sp_servers.yml
+            - playbooks/group_vars/all.yml
+          ============================================================
+
+    - name: Skip configure if SP Server is not installed
+      ansible.builtin.debug:
+        msg: "SP Server is not installed on {{ inventory_hostname }}. Skipping configure."
+      when: not sp_server_installed
+
+    - name: Configure firewall for SP Server port
+      when:
+        - sp_server_installed
+        - ansible_facts['os_family'] == 'RedHat'
+      block:
+        - name: Check if firewalld is running
+          ansible.builtin.systemd:
+            name: firewalld
+          register: firewalld_status
+          failed_when: false
+
+        - name: Open TSM port in firewall (runtime - immediate effect)
+          ansible.posix.firewalld:
+            port: "{{ tcpport | default(1500) }}/tcp"
+            permanent: no
+            state: enabled
+            immediate: yes
+          when: firewalld_status.status.ActiveState == "active"
+          register: firewall_runtime
+          failed_when: false
+
+        - name: Open TSM port in firewall (permanent - survives reboot)
+          ansible.posix.firewalld:
+            port: "{{ tcpport | default(1500) }}/tcp"
+            permanent: yes
+            state: enabled
+          when: firewalld_status.status.ActiveState == "active"
+          register: firewall_permanent
+          failed_when: false
+
+        - name: Reload firewall to apply permanent rules
+          ansible.builtin.command: firewall-cmd --reload
+          when:
+            - firewalld_status.status.ActiveState == "active"
+            - firewall_permanent is changed
+          register: firewall_reload
+          failed_when: false
+
+        - name: Verify port is open
+          ansible.builtin.command: firewall-cmd --query-port={{ tcpport | default(1500) }}/tcp
+          register: port_check
+          failed_when: false
+          changed_when: false
+          when: firewalld_status.status.ActiveState == "active"
+
+        - name: Display firewall configuration status
+          ansible.builtin.debug:
+            msg: |
+              ============================================================
+              FIREWALL CONFIGURATION
+              ============================================================
+              Firewall Status    : {{ firewalld_status.status.ActiveState | default('Not available') }}
+              Port               : {{ tcpport | default(1500) }}/tcp
+              Runtime Rule       : {{ 'Added' if firewall_runtime is changed else 'Already exists' if firewalld_status.status.ActiveState == 'active' else 'N/A' }}
+              Permanent Rule     : {{ 'Added' if firewall_permanent is changed else 'Already exists' if firewalld_status.status.ActiveState == 'active' else 'N/A' }}
+              Port Status        : {{ 'OPEN' if port_check.stdout | default('') == 'yes' else 'CLOSED' if firewalld_status.status.ActiveState == 'active' else 'Firewall not active' }}
+              ============================================================
+
+    - name: Run SP Server petascale configure tasks
+      ansible.builtin.include_tasks: ../roles/sp_server_install/tasks/sp_server_configure_petascale.yml
+      when: sp_server_installed
+
+    - name: Display SP Server configure execution timing
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP SERVER CONFIGURE EXECUTION TIMING
+          ============================================================
+          Host           : {{ inventory_hostname }}
+          Started At     : {{ sp_configure_start_time }}
+          Finished At    : {{ lookup('pipe', 'date') }}
+          Total Duration : {{ ((lookup('pipe', 'date +%s') | int) - (sp_configure_start_epoch | int)) // 60 }}m {{ ((lookup('pipe', 'date +%s') | int) - (sp_configure_start_epoch | int)) % 60 }}s ({{ (lookup('pipe', 'date +%s') | int) - (sp_configure_start_epoch | int) }} seconds)
+          ============================================================
+
+# ============================================================================
+# Configure BA Clients
+# ============================================================================
+- name: Configure BA Client on ba_clients nodes
+  hosts: ba_clients
+  gather_facts: true
+  become: true
+  tags:
+    - ba_client_config
+
+  tasks:
+    - name: Record BA configure start time
+      ansible.builtin.set_fact:
+        ba_configure_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
+        ba_configure_start_time: "{{ lookup('pipe', 'date') }}"
+
+    - name: Check if BA Client configuration is enabled
+      ansible.builtin.meta: end_host
+      when: not (configure_clients | default(true) | bool)
+
+    - name: Determine BA client configuration mode
+      ansible.builtin.set_fact:
+        ba_multi_server_mode: "{{ sp_servers is defined and sp_servers | length > 0 }}"
+
+    - name: Display BA Client configure configuration (Multi-Server)
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA CLIENT CONFIGURE INPUT (MULTI-SERVER MODE)
+          ============================================================
+          Host              : {{ inventory_hostname }}
+          BA Client Version : {{ ba_client_version | default('NOT SET') }}
+          Number of Servers : {{ sp_servers | length }}
+          Default Server    : {{ default_server | default('NOT SET') }}
+          {% for server in sp_servers %}
+          
+          Server {{ loop.index }}:
+            Name            : {{ server.name }}
+            Address         : {{ server.address }}
+            Port            : {{ server.port }}
+            Node Name       : {{ server.node_name }}
+          {% endfor %}
+          ============================================================
+      when: ba_multi_server_mode
+
+    - name: Display BA Client configure configuration (Single-Server)
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA CLIENT CONFIGURE INPUT (SINGLE-SERVER MODE)
+          ============================================================
+          Host              : {{ inventory_hostname }}
+          BA Client Version : {{ ba_client_version | default('NOT SET') }}
+          Server Name       : {{ sp_server_name | default('NOT SET') }}
+          Server Address    : {{ sp_server_address | default('NOT SET') }}
+          Server Port       : {{ sp_server_port | default('NOT SET') }}
+          Node Name         : {{ node_name | default('NOT SET') }}
+          ============================================================
+      when: not ba_multi_server_mode
+
+    - name: Validate required BA client connection variables (Multi-Server)
+      ansible.builtin.fail:
+        msg: |
+          Missing required BA client connection variables for {{ inventory_hostname }}.
+          Required variables in playbooks/host_vars/{{ inventory_hostname }}.yml:
+          - sp_servers (list with name, address, port, node_name for each server)
+          - default_server (name of default server for dsm.opt)
+      when:
+        - ba_multi_server_mode
+        - sp_servers | length == 0 or default_server is not defined or default_server | length == 0
+
+    - name: Validate required BA client connection variables (Single-Server)
+      ansible.builtin.fail:
+        msg: |
+          Missing required BA client connection variables for {{ inventory_hostname }}.
+          Required variables in playbooks/host_vars/{{ inventory_hostname }}.yml:
+          - sp_server_name
+          - sp_server_address
+          - sp_server_port
+          - node_name
+      when:
+        - not ba_multi_server_mode
+        - sp_server_name is not defined or sp_server_name | length == 0
+          or sp_server_address is not defined or sp_server_address | length == 0
+          or sp_server_port is not defined or sp_server_port | string | length == 0
+          or node_name is not defined or node_name | length == 0
+
+    - name: Check if BA client directory exists
+      ansible.builtin.stat:
+        path: /opt/tivoli/tsm/client/ba/bin
+      register: ba_client_bin_dir
+
+    - name: Skip BA client configure if BA client is not installed
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA CLIENT NOT INSTALLED
+          ============================================================
+          Host   : {{ inventory_hostname }}
+          Action : Skipping BA client configuration because
+                   /opt/tivoli/tsm/client/ba/bin does not exist.
+          ============================================================
+      when: not ba_client_bin_dir.stat.exists
+
+    - name: Create dsm.sys configuration file for BA client (Multi-Server)
+      ansible.builtin.copy:
+        dest: /opt/tivoli/tsm/client/ba/bin/dsm.sys
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          *******************************************************************************
+          * IBM Storage Protect BA Client System Options File
+          * Multi-Server Configuration
+          *******************************************************************************
+          {% for server in sp_servers %}
+          
+          SERVERNAME {{ server.name }}
+            COMMMethod         TCPip
+            TCPPort            {{ server.port }}
+            TCPServeraddress   {{ server.address }}
+            NODename           {{ server.node_name }}
+            PASSWORDACCESS     GENERATE
+            ERRORLOGNAME       /var/log/tsm/dsmerror_{{ server.name | lower }}.log
+            SCHEDLOGNAME       /var/log/tsm/dsmsched_{{ server.name | lower }}.log
+          {% if server.domain is defined and server.domain | length > 0 %}
+            DOMAIN             {{ server.domain }}
+          {% endif %}
+          {% endfor %}
+      when:
+        - ba_client_bin_dir.stat.exists
+        - ba_multi_server_mode
+
+    - name: Create dsm.sys configuration file for BA client (Single-Server)
+      ansible.builtin.copy:
+        dest: /opt/tivoli/tsm/client/ba/bin/dsm.sys
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          *******************************************************************************
+          * IBM Storage Protect BA Client System Options File
+          * Single-Server Configuration
+          *******************************************************************************
+          
+          SERVERNAME {{ sp_server_name }}
+            COMMMethod         TCPip
+            TCPPort            {{ sp_server_port }}
+            TCPServeraddress   {{ sp_server_address }}
+            NODename           {{ node_name }}
+            PASSWORDACCESS     GENERATE
+            ERRORLOGNAME       /var/log/tsm/dsmerror_{{ sp_server_name | lower }}.log
+            SCHEDLOGNAME       /var/log/tsm/dsmsched_{{ sp_server_name | lower }}.log
+          {% if gpfs_filesystem is defined and gpfs_filesystem | length > 0 %}
+            DOMAIN             {{ gpfs_filesystem }}
+          {% endif %}
+      when:
+        - ba_client_bin_dir.stat.exists
+        - not ba_multi_server_mode
+
+    - name: Create dsm.opt configuration file for BA client (Multi-Server)
+      ansible.builtin.copy:
+        dest: /opt/tivoli/tsm/client/ba/bin/dsm.opt
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          *************************************************************
+          * IBM Storage Protect BA Client User Options File
+          * Default server: {{ default_server }}
+          *************************************************************
+
+          SERVERNAME {{ default_server }}
+      when:
+        - ba_client_bin_dir.stat.exists
+        - ba_multi_server_mode
+
+    - name: Create dsm.opt configuration file for BA client (Single-Server)
+      ansible.builtin.copy:
+        dest: /opt/tivoli/tsm/client/ba/bin/dsm.opt
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          *************************************************************
+          * IBM Storage Protect BA Client User Options File
+          *************************************************************
+
+          SERVERNAME {{ sp_server_name }}
+      when:
+        - ba_client_bin_dir.stat.exists
+        - not ba_multi_server_mode
+
+    - name: Create TSM log directory
+      ansible.builtin.file:
+        path: /var/log/tsm
+        state: directory
+        owner: root
+        group: root
+        mode: "0777"
+      when: ba_client_bin_dir.stat.exists
+
+    - name: Create TSM log files with correct ownership
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: touch
+        owner: root
+        group: root
+        mode: "0666"
+      loop:
+        - /var/log/tsm/dsmerror.log
+        - /var/log/tsm/dsmsched.log
+      when: ba_client_bin_dir.stat.exists
+
+    - name: Import certificate if ANS1695E error is detected
+      ansible.builtin.include_tasks: ../roles/ba_client_install/tasks/ba_client_cert_fix.yml
+      when: ba_client_bin_dir.stat.exists
+
+    - name: Bootstrap BA/HSM client auth cache for PASSWORDACCESS GENERATE
+      ansible.builtin.include_tasks: ../roles/ba_client_install/tasks/ba_client_auth_bootstrap.yml
+      when: ba_client_bin_dir.stat.exists
+
+    - name: Display BA client configuration status (Multi-Server)
+      ansible.builtin.debug:
+        msg: "{{ msg_content }}"
+      vars:
+        msg_content: |
+          ============================================================
+          BA CLIENT CONFIGURATION COMPLETE (MULTI-SERVER)
+          ============================================================
+          Host            : {{ inventory_hostname }}
+          dsm.sys         : /opt/tivoli/tsm/client/ba/bin/dsm.sys
+          dsm.opt         : /opt/tivoli/tsm/client/ba/bin/dsm.opt
+          Default Server  : {{ default_server }}
+          
+          Configured Servers:
+          {% for server in sp_servers %}
+          {{ loop.index }}. {{ server.name }}
+             Address      : {{ server.address }}:{{ server.port }}
+             Node Name    : {{ server.node_name }}
+          {% if server.domain is defined %}
+             Domain       : {{ server.domain }}
+          {% endif %}
+          {% endfor %}
+          
+          Usage:
+          - Default backups use: {{ default_server }}
+          - To use specific server: dsmc -servername=<SERVER_NAME>
+          ============================================================
+      when:
+        - ba_client_bin_dir.stat.exists
+        - ba_multi_server_mode
+
+    - name: Display BA client configuration status (Single-Server)
+      ansible.builtin.debug:
+        msg: "{{ msg_content }}"
+      vars:
+        msg_content: |
+          ============================================================
+          BA CLIENT CONFIGURATION COMPLETE (SINGLE-SERVER)
+          ============================================================
+          Host           : {{ inventory_hostname }}
+          dsm.sys        : /opt/tivoli/tsm/client/ba/bin/dsm.sys
+          dsm.opt        : /opt/tivoli/tsm/client/ba/bin/dsm.opt
+          Server Name    : {{ sp_server_name }}
+          Server Address : {{ sp_server_address }}
+          Server Port    : {{ sp_server_port }}
+          Node Name      : {{ node_name }}
+          ============================================================
+      when:
+        - ba_client_bin_dir.stat.exists
+        - not ba_multi_server_mode
+
+    - name: Display BA configure execution timing
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA CLIENT CONFIGURE EXECUTION TIMING
+          ============================================================
+          Host           : {{ inventory_hostname }}
+          Started At     : {{ ba_configure_start_time }}
+          Finished At    : {{ lookup('pipe', 'date') }}
+          Total Duration : {{ ((lookup('pipe', 'date +%s') | int) - (ba_configure_start_epoch | int)) // 60 }}m {{ ((lookup('pipe', 'date +%s') | int) - (ba_configure_start_epoch | int)) % 60 }}s ({{ (lookup('pipe', 'date +%s') | int) - (ba_configure_start_epoch | int) }} seconds)
+          ============================================================
+
+# ============================================================================
+# Configure HSM Clients
+# ============================================================================
+- name: Configure HSM Client on hsm_clients nodes
+  hosts: hsm_clients
+  gather_facts: true
+  become: true
+  tags:
+    - hsm_client_config
+
+  tasks:
+    - name: Record HSM configure start time
+      ansible.builtin.set_fact:
+        hsm_configure_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
+        hsm_configure_start_time: "{{ lookup('pipe', 'date') }}"
+
+    - name: Check if HSM Client configuration is enabled
+      ansible.builtin.meta: end_host
+      when: not (configure_clients | default(true) | bool)
+
+    - name: Determine HSM client configuration mode
+      ansible.builtin.set_fact:
+        hsm_multi_server_mode: "{{ sp_servers is defined and sp_servers | length > 0 }}"
+
+    - name: Display HSM Client configure configuration (Multi-Server)
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM CLIENT CONFIGURE INPUT (MULTI-SERVER MODE)
+          ============================================================
+          Host              : {{ inventory_hostname }}
+          HSM Client Version: {{ hsm_client_version | default('NOT SET') }}
+          Number of Servers : {{ sp_servers | length }}
+          Default Server    : {{ default_server | default('NOT SET') }}
+          {% for server in sp_servers %}
+          
+          Server {{ loop.index }}:
+            Name            : {{ server.name }}
+            Address         : {{ server.address }}
+            Port            : {{ server.port }}
+            Node Name       : {{ server.node_name }}
+            GPFS Domain     : {{ server.domain }}
+          {% endfor %}
+          ============================================================
+      when: hsm_multi_server_mode
+
+    - name: Display HSM Client configure configuration (Single-Server)
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM CLIENT CONFIGURE INPUT (SINGLE-SERVER MODE)
+          ============================================================
+          Host              : {{ inventory_hostname }}
+          HSM Client Version: {{ hsm_client_version | default('NOT SET') }}
+          Server Name       : {{ sp_server_name | default('NOT SET') }}
+          Server Address    : {{ sp_server_address | default('NOT SET') }}
+          Server Port       : {{ sp_server_port | default('NOT SET') }}
+          Node Name         : {{ node_name | default('NOT SET') }}
+          GPFS Filesystem   : {{ gpfs_filesystem | default('NOT SET') }}
+          ============================================================
+      when: not hsm_multi_server_mode
+
+    - name: Validate required HSM client connection variables (Multi-Server)
+      ansible.builtin.fail:
+        msg: |
+          Missing required HSM client connection variables for {{ inventory_hostname }}.
+          Required variables in playbooks/host_vars/{{ inventory_hostname }}.yml:
+          - sp_servers (list with name, address, port, node_name, domain for each server)
+          - default_server (name of default server for dsm.opt)
+      when:
+        - hsm_multi_server_mode
+        - sp_servers | length == 0 or default_server is not defined or default_server | length == 0
+
+    - name: Validate required HSM client connection variables (Single-Server)
+      ansible.builtin.fail:
+        msg: |
+          Missing required HSM client connection variables for {{ inventory_hostname }}.
+          Required variables in playbooks/host_vars/{{ inventory_hostname }}.yml:
+          - sp_server_name
+          - sp_server_address
+          - sp_server_port
+          - node_name
+          - gpfs_filesystem (required for HSM clients)
+      when:
+        - not hsm_multi_server_mode
+        - sp_server_name is not defined or sp_server_name | length == 0
+          or sp_server_address is not defined or sp_server_address | length == 0
+          or sp_server_port is not defined or sp_server_port | string | length == 0
+          or node_name is not defined or node_name | length == 0
+          or gpfs_filesystem is not defined or gpfs_filesystem | length == 0
+
+    - name: Check if HSM client directory exists
+      ansible.builtin.stat:
+        path: /opt/tivoli/tsm/client/hsm/bin
+      register: hsm_client_bin_dir
+
+    - name: Skip HSM client configure if HSM client is not installed
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM CLIENT NOT INSTALLED
+          ============================================================
+          Host   : {{ inventory_hostname }}
+          Action : Skipping HSM client configuration because
+                   /opt/tivoli/tsm/client/hsm/bin does not exist.
+          ============================================================
+      when: not hsm_client_bin_dir.stat.exists
+    # ========================================================================
+    # Validate Required Commands (Phase 5: Command Validation)
+    # ========================================================================
+    - name: Validate TSM and GPFS commands exist
+      when: hsm_client_bin_dir.stat.exists
+      block:
+        - name: Check for required TSM HSM commands
+          ansible.builtin.command: which {{ item }}
+          loop:
+            - dsmmigfs
+            - dsmmigrate
+            - dsmrecall
+            - dsmc
+          register: tsm_command_check
+          failed_when: false
+          changed_when: false
+
+        - name: Check for required GPFS commands
+          ansible.builtin.stat:
+            path: "{{ item }}"
+          loop:
+            - /usr/lpp/mmfs/bin/mmlsfs
+            - /usr/lpp/mmfs/bin/mmchfs
+            - /usr/lpp/mmfs/bin/mmmount
+            - /usr/lpp/mmfs/bin/mmunmount
+            - /usr/lpp/mmfs/bin/mmapplypolicy
+            - /usr/lpp/mmfs/bin/mmlsattr
+          register: gpfs_command_check
+          when: hsm_multi_server_mode
+
+        - name: Display command validation results
+          ansible.builtin.debug:
+            msg: |
+              ============================================================
+              COMMAND VALIDATION
+              ============================================================
+              TSM COMMANDS
+              {% for result in tsm_command_check.results %}
+                - {{ '%-12s' | format(result.item) }} : {{ 'Found ✅' if result.rc == 0 else 'NOT FOUND ❌' }}
+              {% endfor %}
+
+              {% if hsm_multi_server_mode %}
+              GPFS COMMANDS
+              {% for result in gpfs_command_check.results %}
+                - {{ '%-12s' | format(result.item | basename) }} : {{ 'Found ✅' if result.stat.exists else 'NOT FOUND ❌' }}
+              {% endfor %}
+              {% endif %}
+
+              {% if tsm_command_check.results | selectattr('rc', 'ne', 0) | list | length > 0 %}
+              WARNING
+              - Some TSM commands are missing.
+              {% endif %}
+              {% if hsm_multi_server_mode and gpfs_command_check.results | selectattr('stat.exists', 'equalto', false) | list | length > 0 %}
+              ⚠️  WARNING: Some GPFS commands are missing!
+              {% endif %}
+              ============================================================
+
+        - name: Fail if critical TSM commands are missing
+          ansible.builtin.fail:
+            msg: |
+              Critical TSM commands are missing. HSM configuration cannot proceed.
+              Missing commands: {{ tsm_command_check.results | selectattr('rc', 'ne', 0) | map(attribute='item') | list | join(', ') }}
+              
+              Please ensure IBM Storage Protect HSM Client is properly installed.
+          when: tsm_command_check.results | selectattr('rc', 'ne', 0) | list | length > 0
+
+
+    - name: Create dsm.sys configuration file for HSM client (Multi-Server)
+      ansible.builtin.copy:
+        dest: /opt/tivoli/tsm/client/hsm/bin/dsm.sys
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          *******************************************************************************
+          * IBM Storage Protect HSM Client System Options File
+          * Multi-Server Configuration - Each server backs up different GPFS filesets
+          *******************************************************************************
+          {% for server in sp_servers %}
+          
+          SERVERNAME {{ server.name }}
+            COMMMethod         TCPip
+            TCPPort            {{ server.port }}
+            TCPServeraddress   {{ server.address }}
+            NODename           {{ server.node_name }}
+            PASSWORDACCESS     GENERATE
+            ERRORLOGNAME       /var/log/tsm/dsmerror_{{ server.name | lower }}.log
+            SCHEDLOGNAME       /var/log/tsm/dsmsched_{{ server.name | lower }}.log
+          {% if server.domain is defined and server.domain | length > 0 %}
+            DOMAIN             {{ server.domain }}
+          {% endif %}
+          {% endfor %}
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+
+    - name: Create dsm.sys configuration file for HSM client (Single-Server)
+      ansible.builtin.copy:
+        dest: /opt/tivoli/tsm/client/hsm/bin/dsm.sys
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          *******************************************************************************
+          * IBM Storage Protect HSM Client System Options File
+          * Single-Server Configuration
+          *******************************************************************************
+          
+          SERVERNAME {{ sp_server_name }}
+            COMMMethod         TCPip
+            TCPPort            {{ sp_server_port }}
+            TCPServeraddress   {{ sp_server_address }}
+            NODename           {{ node_name }}
+            PASSWORDACCESS     GENERATE
+            ERRORLOGNAME       /var/log/tsm/dsmerror_{{ sp_server_name | lower }}.log
+            SCHEDLOGNAME       /var/log/tsm/dsmsched_{{ sp_server_name | lower }}.log
+          {% if gpfs_filesystem is defined and gpfs_filesystem | length > 0 %}
+            DOMAIN             {{ gpfs_filesystem }}
+          {% endif %}
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - not hsm_multi_server_mode
+
+    - name: Create dsm.opt configuration file for HSM client (Multi-Server)
+      ansible.builtin.copy:
+        dest: /opt/tivoli/tsm/client/hsm/bin/dsm.opt
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          *************************************************************
+          * IBM Storage Protect HSM Client User Options File
+          * Multi-Server Configuration with Active Server Binding
+          * Default server: {{ default_server }}
+          *************************************************************
+
+          SERVERNAME {{ default_server }}
+          
+          *************************************************************
+          * HSM Multi-Server Options (REQUIRED for Active Server Binding)
+          *************************************************************
+          HSMMULTISERVER            YES
+          HSMEXTOBJIDATTR           YES
+          HSMENABLEIMMEDIATEMIGRATE YES
+          HSMDISABLEAUTOMIGDAEMONS  YES
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+
+    - name: Create dsm.opt configuration file for HSM client (Single-Server)
+      ansible.builtin.copy:
+        dest: /opt/tivoli/tsm/client/hsm/bin/dsm.opt
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          *************************************************************
+          * IBM Storage Protect HSM Client User Options File
+          *************************************************************
+
+          SERVERNAME {{ sp_server_name }}
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - not hsm_multi_server_mode
+
+    - name: Create TSM log directory for HSM client
+      ansible.builtin.file:
+        path: /var/log/tsm
+        state: directory
+        owner: root
+        group: root
+        mode: "0777"
+      when: hsm_client_bin_dir.stat.exists
+
+    - name: Create TSM log files with correct ownership for HSM client
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: touch
+        owner: root
+        group: root
+        mode: "0666"
+      loop:
+        - /var/log/tsm/dsmerror.log
+        - /var/log/tsm/dsmsched.log
+      when: hsm_client_bin_dir.stat.exists
+
+    - name: Check if DMAPI is enabled on GPFS filesystem
+      ansible.builtin.shell: |
+        /usr/lpp/mmfs/bin/mmlsfs gpfs_main -z 2>&1 | grep -i dmapi | awk '{print $2}'
+      register: dmapi_check
+      changed_when: false
+      failed_when: false
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+
+    - name: Display DMAPI status
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          CRITICAL PREREQUISITE CHECK: DMAPI STATUS
+          ============================================================
+          Filesystem : gpfs_main
+          DMAPI      : {{ dmapi_check.stdout | trim }}
+
+          Result
+          {% if dmapi_check.stdout | trim == 'no' %}
+          - DMAPI is disabled.
+          - The playbook will attempt to enable it automatically.
+          ============================================================
+          {% else %}
+          - DMAPI is enabled.
+          - Proceeding with HSM setup.
+          ============================================================
+          {% endif %}
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+        - dmapi_check.stdout is defined
+
+    - name: Enable DMAPI on GPFS filesystem (if disabled)
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+        - dmapi_check.stdout is defined
+        - dmapi_check.stdout | trim == 'no'
+      block:
+        - name: Unmount GPFS filesystem to enable DMAPI
+          ansible.builtin.command: /usr/lpp/mmfs/bin/mmunmount gpfs_main
+          register: dmapi_unmount
+          failed_when: false
+          changed_when: dmapi_unmount.rc == 0
+
+        - name: Enable DMAPI on filesystem
+          ansible.builtin.command: /usr/lpp/mmfs/bin/mmchfs gpfs_main -z yes
+          register: dmapi_enable
+          failed_when: dmapi_enable.rc != 0
+
+        - name: Remount GPFS filesystem
+          ansible.builtin.command: /usr/lpp/mmfs/bin/mmmount gpfs_main
+          register: dmapi_remount
+          failed_when: dmapi_remount.rc != 0
+          changed_when: dmapi_remount.rc == 0
+
+        - name: Verify DMAPI is now enabled
+          ansible.builtin.shell: |
+            /usr/lpp/mmfs/bin/mmlsfs gpfs_main -z 2>&1 | grep -i dmapi | awk '{print $2}'
+          register: dmapi_verify
+          failed_when: dmapi_verify.stdout | trim != 'yes'
+          changed_when: false
+
+        - name: Display DMAPI enablement result
+          ansible.builtin.debug:
+            msg: |
+              ============================================================
+              DMAPI ENABLEMENT SUCCESSFUL
+              ============================================================
+              GPFS Filesystem: gpfs_main
+              DMAPI Status   : {{ dmapi_verify.stdout | trim }}
+              ✅ DMAPI has been enabled automatically
+              ============================================================
+
+    - name: Check if filesystem is managed by HSM
+      ansible.builtin.shell: |
+        dsmmigfs query /gpfs_main 2>&1
+      register: hsm_fs_check
+      changed_when: false
+      failed_when: false
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+
+    - name: Add filesystem to HSM management (First Time Setup)
+      ansible.builtin.shell: |
+        dsmmigfs add /gpfs_main 2>&1
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+        - "'not managed by space management' in hsm_fs_check.stdout"
+      register: hsm_fs_add
+      changed_when: true
+      failed_when: false
+      async: 300
+      poll: 10
+
+    - name: Display filesystem add result
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM FILESYSTEM REGISTRATION
+          ============================================================
+          {{ hsm_fs_add.stdout | default('Filesystem already managed') }}
+          ============================================================
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+        - hsm_fs_add.stdout is defined
+
+    - name: Verify filesystem is now HSM-managed
+      ansible.builtin.shell: |
+        dsmmigfs query /gpfs_main 2>&1
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+        - hsm_fs_add is changed
+      register: hsm_fs_verify
+      changed_when: false
+      failed_when: false
+
+    - name: Display HSM filesystem verification
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM FILESYSTEM VERIFICATION
+          ============================================================
+          {{ hsm_fs_verify.stdout }}
+          ============================================================
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+        - hsm_fs_verify.stdout is defined
+    # ========================================================================
+    # Configure Active Server Binding (Petascale Multi-Server)
+    # ========================================================================
+    - name: Configure active server binding for multi-server setup
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+        - sp_servers | length > 1
+      block:
+        - name: Create GPFS policy file for automatic active server binding
+          ansible.builtin.template:
+            src: ../roles/hsm_client_install/templates/hsm_active_binding_policy.j2
+            dest: /tmp/hsm_active_binding_policy_{{ inventory_hostname }}.txt
+            mode: '0644'
+          register: policy_file
+
+        - name: Create test files for binding verification
+          ansible.builtin.shell: |
+            mkdir -p "{{ item.domain }}"
+            touch "{{ item.domain }}/test_binding_{{ item.name }}.txt"
+          loop: "{{ sp_servers }}"
+          register: test_files_created
+          failed_when: false
+          changed_when: false
+
+        - name: Check if mmputattr command exists
+          ansible.builtin.stat:
+            path: /usr/lpp/mmfs/bin/mmputattr
+          register: mmputattr_check
+
+        - name: Check if setfattr command exists
+          ansible.builtin.command: which setfattr
+          register: setfattr_check
+          changed_when: false
+          failed_when: false
+
+        - name: Apply GPFS policy to set active server binding
+          ansible.builtin.shell: |
+            /usr/lpp/mmfs/bin/mmapplypolicy /gpfs_main \
+              -P /tmp/hsm_active_binding_policy_{{ inventory_hostname }}.txt \
+              -I defer 2>&1
+          register: policy_apply
+          failed_when: false
+          changed_when: false
+
+        - name: Display GPFS policy application result
+          ansible.builtin.debug:
+            msg: |
+              ============================================================
+              GPFS POLICY APPLICATION (Active Server Binding)
+              ============================================================
+              Status      : {{ 'SUCCESS ✅' if policy_apply.rc == 0 else 'FAILED ❌' }}
+              Return Code : {{ policy_apply.rc }}
+              Next Action : {{ 'No fallback needed' if policy_apply.rc == 0 else 'Direct attribute fallback will be used' }}
+
+              Command Output
+              ------------------------------------------------------------
+              {{ ((policy_apply.stdout | default('') | trim) if (policy_apply.stdout | default('') | trim) else (policy_apply.stderr | default('') | trim)) | indent(2, true) }}
+              ============================================================
+          when: policy_apply is defined
+
+        - name: Set active server binding using mmputattr fallback for all files in fileset
+          ansible.builtin.shell: |
+            target_dir="{{ item.domain }}"
+            if [ -d "$target_dir" ]; then
+              find "$target_dir" -type f -exec /usr/lpp/mmfs/bin/mmputattr -k dmapi.IBMServ -v {{ item.name }} {} \;
+            fi
+          loop: "{{ sp_servers }}"
+          register: mmputattr_result
+          failed_when: false
+          changed_when: false
+          when:
+            - policy_apply.rc != 0
+            - mmputattr_check.stat.exists
+
+        - name: Set active server binding using setfattr fallback for all files in fileset
+          ansible.builtin.shell: |
+            target_dir="{{ item.domain }}"
+            if [ -d "$target_dir" ]; then
+              find "$target_dir" -type f -exec setfattr -n user.dmapi.IBMServ -v {{ item.name }} {} \;
+            fi
+          loop: "{{ sp_servers }}"
+          register: setfattr_result
+          failed_when: false
+          changed_when: false
+          when:
+            - policy_apply.rc != 0
+            - not mmputattr_check.stat.exists
+            - setfattr_check.rc == 0
+
+        - name: Verify active server binding
+          ansible.builtin.shell: |
+            target_file="{{ item.domain }}/test_binding_{{ item.name }}.txt"
+            expected_server="{{ item.name }}"
+            if [ ! -f "$target_file" ]; then
+              echo "FILE_NOT_FOUND"
+              exit 0
+            fi
+
+            attr_output=""
+            if /usr/lpp/mmfs/bin/mmlsattr -L "$target_file" 2>/dev/null | grep -q "dmapi.IBMServ"; then
+              attr_output=$(/usr/lpp/mmfs/bin/mmlsattr -L "$target_file" 2>/dev/null | grep "dmapi.IBMServ")
+            elif getfattr -n user.dmapi.IBMServ "$target_file" 2>/dev/null | grep -q "user.dmapi.IBMServ"; then
+              attr_output=$(getfattr -n user.dmapi.IBMServ "$target_file" 2>/dev/null)
+            fi
+
+            if printf '%s\n' "$attr_output" | grep -Fq "$expected_server"; then
+              echo "CONFIGURED: $expected_server"
+              printf '%s\n' "$attr_output"
+            elif [ -n "$attr_output" ]; then
+              echo "ATTRIBUTE_PRESENT_BUT_MISMATCH"
+              printf '%s\n' "$attr_output"
+            else
+              echo "NOT_SET"
+            fi
+          loop: "{{ sp_servers }}"
+          register: binding_verify
+          failed_when: false
+          changed_when: false
+
+        - name: Display active server binding status
+          ansible.builtin.debug:
+            msg: |
+              ============================================================
+              ACTIVE SERVER BINDING STATUS
+              ============================================================
+              {% for result in binding_verify.results %}
+              Fileset : {{ result.item.domain }}
+              Server  : {{ result.item.name }}
+              Status  : {{ 'CONFIGURED ✅' if 'CONFIGURED:' in result.stdout else ('ATTRIBUTE MISMATCH ⚠️' if 'ATTRIBUTE_PRESENT_BUT_MISMATCH' in result.stdout else ('FILE NOT FOUND ❌' if 'FILE_NOT_FOUND' in result.stdout else 'NOT SET ❌')) }}
+              Details : {{ (result.stdout | default('') | trim | replace('\n', '\n              ')) if (result.stdout | default('') | trim) else 'No attribute output returned.' }}
+              ------------------------------------------------------------
+              {% endfor %}
+
+              Summary
+              {% if binding_verify.results | rejectattr('stdout', 'search', 'CONFIGURED:') | list | length > 0 %}
+              - Some filesets do not have the expected active server binding set.
+              - This may impact Petascale load distribution.
+              - Manual command:
+                mmapplypolicy /gpfs_main -P /tmp/hsm_active_binding_policy_{{ inventory_hostname }}.txt -I defer
+              {% else %}
+              - All filesets have active server binding configured correctly.
+              {% endif %}
+              ============================================================
+
+        - name: Create active server binding documentation
+          ansible.builtin.copy:
+            dest: /gpfs2/config/active_binding_config_{{ inventory_hostname }}.txt
+            owner: root
+            group: root
+            mode: "0644"
+            content: |
+              ============================================================
+              Active Server Binding Configuration
+              ============================================================
+              Generated: {{ ansible_date_time.iso8601 }}
+              Host: {{ inventory_hostname }}
+              
+              Configuration Method:
+              {% if policy_apply is defined and policy_apply.rc == 0 %}
+              - GPFS Policy (Automatic) ✅
+              {% else %}
+              - Policy created but not yet applied
+              - Run: mmapplypolicy /gpfs_main -P /tmp/hsm_active_binding_policy_{{ inventory_hostname }}.txt -I defer
+              {% endif %}
+              
+              Server Bindings:
+              {% for server in sp_servers %}
+              - {{ server.domain }} → {{ server.name }} ({{ server.address }}:{{ server.port }})
+              {% endfor %}
+              
+              Verification Commands:
+              {% for server in sp_servers %}
+              # Check binding for {{ server.name }}:
+              mmlsattr -d -L {{ server.domain }}/test_binding_{{ server.name }}.txt | grep IBMServ
+              
+              {% endfor %}
+              
+              To apply policy to all existing files:
+              mmapplypolicy /gpfs_main -P /tmp/hsm_active_binding_policy_{{ inventory_hostname }}.txt -I defer
+              ============================================================
+
+
+    - name: Create config directory for disaster recovery documentation
+      ansible.builtin.file:
+        path: /gpfs2/config
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+
+    - name: Create fileset-to-server mapping documentation for disaster recovery
+      ansible.builtin.copy:
+        dest: /gpfs2/config/fileset_server_mapping_{{ inventory_hostname }}.txt
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          ============================================================
+          FILESET-TO-SERVER MAPPING FOR DISASTER RECOVERY
+          ============================================================
+          Device: gpfs_main
+          Host: {{ inventory_hostname }}
+          Date: {{ ansible_date_time.iso8601 }}
+          Configuration Mode: Multi-Server with Active Server Binding
+          
+          CRITICAL: This mapping must be preserved for disaster recovery!
+          
+          ============================================================
+          FILESET MAPPING TABLE
+          ============================================================
+          {% for server in sp_servers %}
+          
+          Server Name    : {{ server.name }}
+          Server Address : {{ server.address }}:{{ server.port }}
+          Node Name      : {{ server.node_name }}
+          Fileset Domain : {{ server.domain }}
+          Backup Command : mmbackup {{ server.domain }}/ -t full --tsm-servers {{ server.name }} --scope inodespace
+          Restore Command: dsmc restore {{ server.domain }}/ -subdir=yes -servername={{ server.name }}
+          {% endfor %}
+          
+          ============================================================
+          VERIFICATION COMMANDS
+          ============================================================
+          
+          1. Verify filesystem is HSM-managed:
+             dsmmigfs query /gpfs_main
+          
+          2. Verify active server binding for a file:
+             dsmls <filename> | grep Srv
+             mmlsattr -d -L <filename> | grep IBMServ
+          
+          3. List all files bound to a server:
+             mmapplypolicy /gpfs_main -P rulefile --scope filesystem
+          
+          4. Check file backup status:
+             dsmc query backup <filename> -servername=<SERVER_NAME>
+          
+          ============================================================
+          BACKUP WORKFLOW (Per Fileset)
+          ============================================================
+          {% for server in sp_servers %}
+          
+          # {{ server.domain }} -> {{ server.name }}
+          mmcrsnapshot /dev/gpfs_main snap_{{ loop.index }} -j {{ server.domain | basename }}
+          mmbackup {{ server.domain }}/ -t full -S snap_{{ loop.index }} \
+            -s /gpfs2/log/mmbackup/gpfs_main/{{ server.domain | basename }} \
+            -g /gpfs2/log/mmbackup/gpfs_main/{{ server.domain | basename }} \
+            --tsm-servers {{ server.name }} --scope inodespace
+          mmdelsnapshot /dev/gpfs_main snap_{{ loop.index }} -j {{ server.domain | basename }}
+          {% endfor %}
+          
+          ============================================================
+          END OF MAPPING DOCUMENTATION
+          ============================================================
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+
+    - name: Display fileset-to-server mapping location
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          DISASTER RECOVERY DOCUMENTATION CREATED
+          ============================================================
+          Location: /gpfs2/config/fileset_server_mapping_{{ inventory_hostname }}.txt
+          
+          IMPORTANT: Back up this file regularly!
+          This mapping is critical for disaster recovery.
+          ============================================================
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+
+    - name: Import certificate if ANS1695E error is detected
+      ansible.builtin.include_tasks: ../roles/ba_client_install/tasks/ba_client_cert_fix.yml
+      when: hsm_client_bin_dir.stat.exists
+
+    - name: Bootstrap BA/HSM client auth cache for PASSWORDACCESS GENERATE
+      ansible.builtin.include_tasks: ../roles/ba_client_install/tasks/ba_client_auth_bootstrap.yml
+      when: hsm_client_bin_dir.stat.exists
+
+    - name: Display HSM client configuration status (Multi-Server)
+      ansible.builtin.debug:
+        msg: "{{ msg_content }}"
+      vars:
+        msg_content: |
+          ============================================================
+          HSM CLIENT CONFIGURATION COMPLETE (MULTI-SERVER)
+          ============================================================
+          Host            : {{ inventory_hostname }}
+          dsm.sys         : /opt/tivoli/tsm/client/hsm/bin/dsm.sys
+          dsm.opt         : /opt/tivoli/tsm/client/hsm/bin/dsm.opt
+          Default Server  : {{ default_server }}
+          
+          Configured Servers:
+          {% for server in sp_servers %}
+          {{ loop.index }}. {{ server.name }}
+             Address      : {{ server.address }}:{{ server.port }}
+             Node Name    : {{ server.node_name }}
+             GPFS Domain  : {{ server.domain }}
+          {% endfor %}
+          
+          Usage:
+          - Default backups use: {{ default_server }}
+          - To use specific server: dsmc -servername=<SERVER_NAME>
+          ============================================================
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - hsm_multi_server_mode
+
+    - name: Display HSM client configuration status (Single-Server)
+      ansible.builtin.debug:
+        msg: "{{ msg_content }}"
+      vars:
+        msg_content: |
+          ============================================================
+          HSM CLIENT CONFIGURATION COMPLETE (SINGLE-SERVER)
+          ============================================================
+          Host            : {{ inventory_hostname }}
+          dsm.sys         : /opt/tivoli/tsm/client/hsm/bin/dsm.sys
+          dsm.opt         : /opt/tivoli/tsm/client/hsm/bin/dsm.opt
+          Server Name     : {{ sp_server_name }}
+          Server Address  : {{ sp_server_address }}
+          Server Port     : {{ sp_server_port }}
+          Node Name       : {{ node_name }}
+          GPFS Filesystem : {{ gpfs_filesystem | default('NOT SET') }}
+          ============================================================
+      when:
+        - hsm_client_bin_dir.stat.exists
+        - not hsm_multi_server_mode
+
+    # ========================================================================
+    # PHASE 6: COMPREHENSIVE VALIDATION AND HEALTH CHECKS
+    # ========================================================================
+    # Validates all critical components after configuration
+    # - DMAPI status
+    # - Firewall rules
+    # - SSL certificates
+    # - Active server binding
+    # - TSM connectivity
+    # - GPFS filesystem status
+    # ========================================================================
+
+    - name: "[PHASE 6] Run comprehensive validation checks"
+      when: hsm_client_bin_dir.stat.exists
+      block:
+        - name: Validate DMAPI is enabled
+          ansible.builtin.shell: |
+            /usr/lpp/mmfs/bin/mmlsfs /dev/gpfs_main -z 2>&1 | grep -i dmapi | awk '{print $2}'
+          register: dmapi_validation
+          changed_when: false
+          failed_when: false
+
+        - name: Validate firewall port 1500 is open
+          ansible.builtin.shell: |
+            firewall-cmd --list-ports | grep -q "1500/tcp" && echo "OPEN" || echo "CLOSED"
+          register: firewall_validation
+          changed_when: false
+          failed_when: false
+
+        - name: Validate SSL certificates are imported (Multi-Server)
+          ansible.builtin.shell: |
+            /opt/tivoli/tsm/client/ba/bin/dsmcert -list -servername={{ item.name }} 2>&1 | grep -q "Certificate" && echo "VALID" || echo "MISSING"
+          loop: "{{ sp_servers }}"
+          register: cert_validation
+          changed_when: false
+          failed_when: false
+          when: hsm_multi_server_mode
+
+        - name: Validate SSL certificate is imported (Single-Server)
+          ansible.builtin.shell: |
+            /opt/tivoli/tsm/client/ba/bin/dsmcert -list 2>&1 | grep -q "Certificate" && echo "VALID" || echo "MISSING"
+          register: cert_validation_single
+          changed_when: false
+          failed_when: false
+          when: not hsm_multi_server_mode
+
+        - name: Test connectivity to all SP servers (Multi-Server)
+          ansible.builtin.shell: |
+            timeout 10 dsmc query session -servername={{ item.name }} 2>&1 | grep -q "ANS1017I\|ANS1302E\|Session established" && echo "CONNECTED" || echo "FAILED"
+          loop: "{{ sp_servers }}"
+          register: connectivity_validation
+          changed_when: false
+          failed_when: false
+          when: hsm_multi_server_mode
+
+        - name: Test connectivity to SP server (Single-Server)
+          ansible.builtin.shell: |
+            timeout 10 dsmc query session 2>&1 | grep -q "ANS1017I\|ANS1302E\|Session established" && echo "CONNECTED" || echo "FAILED"
+          register: connectivity_validation_single
+          changed_when: false
+          failed_when: false
+          when: not hsm_multi_server_mode
+
+        - name: Validate active server binding (Multi-Server)
+          ansible.builtin.shell: |
+            for domain in {{ sp_servers | map(attribute='domain') | join(' ') }}; do
+              test_file="${domain}/test_binding_$(basename ${domain}).txt"
+              if [ -f "$test_file" ]; then
+                /usr/lpp/mmfs/bin/mmlsattr -d -L "$test_file" 2>&1 | grep -q "dmapi.IBMServ" && echo "BOUND" || echo "NOT_BOUND"
+              else
+                echo "NO_TEST_FILE"
+              fi
+            done
+          register: binding_validation
+          changed_when: false
+          failed_when: false
+          when: hsm_multi_server_mode
+
+        - name: Validate GPFS filesystem is HSM-managed
+          ansible.builtin.shell: |
+            dsmmigfs query /gpfs_main 2>&1 | grep -q "is managed\|Managed" && echo "MANAGED" || echo "NOT_MANAGED"
+          register: hsm_managed_validation
+          changed_when: false
+          failed_when: false
+
+        - name: Check dsm.sys configuration file
+          ansible.builtin.stat:
+            path: /opt/tivoli/tsm/client/hsm/bin/dsm.sys
+          register: dsm_sys_validation
+
+        - name: Check dsm.opt configuration file
+          ansible.builtin.stat:
+            path: /opt/tivoli/tsm/client/hsm/bin/dsm.opt
+          register: dsm_opt_validation
+
+        - name: Validate dsm.sys contains all server stanzas (Multi-Server)
+          ansible.builtin.shell: |
+            missing_servers=""
+            for server in {{ sp_servers | map(attribute='name') | join(' ') }}; do
+              if ! grep -q "^SERVERNAME[[:space:]]*${server}" /opt/tivoli/tsm/client/hsm/bin/dsm.sys; then
+                missing_servers="${missing_servers} ${server}"
+              fi
+            done
+            if [ -z "$missing_servers" ]; then
+              echo "ALL_PRESENT"
+            else
+              echo "MISSING:${missing_servers}"
+            fi
+          register: dsm_sys_stanza_validation
+          changed_when: false
+          failed_when: false
+          when: hsm_multi_server_mode
+
+        - name: Generate comprehensive validation report
+          ansible.builtin.debug:
+            msg: |
+              ============================================================
+              COMPREHENSIVE VALIDATION REPORT
+              ============================================================
+              Host: {{ inventory_hostname }}
+              Date: {{ ansible_date_time.iso8601 }}
+              
+              ============================================================
+              CRITICAL COMPONENTS STATUS
+              ============================================================
+              
+              1. DMAPI Status:
+              {% if dmapi_validation.stdout is defined and dmapi_validation.stdout | trim == 'yes' %}
+                 ✓ ENABLED - DMAPI is active on GPFS filesystem
+              {% elif dmapi_validation.stdout is defined and dmapi_validation.stdout | trim == '' %}
+                 ⚠ UNKNOWN - Could not determine DMAPI status
+              {% else %}
+                 ✗ DISABLED - DMAPI is not enabled (CRITICAL ISSUE)
+              {% endif %}
+              
+              2. Firewall Configuration:
+              {% if firewall_validation.stdout is defined and 'OPEN' in firewall_validation.stdout %}
+                 ✓ PORT 1500 OPEN - Firewall configured correctly
+              {% elif firewall_validation.stderr is defined and 'not running' in firewall_validation.stderr %}
+                 ✓ FIREWALL NOT RUNNING - No firewall blocking traffic
+              {% else %}
+                 ✗ PORT 1500 CLOSED - Firewall may block TSM traffic
+              {% endif %}
+              
+              3. Configuration Files:
+              {% if dsm_sys_validation.stat.exists %}
+                 ✓ dsm.sys exists ({{ dsm_sys_validation.stat.size }} bytes)
+              {% else %}
+                 ✗ dsm.sys missing (CRITICAL ISSUE)
+              {% endif %}
+              {% if dsm_opt_validation.stat.exists %}
+                 ✓ dsm.opt exists ({{ dsm_opt_validation.stat.size }} bytes)
+              {% else %}
+                 ✗ dsm.opt missing (CRITICAL ISSUE)
+              {% endif %}
+              
+              {% if hsm_multi_server_mode %}
+              4. Server Stanza Configuration:
+              {% if dsm_sys_stanza_validation.stdout is defined and 'ALL_PRESENT' in dsm_sys_stanza_validation.stdout %}
+                 ✓ All server stanzas present in dsm.sys
+              {% else %}
+                 ✗ Missing server stanzas: {{ dsm_sys_stanza_validation.stdout | default('UNKNOWN') }}
+              {% endif %}
+              
+              5. SSL Certificates (Multi-Server):
+              {% for result in cert_validation.results %}
+                 {% if 'VALID' in result.stdout %}
+                 ✓ {{ result.item.name }}: Certificate imported
+                 {% else %}
+                 ✗ {{ result.item.name }}: Certificate missing or invalid
+                 {% endif %}
+              {% endfor %}
+              
+              6. Server Connectivity (Multi-Server):
+              {% for result in connectivity_validation.results %}
+                 {% if 'CONNECTED' in result.stdout %}
+                 ✓ {{ result.item.name }}: Connection successful
+                 {% else %}
+                 ✗ {{ result.item.name }}: Connection failed
+                 {% endif %}
+              {% endfor %}
+              
+              7. Active Server Binding:
+              {% if binding_validation.stdout is defined %}
+                 {% if 'BOUND' in binding_validation.stdout %}
+                 ✓ Active server binding configured
+                 {% elif 'NO_TEST_FILE' in binding_validation.stdout %}
+                 ⚠ Test files not found (binding may still work)
+                 {% else %}
+                 ✗ Active server binding not configured
+                 {% endif %}
+              {% else %}
+                 ⚠ Unable to validate binding
+              {% endif %}
+              {% else %}
+              4. SSL Certificate (Single-Server):
+              {% if cert_validation_single.stdout is defined and 'VALID' in cert_validation_single.stdout %}
+                 ✓ Certificate imported
+              {% else %}
+                 ✗ Certificate missing or invalid
+              {% endif %}
+              
+              5. Server Connectivity (Single-Server):
+              {% if connectivity_validation_single.stdout is defined and 'CONNECTED' in connectivity_validation_single.stdout %}
+                 ✓ Connection to {{ sp_server_name }} successful
+              {% else %}
+                 ✗ Connection to {{ sp_server_name }} failed
+              {% endif %}
+              {% endif %}
+              
+              8. GPFS HSM Management:
+              {% if hsm_managed_validation.stdout is defined and 'MANAGED' in hsm_managed_validation.stdout %}
+                 ✓ Filesystem is HSM-managed
+              {% else %}
+                 ✗ Filesystem is not HSM-managed (CRITICAL ISSUE)
+              {% endif %}
+              
+              ============================================================
+              OVERALL STATUS
+              ============================================================
+              {% set critical_issues = [] %}
+              {% if dmapi_validation.stdout is not defined or 'Yes' not in dmapi_validation.stdout %}
+                {% set _ = critical_issues.append('DMAPI not enabled') %}
+              {% endif %}
+              {% if not dsm_sys_validation.stat.exists %}
+                {% set _ = critical_issues.append('dsm.sys missing') %}
+              {% endif %}
+              {% if not dsm_opt_validation.stat.exists %}
+                {% set _ = critical_issues.append('dsm.opt missing') %}
+              {% endif %}
+              {% if hsm_managed_validation.stdout is not defined or 'MANAGED' not in hsm_managed_validation.stdout %}
+                {% set _ = critical_issues.append('Filesystem not HSM-managed') %}
+              {% endif %}
+              
+              {% if critical_issues | length == 0 %}
+              ✓ ALL CRITICAL CHECKS PASSED
+              
+              Configuration is ready for production use.
+              {% else %}
+              ✗ CRITICAL ISSUES DETECTED ({{ critical_issues | length }}):
+              {% for issue in critical_issues %}
+                 - {{ issue }}
+              {% endfor %}
+              
+              Please resolve these issues before using the system.
+              {% endif %}
+              
+              ============================================================
+              NEXT STEPS
+              ============================================================
+              {% if critical_issues | length == 0 %}
+              1. Test backup: mmbackup <fileset_path> -t full --tsm-servers <SERVER_NAME>
+              2. Verify backup: dsmc query backup <file> -servername=<SERVER_NAME>
+              3. Monitor logs: tail -f /var/log/messages
+              4. Review documentation: /gpfs2/config/fileset_server_mapping_{{ inventory_hostname }}.txt
+              {% else %}
+              1. Review and fix critical issues listed above
+              2. Re-run validation: ansible-playbook petascale_configure.yml
+              3. Contact support if issues persist
+              {% endif %}
+              ============================================================
+    
+    - name: Display HSM configure execution timing
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM CONFIGURE EXECUTION TIMING
+          ============================================================
+          Host           : {{ inventory_hostname }}
+          Started At     : {{ hsm_configure_start_time }}
+          Finished At    : {{ lookup('pipe', 'date') }}
+          Total Duration : {{ ((lookup('pipe', 'date +%s') | int) - (hsm_configure_start_epoch | int)) // 60 }}m {{ ((lookup('pipe', 'date +%s') | int) - (hsm_configure_start_epoch | int)) % 60 }}s ({{ (lookup('pipe', 'date +%s') | int) - (hsm_configure_start_epoch | int) }} seconds)
+          ============================================================
+
+
+# ============================================================================
+# Configuration Summary
+# ============================================================================
+- name: Petascale Configuration Summary
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: Record playbook end time
+      run_once: true
+      ansible.builtin.set_fact:
+        petascale_configure_end_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
+        petascale_configure_end_time: "{{ lookup('pipe', 'date') }}"
+        petascale_configure_elapsed_seconds: "{{ (lookup('pipe', 'date +%s') | int) - (hostvars['localhost'].petascale_configure_start_epoch | default(lookup('pipe', 'date +%s') | int)) }}"
+
+    - name: Generate configuration summary report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          PETASCALE CONFIGURATION SUMMARY REPORT
+          ============================================================
+          Started At           : {{ hostvars['localhost'].petascale_configure_start_time | default('Unknown') }}
+          Finished At          : {{ petascale_configure_end_time }}
+          Total Duration       : {{ petascale_configure_elapsed_seconds }} seconds
+          SP Servers targeted  : {{ groups['sp_servers'] | default([]) | join(', ') or 'None configured' }}
+          BA Clients targeted  : {{ groups['ba_clients'] | default([]) | join(', ') or 'None configured' }}
+          HSM Clients targeted : {{ groups['hsm_clients'] | default([]) | join(', ') or 'None configured' }}
+          ============================================================
+...
+

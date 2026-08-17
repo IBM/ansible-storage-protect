@@ -1,0 +1,74 @@
+---
+# Group variables for all BA Client nodes
+# These variables apply to all hosts in the [ba_clients] group
+# Can be overridden by individual host_vars files
+#
+# CUSTOMER: Edit this file to set defaults for all BA Client installations
+
+# ============================================================================
+# BA Client Default Settings
+# ============================================================================
+
+# Default BA Client state
+# Options: present (install), absent (uninstall)
+ba_client_state: "present"
+
+# Default BA Client version (can be overridden per host)
+# ba_client_version: "8.2.1.0"
+
+# Default OS type (can be overridden per host)
+# os_type: "LinuxX86"
+
+# ============================================================================
+# Default Installation Directories
+# ============================================================================
+
+# Default directory where BA Client will be extracted and installed
+# Can be overridden per host for custom installations
+ba_client_extract_dest: "/opt/baClient"
+
+# Default temporary directory for installation files
+ba_client_temp_dest: "/tmp/"
+
+# ============================================================================
+# Default Service Configuration
+# ============================================================================
+
+# Default: Do not auto-start daemon after installation
+# Set to true if you want all BA clients to auto-start
+# Can be overridden per host
+ba_client_start_daemon: false
+
+# ============================================================================
+# SP Server Compatibility
+# ============================================================================
+
+# Supported architectures (for reference)
+# supported_architectures:
+#   - s390x
+#   - ppc64le
+
+# ============================================================================
+# Default Package Location
+# ============================================================================
+
+# Default package location pattern on remote nodes
+# This is a template - actual path should be set per host
+# ba_client_package_path: "/tmp/{{ ba_client_version }}-TIV-TSMBAC-{{ os_type }}.tar"
+
+# ============================================================================
+# Connection Settings (BA Client specific)
+# ============================================================================
+
+# Ensure Python 3.9+ is available
+ansible_python_interpreter: /usr/bin/python3.9
+
+# BA Client installations require root privileges
+ansible_become: yes
+ansible_become_method: sudo
+
+
+ba_client_version: "8.1.27.0"
+ba_client_package_path: "/tmp/8.1.27.0-TIV-TSMBAC-LinuxX86.tar"
+
+# Made with Bob

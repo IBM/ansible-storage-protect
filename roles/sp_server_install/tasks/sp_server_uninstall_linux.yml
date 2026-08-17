@@ -1,9 +1,6 @@
 - name: Uninstall SP Server
   block:
-    - name: Cleanup server
-      ansible.builtin.include_tasks: sp_server_clean_config.yml
-      when: sp_server_state == "absent"
-
+    # /tmp validation is done in the playbook pre-checks
     # Generate the response file for uninstallation
     - name: Generate Response file for uninstalling Sp Server
       ansible.builtin.template:
@@ -11,13 +8,22 @@
         dest: "/opt/IBM/InstallationManager/eclipse/tools/uninstallResponse.xml"
       when: sp_server_state == "absent"
 
-    # Execute uninstallation
+    # Execute uninstallation - STOP on failure, don't continue
     - name: Execute uninstallation
       ansible.builtin.command: "./imcl -s -input uninstallResponse.xml -acceptLicense"
       args:
         chdir: "/opt/IBM/InstallationManager/eclipse/tools"
+      become: true
       changed_when: true
       when: sp_server_state == "absent"
+      register: uninstall_result
+
+    # Only cleanup if uninstallation succeeded
+    - name: Cleanup server
+      ansible.builtin.include_tasks: sp_server_clean_config.yml
+      when:
+        - sp_server_state == "absent"
+        - uninstall_result is succeeded
 
     - name: Remove IBM Storage Protect Server files
       ansible.builtin.file:

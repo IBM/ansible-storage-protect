@@ -1,0 +1,127 @@
+---
+- name: Gather IBM Storage Protect HSM Client Facts on AIX
+  hosts: aix
+  gather_facts: yes
+  become: true
+
+  vars:
+    # HSM Client connection details (optional - can be overridden)
+    storage_protect_servername: "{{ server_name | default('TSM_SERVER') }}"
+    storage_protect_nodename: "{{ node_name | default(ansible_hostname) }}"
+    storage_protect_admin_user: "{{ admin | default('') }}"
+    storage_protect_admin_password: "{{ admin_password | default('') }}"
+
+  vars_files:
+    - ../../vars/main.yml
+
+  tasks:
+    - name: Check if HSM Client is installed
+      ansible.builtin.command: lslpp -l TIVsm.HSM
+      register: hsm_installed
+      ignore_errors: true
+      changed_when: false
+
+    - name: Display HSM Client installation status
+      ansible.builtin.debug:
+        msg: "HSM Client is {{ 'installed' if hsm_installed.rc == 0 else 'not installed' }}"
+
+    - name: Display installed version
+      ansible.builtin.debug:
+        msg: "Installed version: {{ hsm_installed.stdout }}"
+      when: hsm_installed.rc == 0
+
+    - name: Gather all HSM Client facts using hsm_client_facts module
+      hsm_client_facts:
+        q_version: true
+        q_gpfs_status: true
+        q_hsm_status: true
+        q_filespace: true
+        q_systeminfo: true
+        q_options: true
+        q_session: true
+      register: hsm_client_facts
+      when: hsm_installed.rc == 0
+      ignore_errors: true
+
+    - name: Display HSM Client facts
+      ansible.builtin.debug:
+        var: hsm_client_facts
+      when: hsm_client_facts is defined
+
+    - name: Save HSM Client facts to file
+      ansible.builtin.copy:
+        content: "{{ hsm_client_facts | to_nice_json }}"
+        dest: "/tmp/hsm_client_facts_{{ ansible_hostname }}.json"
+      when: hsm_client_facts is defined and hsm_client_facts.results is defined
+
+    - name: Check all TIVsm packages
+      ansible.builtin.command: lslpp -l 'TIVsm*'
+      register: all_tivism_packages
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display all TIVsm packages
+      ansible.builtin.debug:
+        msg: "Installed TIVsm packages: {{ all_tivism_packages.stdout_lines }}"
+      when: all_tivism_packages.stdout_lines | length > 0
+
+    - name: Check GSKit packages
+      ansible.builtin.command: lslpp -l 'gsk*'
+      register: gsk_packages
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display GSKit packages
+      ansible.builtin.debug:
+        msg: "Installed GSKit packages: {{ gsk_packages.stdout_lines }}"
+      when: gsk_packages.stdout_lines | length > 0
+
+    - name: Check GPFS status
+      ansible.builtin.shell: /usr/lpp/mmfs/bin/mmgetstate -a || mmgetstate -a
+      register: gpfs_status
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display GPFS status
+      ansible.builtin.debug:
+        msg: "GPFS status: {{ gpfs_status.stdout_lines }}"
+      when: gpfs_status.rc == 0
+
+    - name: Check HSM state
+      ansible.builtin.shell: /usr/lpp/mmfs/bin/mmhsm state show || mmhsm state show
+      register: hsm_state
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display HSM state
+      ansible.builtin.debug:
+        msg: "HSM state: {{ hsm_state.stdout_lines }}"
+      when: hsm_state.rc == 0
+
+    - name: Check HSM service status (AIX subsystem)
+      ansible.builtin.command: lssrc -s dsmhsm
+      register: hsm_service_status
+      ignore_errors: true
+      changed_when: false
+
+    - name: Display HSM service status
+      ansible.builtin.debug:
+        msg: "HSM service status: {{ hsm_service_status.stdout_lines }}"
+      when: hsm_service_status.rc == 0
+
+    - name: Check configuration files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /opt/tivoli/tsm/client/hsm/bin/dsm.opt
+        - /opt/tivoli/tsm/client/hsm/bin/dsm.sys
+        - /opt/tivoli/tsm/client/ba/bin/dsm.opt
+        - /opt/tivoli/tsm/client/ba/bin/dsm.sys
+      register: config_files
+
+    - name: Display configuration file status
+      ansible.builtin.debug:
+        msg: "{{ item.item }}: {{ 'exists' if item.stat.exists else 'not found' }}"
+      loop: "{{ config_files.results }}"
+
+# Made with Bob

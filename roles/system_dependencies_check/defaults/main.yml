@@ -1,0 +1,83 @@
+---
+# System Dependencies Check Role - Default Variables
+# This role validates all required system dependencies before installation
+
+# ============================================================================
+# Auto-Installation Control
+# ============================================================================
+# Set to true to automatically install missing dependencies
+# WARNING: Only use in non-production or controlled environments
+# Default: false (validation only, no auto-install)
+install_dependencies: false
+
+# ============================================================================
+# Required Dependencies
+# ============================================================================
+
+# Python 3.9+ requirement
+required_python_version: "3.9"
+python_package_names:
+  RedHat: "python39"
+  Debian: "python3.9"
+  AIX: "python39"
+
+# Java requirement (for IBM Installation Manager and SP Server)
+required_java_version: "1.8"  # Java 8 or higher
+java_package_names:
+  RedHat: "java-1.8.0-openjdk"
+  Debian: "openjdk-8-jre"
+  AIX: "java8_64"
+
+# Perl requirement (for BA Client and HSM Client)
+required_perl_version: "5.10"  # Perl 5.10 or higher
+perl_package_names:
+  RedHat: "perl"
+  Debian: "perl"
+  AIX: "perl"
+
+# System utilities
+required_packages:
+  - name: "lsof"
+    description: "List open files utility"
+    package_names:
+      RedHat: "lsof"
+      Debian: "lsof"
+      AIX: "lsof"
+  - name: "rsync"
+    description: "File synchronization utility"
+    package_names:
+      RedHat: "rsync"
+      Debian: "rsync"
+      AIX: "rsync"
+
+# ============================================================================
+# /tmp Directory Requirements
+# ============================================================================
+tmp_required_permissions: "1777"
+tmp_required_space_mb: 2048  # 2GB minimum
+tmp_forbidden_mount_options:
+  - "noexec"
+
+# ============================================================================
+# Validation Behavior
+# ============================================================================
+# Fail playbook if dependencies are missing (when install_dependencies=false)
+fail_on_missing_dependencies: true
+
+# Generate detailed remediation report
+generate_remediation_report: true
+
+# Continue checking all dependencies even if some fail
+# Set to true for prechecks to see all issues at once
+# Set to false for installation to fail fast on first issue
+continue_on_error: false
+
+# ============================================================================
+# OS-Specific Package Managers
+# ============================================================================
+package_managers:
+  RedHat: "yum"
+  Debian: "apt"
+  AIX: "yum"  # AIX Toolbox uses yum
+
+# Made with Bob

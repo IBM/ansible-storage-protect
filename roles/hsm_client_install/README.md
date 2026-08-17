@@ -2,36 +2,25 @@
 
 ## Overview
 
-This Ansible role provides comprehensive management of IBM Storage Protect Hierarchical Storage Management (HSM) Client for Linux and AIX systems. It supports installation, uninstallation, configuration, and facts gathering operations with automatic rollback capabilities.
+This Ansible role provides comprehensive management of IBM Storage Protect Hierarchical Storage Management (HSM) Client on Linux systems. It supports installation, upgrade, uninstallation, and configuration operations with automatic rollback capabilities.
 
 ## Features
 
-- **Complete Lifecycle Management**: Install, uninstall, and configure HSM Client
-- **Multi-Platform Support**: Linux (RHEL, SLES) and AIX
+- **Complete Lifecycle Management**: Install, upgrade, uninstall, and configure HSM Client
 - **Idempotent Operations**: Safe to run multiple times without side effects
 - **Automatic Rollback**: Rolls back changes if operations fail
 - **Pre-flight Checks**: Validates system requirements before installation
 - **GPFS Integration**: Checks GPFS status and HSM state
 - **Configuration Management**: Manages dsm.opt and dsm.sys files
 - **Facts Gathering**: Collects comprehensive HSM client information
-- **Version Validation**: Ensures correct version is installed/uninstalled
+- **Multi-version Support**: Handles version comparisons and upgrades
 
 ## Requirements
 
 ### System Requirements
-
-**Linux:**
-- **Operating System**: Red Hat Enterprise Linux 7/8/9, SUSE Linux Enterprise Server 12/15
-- **Architecture**: x86_64, s390x, ppc64le
+- **Operating System**: Red Hat Enterprise Linux 7/8/9, SUSE Linux Enterprise Server, AIX 7.1+
+- **Architecture**: x86_64, s390x, ppc64le (Linux), ppc64 (AIX)
 - **Disk Space**: Minimum 1500 MB free space
-- **Python**: Python 3.6 or higher
-
-**AIX:**
-- **Operating System**: AIX 7.1, 7.2, 7.3
-- **Architecture**: ppc64
-- **Disk Space**: Minimum 1500 MB free space
-
-**Common Requirements:**
 - **Privileges**: Root access required
 - **GPFS (CRITICAL)**: IBM Spectrum Scale (GPFS) must be installed and configured
 
@@ -66,7 +55,7 @@ mmgetstate -a
 
 **Bypass Option (Testing Only):**
 ```yaml
-skip_gpfs_check: true  # WARNING: HSM will NOT function without GPFS
+skip_gpfs_check: true  # HSM will NOT function without GPFS
 ```
 
 ### Software Requirements
@@ -79,9 +68,9 @@ skip_gpfs_check: true  # WARNING: HSM will NOT function without GPFS
 ### Required Variables
 
 ```yaml
-hsm_client_version: "8.2.2.0"           # HSM Client version to install/uninstall
+hsm_client_version: "8.1.25.0"          # HSM Client version to install
 hsm_client_state: "present"             # State: present or absent
-tar_file_path: "/tmp/package.tar"       # Path to installation package
+linux_package_source: "/path/to/package.tar"  # Path to installation package
 ```
 
 ### Optional Variables
@@ -90,10 +79,7 @@ tar_file_path: "/tmp/package.tar"       # Path to installation package
 # Installation paths
 hsm_install_path: "/opt/tivoli/tsm/client/hsm/bin"
 hsm_temp_dir: "/opt/hsmClient"
-hsm_client_temp_dest: "/tmp/"
-
-# File location
-tar_file_location: "remote"             # 'remote' (default) or 'controller'
+ba_client_extract_dest: "/opt/baClient"
 
 # Daemon control
 hsm_client_start_daemon: true
@@ -106,9 +92,7 @@ node_name: "{{ ansible_hostname }}"
 
 # Advanced options
 force_install: false
-force_uninstall: false
-skip_gpfs_check: false
-cleanup_tar_file: true
+test_hsm_connection: false
 ```
 
 ## Dependencies
@@ -117,18 +101,18 @@ cleanup_tar_file: true
 
 ## Example Playbooks
 
-### Install HSM Client on Linux
+### Install HSM Client
 
 ```yaml
 ---
-- name: Install HSM Client on Linux
-  hosts: linux_hsm_servers
+- name: Install HSM Client
+  hosts: hsm_servers
   become: true
   
   vars:
-    hsm_client_version: "8.2.2.0"
+    hsm_client_version: "8.1.25.0"
     hsm_client_state: "present"
-    tar_file_path: "/tmp/8.2.2.0-TIV-TSMHSM-LinuxX86.tar"
+    linux_package_source: "/tmp/8.1.25.0-TIV-TSMHSM-LinuxX86.tar"
     server_name: "TSM_PROD"
     server_address: "tsm-server.example.com"
     
@@ -136,20 +120,18 @@ cleanup_tar_file: true
     - hsm_client_install
 ```
 
-### Install HSM Client on AIX
+### Upgrade HSM Client
 
 ```yaml
 ---
-- name: Install HSM Client on AIX
-  hosts: aix_hsm_servers
+- name: Upgrade HSM Client
+  hosts: hsm_servers
   become: true
   
   vars:
-    hsm_client_version: "8.2.2.0"
+    hsm_client_version: "8.1.26.0"
     hsm_client_state: "present"
-    tar_file_path: "/tmp/8.2.2.0-TIV-TSMHSM-AIXGPFS.tar.Z"
-    server_name: "TSM_PROD"
-    server_address: "tsm-server.example.com"
+    linux_package_source: "/tmp/8.1.26.0-TIV-TSMHSM-LinuxX86.tar"
     
   roles:
     - hsm_client_install
@@ -164,12 +146,32 @@ cleanup_tar_file: true
   become: true
   
   vars:
-    hsm_client_version: "8.2.2.0"
+    hsm_client_version: "8.1.25.0"
     hsm_client_state: "absent"
-    force_uninstall: true
+    linux_package_source: "/tmp/8.1.25.0-TIV-TSMHSM-LinuxX86.tar"
     
   roles:
     - hsm_client_install
+```
+
+### Configure HSM Client
+
+```yaml
+---
+- name: Configure HSM Client
+  hosts: hsm_servers
+  become: true
+  
+  tasks:
+    - name: Configure HSM Client
+      ansible.builtin.include_role:
+        name: hsm_client_install
+        tasks_from: configure
+      vars:
+        server_name: "TSM_PROD"
+        server_address: "tsm-server.example.com"
+        server_port: "1500"
+        node_name: "{{ ansible_hostname }}"
 ```
 
 ### Gather HSM Client Facts
@@ -195,188 +197,139 @@ cleanup_tar_file: true
         var: hsm_facts
 ```
 
-## Command Line Examples
+## Playbook Examples
+
+The role includes several ready-to-use playbooks:
 
 ### Installation
-
-**Linux:**
 ```bash
-cd ~/Desktop/Ansible/ansible-storage-protect
-
-ansible-playbook playbooks/hsm_client_install/playbooks/linux/hsm_client_install_role_playbook.yml \
+ansible-playbook playbooks/hsm_client_install/playbooks/linux/hsm_client_install_playbook.yml \
   -i inventory.ini \
-  -e "hsm_client_version=8.2.2.0" \
-  -e "tar_file_path=/tmp/8.2.2.0-TIV-TSMHSM-LinuxX86.tar"
+  -e "target_hosts=hsm_servers"
 ```
 
-**AIX:**
+### Upgrade
 ```bash
-ansible-playbook playbooks/hsm_client_install/playbooks/aix/hsm_client_install_role_playbook.yml \
+ansible-playbook playbooks/hsm_client_install/playbooks/linux/hsm_client_upgrade_playbook.yml \
   -i inventory.ini \
-  -e "hsm_client_version=8.2.2.0" \
-  -e "tar_file_path=/tmp/8.2.2.0-TIV-TSMHSM-AIXGPFS.tar.Z"
+  -e "target_hosts=hsm_servers"
 ```
 
 ### Uninstallation
-
-**Linux:**
 ```bash
 ansible-playbook playbooks/hsm_client_install/playbooks/linux/hsm_client_uninstall_playbook.yml \
   -i inventory.ini \
-  -e "hsm_client_version=8.2.2.0" \
-  -e "force_uninstall=yes"
+  -e "target_hosts=hsm_servers"
 ```
 
-**AIX:**
+### Configuration
 ```bash
-ansible-playbook playbooks/hsm_client_install/playbooks/aix/hsm_client_uninstall_playbook.yml \
+ansible-playbook playbooks/hsm_client_install/playbooks/linux/hsm_client_config_playbook.yml \
   -i inventory.ini \
-  -e "hsm_client_version=8.2.2.0" \
-  -e "force_uninstall=yes"
+  -e "target_hosts=hsm_servers"
 ```
 
 ### Facts Gathering
-
 ```bash
 ansible-playbook playbooks/hsm_client_install/playbooks/linux/hsm_client_facts_playbook.yml \
-  -i inventory.ini
+  -i inventory.ini \
+  -e "target_hosts=hsm_servers"
 ```
 
-## Installation Flow
+## Task Flow
 
-### Linux Installation (`state: present`)
+### Installation Flow (`state: present`)
 
-1. **Pre-checks**
-   - Validates system architecture (x86_64, s390x, ppc64le)
-   - Checks available disk space (minimum 1500 MB)
-   - Verifies root privileges
-   - Validates GPFS installation and status
+1. **Local Repository Check** (`local_repo_check.yml`)
+   - Validates package availability on control node
+   - Checks version format and file existence
 
-2. **Package Transfer**
-   - Checks if package exists on remote host
-   - Transfers package from controller if needed
-   - Extracts tar archive to temporary directory
+2. **Determine Action** (`determine_action.yml`)
+   - Compares installed version with requested version
+   - Sets action to: `install`, `upgrade`, or `none`
 
-3. **Package Installation**
+3. **System Info Gathering** (`system_info` role)
+   - Collects system facts for compatibility checks
+   - Validates architecture, disk space, and prerequisites
+
+4. **Installation** (`hsm_client_install_linux.yml`)
+   - Performs pre-checks (architecture, disk space, privileges)
+   - Transfers and extracts packages
    - Installs packages in correct dependency order:
-     - gskcrypt64 (Cryptographic library)
-     - gskssl64 (SSL library)
-     - TIVsm-API64 (64-bit API)
-     - TIVsm-APIcit (API Common Interface)
-     - TIVsm-BAGPFS (BA Client GPFS integration)
-     - TIVsm-BA (BA Client)
-     - TIVsm-BAcit (BA Client CIT)
-     - TIVsm-HSM (HSM Client)
-     - TIVsm-WEBGUI (Web GUI)
+     - gskcrypt64
+     - gskssl64
+     - TIVsm-API64
+     - TIVsm-APIcit
+     - TIVsm-HSM
+     - TIVsm-HSMcit
+   - Configures HSM client
+   - Starts daemon (if enabled)
+   - Performs post-installation verification
 
-4. **Configuration**
-   - Creates/updates dsm.sys with server settings
-   - Creates/updates dsm.opt with client options
-   - Sets appropriate file permissions
+5. **Upgrade** (`hsm_client_upgrade_linux.yml`)
+   - Backs up configuration files
+   - Backs up existing packages
+   - Uninstalls current version
+   - Installs new version
+   - Restores configuration
+   - Rolls back on failure
 
-5. **Post-Installation**
-   - Starts HSM daemon (if enabled)
-   - Verifies installation
-   - Cleans up temporary files
-
-### AIX Installation (`state: present`)
+### Uninstallation Flow (`state: absent`)
 
 1. **Pre-checks**
-   - Validates system architecture (ppc64)
-   - Checks available disk space
-   - Verifies root privileges
-   - Validates GPFS installation and status
-
-2. **Package Transfer**
-   - Checks if package exists on remote host
-   - Transfers package from controller if needed
-   - Extracts compressed tar archive
-
-3. **Package Installation**
-   - Installs BFF packages in dependency order:
-     - GSKit8.gskcrypt64.ppc.rte
-     - GSKit8.gskssl64.ppc.rte
-     - TIVsm.client.api64
-     - TIVsm.client.api64cit
-     - tivoli.tsm.client.api.64bit
-     - tivoli.tsm.client.ba.64bit.base
-     - tivoli.tsm.client.ba.64bit.common
-     - tivoli.tsm.client.ba.64bit.image
-     - tivoli.tsm.client.ba.64bit.nas
-     - tivoli.tsm.client.ba.64bit.web
-     - tivoli.tsm.client.ba64.gpfs.base
-     - tivoli.tsm.client.ba64.gpfs.common
-     - tivoli.tsm.client.jbb.64bit
-     - tivoli.tsm.client.webgui
-     - TIVsm.client.hsm
-
-4. **Configuration**
-   - Creates/updates dsm.sys and dsm.opt
-   - Configures GPFS integration
-
-5. **Post-Installation**
-   - Starts HSM daemon via /etc/rc.gpfshsm
-   - Verifies installation
-
-## Uninstallation Flow
-
-### Linux Uninstallation (`state: absent`)
-
-1. **Version Validation**
-   - Checks installed version matches requested version
-   - Fails if mismatch (unless `force_uninstall=true`)
+   - Verifies HSM Client is installed
+   - Checks GPFS and HSM status
 
 2. **Backup**
-   - Backs up configuration files to `/var/backups/hsm/`
-   - Backs up RPM packages to `/opt/hsmClientPackagesBk/`
+   - Backs up configuration files (dsm.opt, dsm.sys)
+   - Backs up package files for potential rollback
 
-3. **Service Shutdown**
-   - Stops dsmhsm service
-   - Kills any running HSM processes
-
-4. **Package Removal**
+3. **Uninstallation** (`hsm_client_uninstall_linux.yml`)
+   - Stops HSM daemon
+   - Deactivates HSM (if active)
    - Uninstalls packages in reverse dependency order
-   - Uses `rpm -e` for each package
-   - Falls back to `rpm -e --nodeps` if needed
+   - Cleans up directories
+   - Rolls back on failure
 
-5. **Cleanup**
-   - Removes extraction directory `/opt/hsmClient`
-   - Optionally removes tar file from `/tmp`
-   - Keeps configuration backups
+## Package Installation Order
 
-### AIX Uninstallation (`state: absent`)
+The role installs packages in the following order to satisfy dependencies:
 
-1. **Version Validation**
-   - Checks installed version using `lslpp`
-   - Validates version match
+1. **GSKit Libraries**
+   - gskcrypt64 (Cryptographic library)
+   - gskssl64 (SSL library)
 
-2. **Backup**
-   - Backs up configuration files to `/var/backups/hsm/`
-   - Backs up BFF packages to `/opt/hsmClientPackagesBk/`
+2. **API Packages**
+   - TIVsm-API64 (64-bit API)
+   - TIVsm-APIcit (API Common Interface)
 
-3. **Service Shutdown**
-   - Stops HSM daemon via `/etc/rc.gpfshsm stop`
-   - Kills dsmhsm processes
+3. **HSM Packages**
+   - TIVsm-HSM (HSM Client)
+   - TIVsm-HSMcit (HSM Common Interface)
 
-4. **Package Removal**
-   - Uninstalls packages using `installp -u`
-   - Removes packages in reverse dependency order
-   - Includes GPFS-specific packages
+## Rollback Mechanism
 
-5. **Cleanup**
-   - Removes extraction directory
-   - Optionally removes tar file
-   - Preserves configuration backups
+The role implements automatic rollback for failed operations:
+
+### Install Rollback
+- Uninstalls all packages installed during failed attempt
+- Restores system to pre-installation state
+
+### Upgrade Rollback
+- Restores backed-up configuration files
+- Reinstalls previous version from backup
+- Removes failed upgrade packages
+
+### Uninstall Rollback
+- Reinstalls packages that were successfully uninstalled
+- Restores configuration files
 
 ## Configuration Files
 
 ### dsm.sys
-**Location:** 
-- Linux: `/opt/tivoli/tsm/client/hsm/bin/dsm.sys`
-- AIX: `/opt/tivoli/tsm/client/hsm/bin/dsm.sys`
+Location: `/opt/tivoli/tsm/client/hsm/bin/dsm.sys`
 
-**Purpose:** Server connection settings
-
+Contains server connection settings:
 ```
 SErvername  TSM_SERVER
     TCPServeraddress  tsm.example.com
@@ -387,12 +340,9 @@ SErvername  TSM_SERVER
 ```
 
 ### dsm.opt
-**Location:**
-- Linux: `/opt/tivoli/tsm/client/hsm/bin/dsm.opt`
-- AIX: `/opt/tivoli/tsm/client/hsm/bin/dsm.opt`
+Location: `/opt/tivoli/tsm/client/hsm/bin/dsm.opt`
 
-**Purpose:** Client options
-
+Contains client options:
 ```
 SErvername  TSM_SERVER
 NODENAME    hostname
@@ -401,19 +351,22 @@ SCHEDLOGNAME  /opt/tivoli/tsm/client/hsm/bin/dsmsched.log
 MANAGEDSERVICES WEBCLIENT SCHEDULE HSM
 ```
 
-## Rollback Mechanism
+## HSM-Specific Features
 
-The role implements automatic rollback for failed operations:
+### GPFS Integration
+- Checks GPFS cluster status before operations
+- Validates GPFS filesystem availability
+- Ensures HSM can be safely activated/deactivated
 
-### Installation Rollback
-- Uninstalls all packages installed during failed attempt
-- Removes temporary directories
-- Restores system to pre-installation state
+### HSM State Management
+- Deactivates HSM before uninstallation
+- Reactivates HSM after successful installation
+- Handles HSM failover scenarios
 
-### Uninstallation Rollback
-- Reinstalls packages from backup if uninstall fails
-- Restores configuration files
-- Restarts services
+### Policy Management
+- Supports HSM policy configuration
+- Manages file migration thresholds
+- Configures recall settings
 
 ## Troubleshooting
 
@@ -421,22 +374,12 @@ The role implements automatic rollback for failed operations:
 
 **Check system requirements:**
 ```bash
-# Linux
-df -h /opt
-rpm -qa | grep gpfs
-
-# AIX
-df -g /opt
-lslpp -l | grep gpfs
+ansible-playbook playbooks/hsm_client_install/playbooks/linux/hsm_client_facts_playbook.yml
 ```
 
 **Verify package integrity:**
 ```bash
-# Linux
-tar -tzf /tmp/8.2.2.0-TIV-TSMHSM-LinuxX86.tar
-
-# AIX
-zcat /tmp/8.2.2.0-TIV-TSMHSM-AIXGPFS.tar.Z | tar -tvf -
+tar -tzf /path/to/package.tar
 ```
 
 **Check logs:**
@@ -444,23 +387,16 @@ zcat /tmp/8.2.2.0-TIV-TSMHSM-AIXGPFS.tar.Z | tar -tvf -
 tail -f /opt/tivoli/tsm/client/hsm/bin/dsmerror.log
 ```
 
-### Uninstallation Fails
+### Upgrade Fails
 
-**Check installed packages:**
+**Check current version:**
 ```bash
-# Linux
-rpm -qa | grep TIVsm
-
-# AIX
-lslpp -L | grep -Ei "TIVsm|tivoli.tsm"
+rpm -q TIVsm-HSM
 ```
 
-**Force uninstall:**
+**Verify rollback:**
 ```bash
-ansible-playbook playbooks/hsm_client_install/playbooks/linux/hsm_client_uninstall_playbook.yml \
-  -i inventory.ini \
-  -e "hsm_client_version=8.2.2.0" \
-  -e "force_uninstall=yes"
+ls -la /opt/hsmClientPackagesBk/
 ```
 
 ### GPFS Issues
@@ -468,7 +404,6 @@ ansible-playbook playbooks/hsm_client_install/playbooks/linux/hsm_client_uninsta
 **Check GPFS status:**
 ```bash
 mmgetstate -a
-mmlscluster
 ```
 
 **Check HSM state:**
@@ -476,62 +411,30 @@ mmlscluster
 mmhsm state show
 ```
 
-**Verify GPFS packages:**
-```bash
-# Linux
-rpm -qa | grep gpfs
-
-# AIX
-lslpp -l | grep gpfs
-```
-
 ## Best Practices
 
-1. **Always verify GPFS status** before HSM operations
+1. **Always backup** configuration files before upgrades
 2. **Test in non-production** environment first
-3. **Backup configuration files** before any changes
+3. **Verify GPFS status** before HSM operations
 4. **Monitor disk space** during installation
-5. **Keep package sources** for potential reinstallation
+5. **Keep package sources** for rollback scenarios
 6. **Document custom configurations** in version control
-7. **Use inventory variables** for host-specific settings
-8. **Verify version compatibility** with your GPFS version
+7. **Use version control** for playbook variables
+8. **Test rollback procedures** regularly
 
 ## Known Limitations
 
-- Windows support not implemented in this role
+- Windows support not yet implemented
+- AIX support not yet implemented
 - Requires GPFS to be pre-installed and configured
-- Version mismatch during uninstall requires `force_uninstall=true`
-- Cannot install multiple HSM versions simultaneously
-- Package must be accessible on target host or controller
-
-## Package Information
-
-### Linux Packages (RPM)
-- TIVsm-HSM - HSM Client
-- TIVsm-BA - Backup-Archive Client
-- TIVsm-BAcit - BA Client CIT
-- TIVsm-BAGPFS - BA Client GPFS integration
-- TIVsm-API64 - 64-bit API
-- TIVsm-APIcit - API CIT
-- TIVsm-WEBGUI - Web GUI
-- gskssl64 - GSKit SSL
-- gskcrypt64 - GSKit Crypto
-
-### AIX Packages (BFF)
-- TIVsm.client.hsm - HSM Client
-- tivoli.tsm.client.ba.64bit.* - BA Client components
-- tivoli.tsm.client.ba64.gpfs.* - GPFS-specific BA components
-- tivoli.tsm.client.api.64bit - API
-- tivoli.tsm.client.webgui - Web GUI
-- GSKit8.* - GSKit libraries
+- Cannot upgrade across major versions (e.g., 7.x to 8.x) without manual intervention
 
 ## Support
 
 For issues and questions:
-- Check the troubleshooting section above
+- Check the troubleshooting section
 - Review logs in `/opt/tivoli/tsm/client/hsm/bin/`
 - Consult IBM Storage Protect documentation
-- Check GPFS status and logs
 
 ## License
 
@@ -544,13 +447,13 @@ IBM Storage Protect Team
 
 ## Version History
 
-- **1.0.0** (2024): Initial release
-  - Installation and uninstallation support
-  - Linux (RHEL, SLES) and AIX support
+- **1.0.0** (2024): Initial release with full HSM client support
+  - Installation, upgrade, uninstallation
   - Configuration management
   - Facts gathering
   - GPFS integration
   - Automatic rollback
-  - Version validation
 
 ---
+
+Made with Bob

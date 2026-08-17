@@ -1,0 +1,705 @@
+---
+- name: Configure SP Server using petascale-safe flow
+  block:
+    - name: Check if dsmserv binary exists
+      ansible.builtin.stat:
+        path: "{{ dsmserv_binary | default('/opt/tivoli/tsm/server/bin/dsmserv') }}"
+      register: dsmserv_check
+
+    - name: Fail if SP Server not installed
+      ansible.builtin.fail:
+        msg: |
+          ============================================================
+          ERROR: SP Server is NOT installed
+          ============================================================
+          The dsmserv binary was not found at:
+          {{ dsmserv_binary | default('/opt/tivoli/tsm/server/bin/dsmserv') }}
+
+          Install SP Server first, then run petascale_configure.yml.
+          ============================================================
+      when: not dsmserv_check.stat.exists
+
+    - name: Create TSM group
+      ansible.builtin.group:
+        name: "{{ tsm_group }}"
+        gid: "{{ tsm_group_gid }}"
+        state: present
+
+    - name: Create TSM user
+      ansible.builtin.user:
+        name: "{{ tsm_user }}"
+        uid: "{{ tsm_user_uid }}"
+        group: "{{ tsm_group }}"
+        home: "/home/{{ tsm_user }}"
+        shell: /bin/bash
+        state: present
+      register: tsm_user_create
+
+    - name: Set TSM user password
+      ansible.builtin.shell: |
+        echo "{{ tsm_user }}:{{ tsm_user_password }}" | chpasswd
+      no_log: true
+      when: tsm_user_create.changed
+
+    - name: Ensure TSM user home directory ownership is correct
+      ansible.builtin.file:
+        path: "/home/{{ tsm_user }}"
+        state: directory
+        owner: "{{ tsm_user }}"
+        group: "{{ tsm_group }}"
+        mode: "0755"
+        recurse: yes
+
+    - name: Set petascale base directory fact
+      ansible.builtin.set_fact:
+        petascale_base_dir: "{{ base_dir | default('/home/' ~ tsm_user) }}"
+        petascale_db_dir: "{{ db_dir | default('/home/' ~ tsm_user ~ '/db') }}"
+        petascale_alog_dir: "{{ alog_dir | default('/home/' ~ tsm_user ~ '/alog') }}"
+        petascale_archlog_dir: "{{ archlog_dir | default('/home/' ~ tsm_user ~ '/archlog') }}"
+
+    - name: Create required directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ tsm_user }}"
+        group: "{{ tsm_group }}"
+        mode: "0755"
+      loop:
+        - "{{ petascale_base_dir }}"
+        - "{{ petascale_db_dir }}"
+        - "{{ petascale_alog_dir }}"
+        - "{{ petascale_archlog_dir }}"
+
+    - name: Check if DB2 instance already exists
+      ansible.builtin.stat:
+        path: "/home/{{ tsm_user }}/sqllib"
+      register: db2_exists
+
+    - name: Fix DB2 installation ownership for db2icrt
+      ansible.builtin.file:
+        path: "/opt/tivoli/tsm/db2"
+        owner: root
+        group: root
+        recurse: yes
+      when: not db2_exists.stat.exists
+
+    - name: Create DB2 server instance
+      ansible.builtin.command:
+        cmd: "{{ db2_instance_path | default('/opt/tivoli/tsm/db2/instance') }}/db2icrt -a server -u {{ tsm_user }} {{ tsm_user }}"
+        creates: "/home/{{ tsm_user }}/sqllib"
+      register: db2_created
+      when: not db2_exists.stat.exists
+
+    - name: Update default database path
+      ansible.builtin.shell: |
+        source /home/{{ tsm_user }}/sqllib/db2profile
+        export DB2INSTANCE="{{ tsm_user }}"
+        db2 update dbm cfg using dftdbpath {{ petascale_base_dir }}
+      become_user: "{{ tsm_user }}"
+      when: db2_created is defined and db2_created.changed
+      changed_when: true
+
+    - name: Configure LD_LIBRARY_PATH in userprofile
+      ansible.builtin.lineinfile:
+        path: "/home/{{ tsm_user }}/sqllib/userprofile"
+        create: yes
+        line: export LD_LIBRARY_PATH=/opt/tivoli/tsm/server/bin/dbbkapi:/usr/local/ibm/gsk8_64/lib64:/opt/ibm/lib:/opt/ibm/lib64:$LD_LIBRARY_PATH
+        owner: "{{ tsm_user }}"
+        group: "{{ tsm_group }}"
+        mode: "0644"
+
+    - name: Create bash profile for TSM user
+      ansible.builtin.copy:
+        dest: "/home/{{ tsm_user }}/.bash_profile"
+        owner: "{{ tsm_user }}"
+        group: "{{ tsm_group }}"
+        mode: "0644"
+        content: |
+          # .bash_profile
+
+          if [ -f ~/.bashrc ]; then
+              . ~/.bashrc
+          fi
+
+          if [ -f /home/{{ tsm_user }}/sqllib/db2profile ]; then
+              source /home/{{ tsm_user }}/sqllib/db2profile
+          fi
+
+    - name: Check if dsmserv.opt exists
+      ansible.builtin.stat:
+        path: "{{ petascale_base_dir }}/dsmserv.opt"
+      register: dsmserv_opt_check
+
+    - name: Copy sample server options file
+      ansible.builtin.copy:
+        src: /opt/tivoli/tsm/server/bin/dsmserv.opt.smp
+        dest: "{{ petascale_base_dir }}/dsmserv.opt"
+        owner: "{{ tsm_user }}"
+        group: "{{ tsm_group }}"
+        mode: "0644"
+        remote_src: yes
+      when: not dsmserv_opt_check.stat.exists
+
+    - name: Configure server options
+      ansible.builtin.lineinfile:
+        path: "{{ petascale_base_dir }}/dsmserv.opt"
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "commmethod tcpip"
+        - "tcpport {{ tcpport | default(1500) }}"
+        - "tcpwindowsize {{ tcpwindowsize | default(0) }}"
+        - "tcpnodelay {{ tcpnodelay | default('yes') }}"
+        - "commmethod sharedmem"
+        - "shmport {{ shmport | default(1510) }}"
+        - "ACTIVELOGSIZE {{ act_log_size[server_size] if act_log_size is defined else sp_server_active_log_size | default(131072) }}"
+        - "COMMTIMEOUT {{ commtimeout | default(3600) }}"
+        - "DEDUPREQUIRESBACKUP {{ deduprequiresbackup | default('NO') }}"
+        - "EXPINTERVAL {{ expinterval | default(0) }}"
+
+    - name: Calculate requested active log size
+      ansible.builtin.set_fact:
+        requested_active_log_size_mb: "{{ act_log_size[server_size] if act_log_size is defined else sp_server_active_log_size | default(131072) }}"
+
+    - name: Check available space for active log directory
+      ansible.builtin.command: "df -Pm {{ petascale_alog_dir }} | tail -1 | awk '{print $4}'"
+      register: alog_space_check
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if active log size exceeds available space
+      ansible.builtin.fail:
+        msg: |
+          ============================================================
+          ACTIVE LOG SPACE CHECK FAILED
+          ============================================================
+          Requested active log size: {{ requested_active_log_size_mb }} MB
+          Available space in {{ petascale_alog_dir }}: {{ alog_space_check.stdout | default('unknown') }} MB
+
+          The requested active log size exceeds available disk space.
+
+          Recommended actions:
+          - Run with a smaller server size, for example:
+            ansible-playbook petascale_configure.yml -i inventory/petascale.ini --limit {{ inventory_hostname }} -e "server_size=xsmall"
+          - Or increase disk space for {{ petascale_alog_dir }}
+
+          ============================================================
+      when:
+        - alog_space_check.rc == 0
+        - (alog_space_check.stdout | int) < (requested_active_log_size_mb | int)
+
+    - name: Check if server is already running
+      ansible.builtin.shell: ps aux | grep dsmserv | grep -v grep
+      register: server_running
+      changed_when: false
+      failed_when: false
+
+    - name: Inform that dsmserv is already running
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          DSMSERV ALREADY RUNNING
+          ============================================================
+          dsmserv is already running on {{ inventory_hostname }}.
+          Skipping steps that require starting or formatting with dsmserv.
+          Remaining safe steps will continue.
+          ============================================================
+      when: server_running.rc == 0
+
+    - name: Check if database already formatted
+      ansible.builtin.shell: |
+        source /home/{{ tsm_user }}/sqllib/db2profile
+        export DB2INSTANCE="{{ tsm_user }}"
+        db2 list database directory | grep -i tsmdb1
+      become_user: "{{ tsm_user }}"
+      register: db_check
+      changed_when: false
+      failed_when: false
+      when: server_running.rc != 0
+
+    - name: Verify database directory is empty
+      ansible.builtin.find:
+        paths: "{{ petascale_db_dir }}"
+        file_type: any
+        hidden: yes
+      register: dbdir_contents
+      when:
+        - server_running.rc != 0
+        - db_check.rc != 0
+
+    - name: Fail if database directory is not empty
+      ansible.builtin.fail:
+        msg: |
+          ERROR: Database directory {{ petascale_db_dir }} is not empty.
+          Found {{ dbdir_contents.matched }} items.
+          The directory must be empty for database formatting.
+      when:
+        - server_running.rc != 0
+        - db_check.rc != 0
+        - dbdir_contents.matched > 0
+
+    - name: Display database format notice
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          FORMATTING DATABASE
+          ============================================================
+          This operation may take several minutes.
+          ============================================================
+      when:
+        - server_running.rc != 0
+        - db_check.rc != 0
+
+    - name: Format database asynchronously
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "source /home/{{ tsm_user }}/sqllib/db2profile && \
+        export DB2INSTANCE='{{ tsm_user }}' && \
+        cd {{ petascale_base_dir }} && \
+        dsmserv format dbdir={{ petascale_db_dir }} \
+          activelogsize={{ requested_active_log_size_mb }} \
+          activelogdirectory={{ petascale_alog_dir }} \
+          archlogdirectory={{ petascale_archlog_dir }}"
+      async: "{{ db_format_timeout | default(1800) }}"
+      poll: 0
+      register: format_job
+      when:
+        - server_running.rc != 0
+        - db_check.rc != 0
+
+    - name: Wait for database formatting to complete
+      ansible.builtin.async_status:
+        jid: "{{ format_job.ansible_job_id }}"
+      register: format_result
+      until: format_result.finished
+      retries: 60
+      delay: "{{ db_format_check_interval | default(30) }}"
+      when:
+        - server_running.rc != 0
+        - db_check.rc != 0
+
+    - name: Check if admin already exists
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} -dataonly=yes 'query admin {{ admin_name }}'" 2>/dev/null
+      register: admin_exists
+      changed_when: false
+      failed_when: false
+      when: server_running.rc == 0
+      no_log: true
+
+    - name: Set admin registration needed flag
+      ansible.builtin.set_fact:
+        need_admin_registration: "{{ server_running.rc != 0 }}"
+
+    - name: Create admin registration script
+      ansible.builtin.copy:
+        dest: "{{ petascale_base_dir }}/register_admin.txt"
+        owner: "{{ tsm_user }}"
+        group: "{{ tsm_group }}"
+        mode: "0600"
+        content: |
+          register admin {{ admin_name }} {{ admin_password }}
+          grant authority {{ admin_name }} classes=system
+          update admin {{ admin_name }} sessionsec=transitional
+          halt
+      when: need_admin_registration
+
+    - name: Start server in foreground and register admin
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "cd {{ petascale_base_dir }} && dsmserv -i {{ petascale_base_dir }} < {{ petascale_base_dir }}/register_admin.txt > {{ petascale_base_dir }}/admin_register.log 2>&1"
+      register: admin_register
+      changed_when: true
+      failed_when: false
+      when: need_admin_registration
+
+    - name: Wait after admin registration
+      ansible.builtin.pause:
+        seconds: 5
+      when: need_admin_registration
+
+    - name: Start SP Server in background
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "source /home/{{ tsm_user }}/sqllib/db2profile && \
+        export DB2INSTANCE='{{ tsm_user }}' && \
+        cd {{ petascale_base_dir }} && \
+        nohup dsmserv -i {{ petascale_base_dir }} -o {{ petascale_base_dir }}/dsmserv.opt > {{ petascale_base_dir }}/server.out 2>&1 &"
+      changed_when: true
+      when: server_running.rc != 0
+
+    - name: Wait for server to be ready
+      ansible.builtin.wait_for:
+        host: "{{ ansible_default_ipv4.address }}"
+        port: "{{ tcpport | default(1500) }}"
+        delay: 10
+        timeout: "{{ server_start_timeout | default(300) }}"
+        state: started
+      when: need_admin_registration or server_running.rc != 0
+
+    - name: Check if BA client directory exists
+      ansible.builtin.stat:
+        path: /opt/tivoli/tsm/client/ba/bin
+      register: ba_client_bin_dir
+
+    - name: Create dsm.sys configuration file
+      ansible.builtin.copy:
+        dest: /opt/tivoli/tsm/client/ba/bin/dsm.sys
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          SERVERNAME {{ server_name }}
+            COMMMethod         TCPip
+            TCPPort            {{ tcpport | default(1500) }}
+            TCPServeraddress   localhost
+            NODename           {{ server_name }}_node
+            PASSWORDACCESS     PROMPT
+            ERRORLOGNAME       /var/log/tsm/dsmerror.log
+            SCHEDLOGNAME       /var/log/tsm/dsmsched.log
+      when: ba_client_bin_dir.stat.exists
+
+    - name: Create dsm.opt configuration file
+      ansible.builtin.copy:
+        dest: /opt/tivoli/tsm/client/ba/bin/dsm.opt
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          *************************************************************
+          * IBM Storage Protect Client User Options File
+          *************************************************************
+
+          SERVERNAME {{ server_name }}
+      when: ba_client_bin_dir.stat.exists
+
+    - name: Create TSM log directory
+      ansible.builtin.file:
+        path: /var/log/tsm
+        state: directory
+        owner: "{{ tsm_user }}"
+        group: "{{ tsm_group }}"
+        mode: "0755"
+      when: ba_client_bin_dir.stat.exists
+
+    - name: Create TSM log files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: touch
+        owner: "{{ tsm_user }}"
+        group: "{{ tsm_group }}"
+        mode: "0644"
+      loop:
+        - /var/log/tsm/dsmerror.log
+        - /var/log/tsm/dsmsched.log
+      when: ba_client_bin_dir.stat.exists
+
+    - name: Wait before final verification
+      ansible.builtin.pause:
+        seconds: 15
+
+    - name: Check if dsmadmc binary exists for admin verification
+      ansible.builtin.stat:
+        path: "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }}"
+      register: dsmadmc_check
+
+    - name: Test admin connection when dsmadmc is available
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} -dataonly=yes 'query status'" 2>&1
+      register: admin_test
+      changed_when: false
+      failed_when: false
+      when: dsmadmc_check.stat.exists
+
+    - name: Check dsmserv process status
+      ansible.builtin.shell: ps -ef | grep dsmserv | grep -v grep
+      register: dsmserv_process_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check DB2 process status
+      ansible.builtin.shell: ps -ef | grep db2sysc | grep -v grep
+      register: db2_process_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check server port listening status
+      ansible.builtin.shell: netstat -tuln | grep {{ tcpport | default(1500) }} || ss -tuln | grep {{ tcpport | default(1500) }}
+      register: port_listen_check
+      changed_when: false
+      failed_when: false
+
+    - name: Set verification status facts
+      ansible.builtin.set_fact:
+        admin_connection_status: >-
+          {% if dsmadmc_check.stat.exists %}
+          {{ 'Successful' if admin_test.rc == 0 else 'Failed' }}
+          {% else %}
+          Skipped - dsmadmc not installed
+          {% endif %}
+        admin_connection_detail: >-
+          {% if dsmadmc_check.stat.exists %}
+          {{ (admin_test.stdout | default(admin_test.stderr, true) | default('No output returned')) | trim }}
+          {% else %}
+          dsmadmc binary not present on host
+          {% endif %}
+        dsmserv_status: "{{ 'Running' if dsmserv_process_check.rc == 0 else 'Not running' }}"
+        db2_status: "{{ 'Running' if db2_process_check.rc == 0 else 'Not running' }}"
+        port_status: "{{ 'Listening' if port_listen_check.rc == 0 else 'Not listening' }}"
+
+    - name: Build list of HSM clients mapped to this SP server
+      ansible.builtin.set_fact:
+        mapped_hsm_clients: >-
+          {{
+            groups['hsm_clients'] | default([])
+            | map('extract', hostvars)
+            | selectattr('sp_servers', 'defined')
+            | selectattr('sp_servers', 'select', 'defined')
+            | list
+          }}
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Build target HSM node registrations for this SP server
+      ansible.builtin.set_fact:
+        target_hsm_nodes: "{{ target_hsm_nodes | default([]) + [ {
+          'inventory_hostname': item.inventory_hostname,
+          'node_name': server_entry.node_name,
+          'node_password': item.hsm_node_password | default('P9dVm4Password@@123'),
+          'policy_domain': item.hsm_policy_domain | default(gpfs_policy_domain | default('GPFS_DOMAIN')),
+          'server_name': server_entry.name,
+          'server_address': server_entry.address,
+          'server_port': server_entry.port,
+          'domain': server_entry.domain | default('')
+        } ] }}"
+      vars:
+        server_entry: "{{ item.sp_servers | selectattr('name', 'equalto', server_name) | list | first }}"
+      loop: "{{ mapped_hsm_clients | default([]) }}"
+      when:
+        - gpfs_policy_bootstrap_enabled | default(false)
+        - item.sp_servers is defined
+        - (item.sp_servers | selectattr('name', 'equalto', server_name) | list | length) > 0
+
+    - name: Ensure GPFS storage pool directory exists on SP server
+      ansible.builtin.file:
+        path: "{{ gpfs_storage_pool_directory | default('/tmp/data') }}"
+        state: directory
+        owner: "{{ tsm_user }}"
+        group: "{{ tsm_group }}"
+        mode: "0755"
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Check if GPFS storage pool exists
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} -dataonly=yes 'query stgpool {{ gpfs_storage_pool_name | default('GPFSPOOL') }}'"
+      register: gpfs_stgpool_query
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Define GPFS storage pool
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} 'define stgpool {{ gpfs_storage_pool_name | default('GPFSPOOL') }} stgtype=directory maxsize={{ gpfs_storage_pool_max_size | default('100G') }}'"
+      register: gpfs_stgpool_define
+      changed_when: gpfs_stgpool_define.rc == 0
+      failed_when: gpfs_stgpool_define.rc != 0
+      no_log: true
+      when:
+        - gpfs_policy_bootstrap_enabled | default(false)
+        - gpfs_stgpool_query.rc != 0
+
+    - name: Check if GPFS storage pool directory is already defined
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} -dataonly=yes 'query stgpool {{ gpfs_storage_pool_name | default('GPFSPOOL') }} format=detailed'" | grep -F '{{ gpfs_storage_pool_directory | default('/tmp/data') }}'
+      register: gpfs_stgpool_dir_query
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Define GPFS storage pool directory
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} 'define stgpooldirectory {{ gpfs_storage_pool_name | default('GPFSPOOL') }} {{ gpfs_storage_pool_directory | default('/tmp/data') }}'"
+      register: gpfs_stgpool_dir_define
+      changed_when: gpfs_stgpool_dir_define.rc == 0
+      failed_when: gpfs_stgpool_dir_define.rc != 0
+      no_log: true
+      when:
+        - gpfs_policy_bootstrap_enabled | default(false)
+        - gpfs_stgpool_dir_query.rc != 0
+
+    - name: Check if GPFS policy domain exists
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} -dataonly=yes 'query domain {{ gpfs_policy_domain | default('GPFS_DOMAIN') }}'"
+      register: gpfs_domain_query
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Define GPFS policy domain
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} 'define domain {{ gpfs_policy_domain | default('GPFS_DOMAIN') }} description=\"{{ gpfs_domain_description | default('GPFS Filesets Backup Domain') }}\"'"
+      register: gpfs_domain_define
+      changed_when: gpfs_domain_define.rc == 0
+      failed_when: gpfs_domain_define.rc != 0
+      no_log: true
+      when:
+        - gpfs_policy_bootstrap_enabled | default(false)
+        - gpfs_domain_query.rc != 0
+
+    - name: Check if GPFS policy set exists
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} -dataonly=yes 'query policyset {{ gpfs_policy_domain | default('GPFS_DOMAIN') }} {{ gpfs_policy_set | default('STANDARD') }}'"
+      register: gpfs_policyset_query
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Define GPFS policy set
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} 'define policyset {{ gpfs_policy_domain | default('GPFS_DOMAIN') }} {{ gpfs_policy_set | default('STANDARD') }}'"
+      register: gpfs_policyset_define
+      changed_when: gpfs_policyset_define.rc == 0
+      failed_when: gpfs_policyset_define.rc != 0
+      no_log: true
+      when:
+        - gpfs_policy_bootstrap_enabled | default(false)
+        - gpfs_policyset_query.rc != 0
+
+    - name: Check if GPFS management class exists
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} -dataonly=yes 'query mgmtclass {{ gpfs_policy_domain | default('GPFS_DOMAIN') }} {{ gpfs_policy_set | default('STANDARD') }} {{ gpfs_mgmt_class | default('GPFS_DAILY') }}'"
+      register: gpfs_mgmtclass_query
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Define GPFS management class
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} 'define mgmtclass {{ gpfs_policy_domain | default('GPFS_DOMAIN') }} {{ gpfs_policy_set | default('STANDARD') }} {{ gpfs_mgmt_class | default('GPFS_DAILY') }} description=\"{{ gpfs_mgmt_class_description | default('Daily GPFS backup') }}\"'"
+      register: gpfs_mgmtclass_define
+      changed_when: gpfs_mgmtclass_define.rc == 0
+      failed_when: gpfs_mgmtclass_define.rc != 0
+      no_log: true
+      when:
+        - gpfs_policy_bootstrap_enabled | default(false)
+        - gpfs_mgmtclass_query.rc != 0
+
+    - name: Check if GPFS backup copygroup exists
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} -dataonly=yes 'query copygroup {{ gpfs_policy_domain | default('GPFS_DOMAIN') }} {{ gpfs_policy_set | default('STANDARD') }} {{ gpfs_mgmt_class | default('GPFS_DAILY') }} type=backup'"
+      register: gpfs_copygroup_query
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Define GPFS backup copygroup
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} 'define copygroup {{ gpfs_policy_domain | default('GPFS_DOMAIN') }} {{ gpfs_policy_set | default('STANDARD') }} {{ gpfs_mgmt_class | default('GPFS_DAILY') }} type=backup destination={{ gpfs_storage_pool_name | default('GPFSPOOL') }} verexists={{ gpfs_copygroup_verexists | default(30) }} verdeleted={{ gpfs_copygroup_verdeleted | default(60) }} retextra={{ gpfs_copygroup_retextra | default(30) }} retonly={{ gpfs_copygroup_retonly | default(90) }}'"
+      register: gpfs_copygroup_define
+      changed_when: gpfs_copygroup_define.rc == 0
+      failed_when: gpfs_copygroup_define.rc != 0
+      no_log: true
+      when:
+        - gpfs_policy_bootstrap_enabled | default(false)
+        - gpfs_copygroup_query.rc != 0
+
+    - name: Assign default management class for GPFS domain
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} 'assign defmgmtclass {{ gpfs_policy_domain | default('GPFS_DOMAIN') }} {{ gpfs_policy_set | default('STANDARD') }} {{ gpfs_mgmt_class | default('GPFS_DAILY') }}'"
+      register: gpfs_assign_defmgmt
+      changed_when: gpfs_assign_defmgmt.rc == 0
+      failed_when: false
+      no_log: true
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Validate GPFS policy set
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "{{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} 'validate policyset {{ gpfs_policy_domain | default('GPFS_DOMAIN') }} {{ gpfs_policy_set | default('STANDARD') }}'"
+      register: gpfs_validate_policyset
+      changed_when: false
+      failed_when: false
+      no_log: true
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Activate GPFS policy set
+      ansible.builtin.shell: |
+        su - {{ tsm_user }} -c "printf 'y\n' | {{ dsmadmc_binary | default('/opt/tivoli/tsm/server/bin/dsmadmc') }} -id={{ admin_name }} -password={{ admin_password }} 'activate policyset {{ gpfs_policy_domain | default('GPFS_DOMAIN') }} {{ gpfs_policy_set | default('STANDARD') }}'"
+      register: gpfs_activate_policyset
+      changed_when: gpfs_activate_policyset.rc == 0
+      failed_when: false
+      no_log: true
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Register mapped HSM nodes to this SP server
+      node:
+        server_name: "{{ server_name }}"
+        username: "{{ admin_name }}"
+        password: "{{ admin_password }}"
+        name: "{{ item.node_name }}"
+        node_password: "{{ item.node_password }}"
+        policy_domain: "{{ item.policy_domain }}"
+        max_mount_points: 4
+        compression: "true"
+        deduplication: "clientorserver"
+        state: registered
+      loop: "{{ target_hsm_nodes | default([]) }}"
+      when:
+        - gpfs_policy_bootstrap_enabled | default(false)
+        - gpfs_policy_register_nodes | default(false)
+        - (target_hsm_nodes | default([]) | length) > 0
+      no_log: true
+
+    - name: Display GPFS bootstrap summary
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          GPFS POLICY BOOTSTRAP SUMMARY
+          ============================================================
+          Storage Pool       : {{ gpfs_storage_pool_name | default('GPFSPOOL') }}
+          Storage Directory  : {{ gpfs_storage_pool_directory | default('/tmp/data') }}
+          Policy Domain      : {{ gpfs_policy_domain | default('GPFS_DOMAIN') }}
+          Policy Set         : {{ gpfs_policy_set | default('STANDARD') }}
+          Management Class   : {{ gpfs_mgmt_class | default('GPFS_DAILY') }}
+          Registered Nodes   : {{ target_hsm_nodes | default([]) | map(attribute='node_name') | list | join(', ') if ((target_hsm_nodes | default([]) | length) > 0 and (gpfs_policy_register_nodes | default(false))) else 'None registered (Handled externally / Prerequisite)' }}
+          ============================================================
+      when: gpfs_policy_bootstrap_enabled | default(false)
+
+    - name: Display configure success summary
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP SERVER PETASCALE CONFIGURATION COMPLETE
+          ============================================================
+          TSM User             : {{ tsm_user }}
+          Base Directory       : {{ petascale_base_dir }}
+          Database Directory   : {{ petascale_db_dir }}
+          Active Log Directory : {{ petascale_alog_dir }}
+          Archive Log Directory: {{ petascale_archlog_dir }}
+          Server Port          : {{ tcpport | default(1500) }}
+          dsmserv Process      : {{ dsmserv_status }}
+          DB2 Process          : {{ db2_status }}
+          Port Status          : {{ port_status }}
+          Admin Verification   : {{ admin_connection_status | trim }}
+          {% if dsmadmc_check.stat.exists and admin_test.rc != 0 %}
+          Admin Check Output   : {{ admin_connection_detail | trim }}
+          {% endif %}
+          ============================================================
+
+  rescue:
+    - name: Display configure failure summary
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP SERVER PETASCALE CONFIGURATION FAILED
+          ============================================================
+          Failed task: {{ ansible_failed_task.name }}
+          Error: {{ ansible_failed_result | default('No error details captured') }}
+          Existing install, upgrade, and uninstall flows remain unchanged.
+          ============================================================
+
+    - name: Stop execution of the play
+      meta: end_play
+...
+

@@ -136,7 +136,7 @@
       File on remote (in-place): {{ 'Found' if (tar_file_location == 'remote' and remote_tar_file_inplace.stat.exists | default(false)) else 'N/A' }}
       File on remote (temp): {{ 'Already exists' if remote_tar_file_temp.stat.exists else 'Not found' }}
       
-      Action: {{ 'Using file in-place on remote' if (tar_file_location | default('remote') == 'remote' and remote_tar_file_inplace.stat.exists | default(false)) else ('Skipping transfer (file already in temp)' if remote_tar_file_temp.stat.exists else ('Transferring file...' if (tar_file_location | default('remote') == 'controller' and local_tar_file.stat.exists | default(false)) else 'File not found')) }}
+      Action: {{ 'Using file in-place on remote' if (tar_file_location == 'remote' and remote_tar_file_inplace.stat.exists | default(false)) else ('Skipping transfer (file already in temp)' if remote_tar_file_temp.stat.exists else ('Transferring file...' if (tar_file_location == 'controller' and local_tar_file.stat.exists | default(false)) else 'File not found')) }}
       ========================================
 
 # Transfer files only if not already on remote and exists on controller
@@ -333,7 +333,7 @@
 
 - name: Installing packages
   block:
-    # Installing GSKit crypt library (gskcrypt)
+    # Installing GSKit crypt library (gskcrypt) - use -Uvh to upgrade if already installed
     # Sort by path to get the latest version (higher version number comes last)
     - name: Install GSKit crypt library (gskcrypt)
       ansible.builtin.command: rpm -Uvh {{ item }}
@@ -350,7 +350,7 @@
       changed_when: gskcrypt_install_result.rc == 0
       failed_when: gskcrypt_install_result.rc != 0 and gskcrypt_install_result.rc != 2
 
-    # Installing GSKit SSL library (gskssl)
+    # Installing GSKit SSL library (gskssl) - use -Uvh to upgrade if already installed
     # Sort by path to get the latest version (higher version number comes last)
     - name: Install GSKit SSL library (gskssl)
       ansible.builtin.command: "rpm -Uvh {{ item }}"
@@ -499,7 +499,7 @@
     msg: "HSM Client installation verification failed. Please check logs."
   when: installation_check.rc != 0 and hsm_client_action == "install"
 
-# ============ 'is_installation_successful' fact indicates installation status =======
+# ============ 'is_installation_successful' fact is used in hsm_client_upgrade_linux.yml =======
 
 - name: Installation status summary
   ansible.builtin.set_fact:
@@ -528,4 +528,3 @@
       To check HSM status:
         ps aux | grep dsm
       ========================================
-...

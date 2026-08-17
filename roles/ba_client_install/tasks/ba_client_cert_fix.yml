@@ -1,0 +1,306 @@
+# ============================================================================
+# IBM STORAGE PROTECT – CERTIFICATE SETUP (BA CLIENT)
+# ============================================================================
+
+- name: Check if dsmadmc binary exists
+  ansible.builtin.stat:
+    path: "{{ dsmadmc_binary | default('/opt/tivoli/tsm/client/ba/bin/dsmadmc') }}"
+  register: dsmadmc_exists
+
+# ----------------------------------------------------------------------------
+# STEP 1: Determine server name for certificate test
+# ----------------------------------------------------------------------------
+- name: Set server name for certificate test
+  ansible.builtin.set_fact:
+    cert_test_server: "{{ default_server if (sp_servers is defined and sp_servers | length > 0) else sp_server_name }}"
+
+# ----------------------------------------------------------------------------
+# STEP 2: Detect SSL / Certificate issue
+# ----------------------------------------------------------------------------
+- name: Test connection to detect certificate/SSL error
+  ansible.builtin.shell: |
+    set -o pipefail
+    timeout 30 {{ dsmadmc_binary | default('/opt/tivoli/tsm/client/ba/bin/dsmadmc') }} \
+    -se={{ cert_test_server }} \
+    -id=dummy -pa=dummy \
+    "query status" 2>&1 || true
+  args:
+    executable: /bin/bash
+  register: cert_test
+  changed_when: false
+  failed_when: false
+  when:
+    - dsmadmc_exists.stat.exists
+    - cert_test_server is defined
+
+# ----------------------------------------------------------------------------
+# STEP 2: Detect certificate-related errors
+# ----------------------------------------------------------------------------
+- name: Check if certificate/SSL error exists
+  ansible.builtin.set_fact:
+    cert_error_detected: >-
+      {{
+        dsmadmc_exists.stat.exists and (
+          'ans1695e' in (cert_test.stdout + cert_test.stderr) | lower or
+          'certificate is not valid' in (cert_test.stdout + cert_test.stderr) | lower or
+          'ans1592e' in (cert_test.stdout + cert_test.stderr) | lower or
+          'ans1593e' in (cert_test.stdout + cert_test.stderr) | lower or
+          'ssl protocol' in (cert_test.stdout + cert_test.stderr) | lower
+        )
+      }}
+
+- name: Display certificate error detection result
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      CERTIFICATE ERROR DETECTION
+      ============================================================
+      Host           : {{ inventory_hostname }}
+      Error Detected : {{ 'YES - SSL/Certificate issue found' if cert_error_detected else 'NO - Connection OK' }}
+      Action         : {{ 'Will import server certificate' if cert_error_detected else 'Skip certificate import' }}
+      ============================================================
+
+# ----------------------------------------------------------------------------
+# STEP 3: Certificate Import Block (Multi-Server Support)
+# ----------------------------------------------------------------------------
+- name: Certificate import block (Multi-Server)
+  when:
+    - cert_error_detected
+    - sp_servers is defined
+    - sp_servers | length > 0
+  block:
+    - name: Create directory for certificates
+      ansible.builtin.file:
+        path: /tmp/sp_certs
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Fetch certificate from SP server to control node
+      ansible.builtin.fetch:
+        src: "/home/{{ tsm_user | default('tsminst1') }}/cert256.arm"
+        dest: "/tmp/ansible_cert_{{ item.name }}.arm"
+        flat: yes
+      loop: "{{ sp_servers | default([]) }}"
+      delegate_to: "{{ item.inventory_name | default(inventory_hostname) }}"
+      become: yes
+      register: cert_fetch
+      when: item.inventory_name is defined
+
+    - name: Copy certificates from control node to HSM client
+      ansible.builtin.copy:
+        src: "/tmp/ansible_cert_{{ item.name }}.arm"
+        dest: "/tmp/sp_certs/cert_{{ item.name }}.arm"
+        mode: '0644'
+      loop: "{{ sp_servers }}"
+      register: cert_copy
+      when: sp_servers is defined and sp_servers | length > 0
+
+    - name: Display certificate copy results
+      ansible.builtin.debug:
+        msg: |
+          Server: {{ item.item.name }}
+          Destination: {{ item.dest }}
+          Size: {{ item.size }} bytes
+          {% if item.changed %}
+          ✅ Certificate copied successfully
+          {% else %}
+          ℹ️  Certificate already present
+          {% endif %}
+      loop: "{{ cert_copy.results }}"
+      when: cert_copy is defined and cert_copy.results is defined
+
+    - name: Verify certificates exist on HSM client
+      ansible.builtin.stat:
+        path: "/tmp/sp_certs/cert_{{ item.name }}.arm"
+      loop: "{{ sp_servers }}"
+      register: cert_file_check
+      when: sp_servers is defined and sp_servers | length > 0
+
+    - name: Display certificate file verification
+      ansible.builtin.debug:
+        msg: |
+          Certificate: {{ item.item.name }}
+          File Path: /tmp/sp_certs/cert_{{ item.item.name }}.arm
+          File Exists: {{ item.stat.exists }}
+          {% if item.stat.exists %}
+          File Size: {{ item.stat.size }} bytes
+          ✅ Certificate file verified on HSM client
+          {% else %}
+          ❌ Certificate file MISSING on HSM client
+          {% endif %}
+      loop: "{{ cert_file_check.results }}"
+      when: cert_file_check is defined
+
+    - name: Fail if any certificate file is missing
+      ansible.builtin.fail:
+        msg: "❌ Certificate file missing on HSM client: /tmp/sp_certs/cert_{{ item.item.name }}.arm"
+      loop: "{{ cert_file_check.results }}"
+      when:
+        - cert_file_check is defined
+        - not item.stat.exists
+
+    - name: Import certificates into BA Client
+      ansible.builtin.command: >
+        /opt/tivoli/tsm/client/ba/bin/dsmcert
+        -add -server {{ item.name }}
+        -file /tmp/sp_certs/cert_{{ item.name }}.arm
+      loop: "{{ sp_servers }}"
+      register: cert_import_multi
+      failed_when: false
+      changed_when: "'success' in cert_import_multi.stdout | lower"
+
+    - name: Display certificate import results for all servers
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          CERTIFICATE IMPORT RESULTS (MULTI-SERVER)
+          ============================================================
+          {% for result in cert_import_multi.results %}
+          Server: {{ result.item.name }}
+          Status: {{ 'SUCCESS ✅' if result.rc == 0 else 'FAILED ❌' }}
+          {% endfor %}
+          ============================================================
+
+    - name: List all imported certificates
+      ansible.builtin.command: /opt/tivoli/tsm/client/ba/bin/dsmcert -list
+      register: cert_list
+      failed_when: false
+      changed_when: false
+
+    - name: Display certificate list
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          IMPORTED CERTIFICATES
+          ============================================================
+          {{ cert_list.stdout }}
+          ============================================================
+
+    - name: Test connections to all servers after certificate import
+      ansible.builtin.shell: |
+        timeout 30 dsmc query session -servername={{ item.name }} 2>&1 || true
+      args:
+        executable: /bin/bash
+      loop: "{{ sp_servers }}"
+      register: cert_test_multi
+      changed_when: false
+      failed_when: false
+
+    - name: Display connection test results for all servers
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          CONNECTION TEST RESULTS (ALL SERVERS)
+          ============================================================
+          {% for result in cert_test_multi.results %}
+          Server: {{ result.item.name }}
+          Status: {{ 'Connected ✅' if 'Session established' in result.stdout else 'Failed ❌' }}
+          {% endfor %}
+          ============================================================
+
+# ----------------------------------------------------------------------------
+# STEP 3B: Certificate Import Block (Single-Server - Backward Compatibility)
+# ----------------------------------------------------------------------------
+- name: Certificate import block (Single-Server)
+  when:
+    - cert_error_detected
+    - sp_servers is not defined or sp_servers | length == 0
+  block:
+    - name: Create directory for certificate
+      ansible.builtin.file:
+        path: /home/{{ tsm_user | default('tsminst1') }}
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Extract certificate from SP Server
+      ansible.builtin.shell: |
+        echo | openssl s_client -connect {{ sp_server_address }}:{{ sp_server_port }} -showcerts 2>/dev/null \
+        | sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' \
+        > /home/{{ tsm_user | default('tsminst1') }}/cert256.arm
+      register: cert_extract
+      changed_when: cert_extract.rc == 0
+
+    - name: Verify certificate file exists
+      ansible.builtin.stat:
+        path: /home/{{ tsm_user | default('tsminst1') }}/cert256.arm
+      register: cert_file_check
+
+    - name: Fail if certificate file is missing or empty
+      ansible.builtin.fail:
+        msg: |
+          ERROR: Certificate extraction failed.
+          File missing or empty at:
+          /home/{{ tsm_user | default('tsminst1') }}/cert256.arm
+      when: not cert_file_check.stat.exists or cert_file_check.stat.size == 0
+
+    - name: Validate certificate content
+      ansible.builtin.command:
+        cmd: openssl x509 -in /home/{{ tsm_user | default('tsminst1') }}/cert256.arm -text -noout
+      register: cert_validate
+      changed_when: false
+      failed_when: cert_validate.rc != 0
+
+    - name: Import certificate into BA Client
+      ansible.builtin.command: >
+        /opt/tivoli/tsm/client/ba/bin/dsmcert
+        -add -server {{ sp_server_name }}
+        -file /home/{{ tsm_user | default('tsminst1') }}/cert256.arm
+      register: cert_import
+      changed_when: "'success' in cert_import.stdout | lower"
+      failed_when: cert_import.rc != 0
+
+    - name: Display certificate import result
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          CERTIFICATE IMPORT COMPLETE
+          ============================================================
+          {{ cert_import.stdout }}
+          ============================================================
+
+    - name: Test connection after certificate import
+      ansible.builtin.shell: |
+        timeout 30 {{ dsmadmc_binary | default('/opt/tivoli/tsm/client/ba/bin/dsmadmc') }} \
+        -se={{ sp_server_name }} \
+        -id={{ admin_name | default('admin') }} \
+        -pa={{ admin_password | default('dummy') }} \
+        "query status" 2>&1 || true
+      args:
+        executable: /bin/bash
+      register: cert_test_after
+      changed_when: false
+      failed_when: false
+
+    - name: Check if certificate error still exists after import
+      ansible.builtin.set_fact:
+        cert_error_still_present: >-
+          {{
+            'ans1695e' in (cert_test_after.stdout + cert_test_after.stderr) | lower or
+            'ans1592e' in (cert_test_after.stdout + cert_test_after.stderr) | lower
+          }}
+
+    - name: Display connection test result after certificate import
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          CONNECTION TEST AFTER CERTIFICATE IMPORT
+          ============================================================
+          Certificate Error : {{ 'STILL PRESENT ❌' if cert_error_still_present else 'RESOLVED ✅' }}
+          ============================================================
+
+# ----------------------------------------------------------------------------
+# STEP 5: Skip message
+# ----------------------------------------------------------------------------
+- name: Skip certificate import message
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      CERTIFICATE IMPORT SKIPPED
+      ============================================================
+      No SSL/certificate issue detected.
+      ============================================================
+  when: not cert_error_detected

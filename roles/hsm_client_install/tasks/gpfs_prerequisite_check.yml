@@ -124,3 +124,5 @@
         - Policy-based storage management
         - Stub file handling
   when: not gpfs_is_installed and (skip_gpfs_check | default(false))
+
+# Made with Bob

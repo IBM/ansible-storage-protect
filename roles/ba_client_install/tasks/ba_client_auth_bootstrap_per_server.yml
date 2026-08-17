@@ -1,0 +1,233 @@
+# Per-server PROMPT -> GENERATE auth bootstrap for multi-server/client flows
+
+- name: Force BA dsm.sys stanza to PASSWORDACCESS PROMPT for bootstrap
+  ansible.builtin.shell: |
+    python3 - <<'PY'
+    from pathlib import Path
+    path = Path('/opt/tivoli/tsm/client/ba/bin/dsm.sys')
+    server = '{{ auth_target.name }}'
+    if not path.exists():
+        raise SystemExit(0)
+    lines = path.read_text().splitlines()
+    out = []
+    in_target = False
+    for line in lines:
+        stripped = line.strip()
+        upper = stripped.upper()
+        if upper.startswith('SERVERNAME '):
+            parts = stripped.split(None, 1)
+            in_target = len(parts) > 1 and parts[1] == server
+        if in_target and upper.startswith('PASSWORDACCESS'):
+            indent = line[:len(line) - len(line.lstrip())]
+            line = f"{indent}PASSWORDACCESS     PROMPT"
+        out.append(line)
+    path.write_text('\n'.join(out) + '\n')
+    PY
+  changed_when: false
+  failed_when: false
+
+- name: Force HSM dsm.sys stanza to PASSWORDACCESS PROMPT for bootstrap
+  ansible.builtin.shell: |
+    python3 - <<'PY'
+    from pathlib import Path
+    path = Path('/opt/tivoli/tsm/client/hsm/bin/dsm.sys')
+    server = '{{ auth_target.name }}'
+    if not path.exists():
+        raise SystemExit(0)
+    lines = path.read_text().splitlines()
+    out = []
+    in_target = False
+    for line in lines:
+        stripped = line.strip()
+        upper = stripped.upper()
+        if upper.startswith('SERVERNAME '):
+            parts = stripped.split(None, 1)
+            in_target = len(parts) > 1 and parts[1] == server
+        if in_target and upper.startswith('PASSWORDACCESS'):
+            indent = line[:len(line) - len(line.lstrip())]
+            line = f"{indent}PASSWORDACCESS     PROMPT"
+        out.append(line)
+    path.write_text('\n'.join(out) + '\n')
+    PY
+  changed_when: false
+  failed_when: false
+
+- name: Capture current BA dsm.opt default server before {{ auth_target.name }} bootstrap
+  ansible.builtin.shell: |
+    awk 'toupper($1)=="SERVERNAME" {print $2; exit}' /opt/tivoli/tsm/client/ba/bin/dsm.opt 2>/dev/null || true
+  register: ba_dsmopt_default_before
+  changed_when: false
+  failed_when: false
+
+- name: Capture current HSM dsm.opt default server before {{ auth_target.name }} bootstrap
+  ansible.builtin.shell: |
+    awk 'toupper($1)=="SERVERNAME" {print $2; exit}' /opt/tivoli/tsm/client/hsm/bin/dsm.opt 2>/dev/null || true
+  register: hsm_dsmopt_default_before
+  changed_when: false
+  failed_when: false
+
+- name: Set BA dsm.opt default server to {{ auth_target.name }} for bootstrap
+  ansible.builtin.copy:
+    dest: /opt/tivoli/tsm/client/ba/bin/dsm.opt
+    content: |
+      SERVERNAME {{ auth_target.name }}
+    owner: root
+    group: root
+    mode: '0644'
+  failed_when: false
+
+- name: Set HSM dsm.opt default server to {{ auth_target.name }} for bootstrap
+  ansible.builtin.copy:
+    dest: /opt/tivoli/tsm/client/hsm/bin/dsm.opt
+    content: |
+      SERVERNAME {{ auth_target.name }}
+    owner: root
+    group: root
+    mode: '0644'
+  failed_when: false
+
+- name: Clear stale BA client password cache files before {{ auth_target.name }} bootstrap
+  ansible.builtin.file:
+    path: "{{ cache_file }}"
+    state: absent
+  loop:
+    - /opt/tivoli/tsm/client/ba/bin/TSM.PWD
+    - /opt/tivoli/tsm/client/ba/bin/tsm.pwd
+  loop_control:
+    loop_var: cache_file
+  failed_when: false
+
+- name: Clear stale HSM client password cache files before {{ auth_target.name }} bootstrap
+  ansible.builtin.file:
+    path: "{{ cache_file }}"
+    state: absent
+  loop:
+    - /opt/tivoli/tsm/client/hsm/bin/TSM.PWD
+    - /opt/tivoli/tsm/client/hsm/bin/tsm.pwd
+  loop_control:
+    loop_var: cache_file
+  failed_when: false
+
+- name: Unlock node {{ auth_target.node_name }} on {{ auth_target.name }} before bootstrap
+  ansible.builtin.shell: |
+    /opt/tivoli/tsm/client/ba/bin/dsmadmc \
+      -se={{ auth_target.name }} \
+      -id={{ hostvars[auth_target.inventory_name].admin_name | default(admin_name | default('admin')) }} \
+      -pa='{{ hostvars[auth_target.inventory_name].admin_password | default(admin_password | default("")) }}' \
+      "unlock node {{ auth_target.node_name }}" 2>&1 || true
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Bootstrap HSM client with PASSWORDACCESS PROMPT for {{ auth_target.name }}
+  ansible.builtin.shell: |
+    /usr/bin/expect <<'EOF'
+    log_user 1
+    set timeout 60
+    spawn {{ hsm_bootstrap_dsmc_bin }} query session -servername={{ auth_target.name }}
+    expect {
+      "Please enter your user id" { send "{{ auth_target.node_name }}\r"; exp_continue }
+      "Please enter password for user id" { send "{{ hsm_node_password | default(node_password | default('P9dVm4Password@@123')) }}\r"; exp_continue }
+      "Session established with server" { exit 0 }
+      "IBM Storage Protect Server Connection Information" { exit 0 }
+      "ANS1051I" { exit 2 }
+      "ANS1361E" { exit 3 }
+      timeout { exit 1 }
+      eof { exit 1 }
+    }
+    EOF
+  register: hsm_prompt_bootstrap
+  changed_when: false
+  failed_when: false
+
+- name: Display HSM PROMPT bootstrap result for {{ auth_target.name }}
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      HSM PROMPT BOOTSTRAP RESULT
+      ============================================================
+      Server      : {{ auth_target.name }}
+      Node        : {{ auth_target.node_name }}
+      Return Code : {{ hsm_prompt_bootstrap.rc }}
+      Stdout:
+      {{ hsm_prompt_bootstrap.stdout | default('') | trim }}
+      Stderr:
+      {{ hsm_prompt_bootstrap.stderr | default('') | trim }}
+      ============================================================
+
+- name: Fail if HSM PROMPT bootstrap did not succeed for {{ auth_target.name }}
+  ansible.builtin.fail:
+    msg: "HSM PROMPT bootstrap failed for {{ auth_target.name }} / {{ auth_target.node_name }} with rc={{ hsm_prompt_bootstrap.rc }}"
+  when: hsm_prompt_bootstrap.rc != 0
+
+- name: Restore BA dsm.sys stanza to PASSWORDACCESS GENERATE after bootstrap
+  ansible.builtin.shell: |
+    python3 - <<'PY'
+    from pathlib import Path
+    path = Path('/opt/tivoli/tsm/client/ba/bin/dsm.sys')
+    server = '{{ auth_target.name }}'
+    if not path.exists():
+        raise SystemExit(0)
+    lines = path.read_text().splitlines()
+    out = []
+    in_target = False
+    for line in lines:
+        stripped = line.strip()
+        upper = stripped.upper()
+        if upper.startswith('SERVERNAME '):
+            parts = stripped.split(None, 1)
+            in_target = len(parts) > 1 and parts[1] == server
+        if in_target and upper.startswith('PASSWORDACCESS'):
+            indent = line[:len(line) - len(line.lstrip())]
+            line = f"{indent}PASSWORDACCESS     GENERATE"
+        out.append(line)
+    path.write_text('\n'.join(out) + '\n')
+    PY
+  changed_when: false
+  failed_when: false
+
+- name: Restore HSM dsm.sys stanza to PASSWORDACCESS GENERATE after bootstrap
+  ansible.builtin.shell: |
+    python3 - <<'PY'
+    from pathlib import Path
+    path = Path('/opt/tivoli/tsm/client/hsm/bin/dsm.sys')
+    server = '{{ auth_target.name }}'
+    if not path.exists():
+        raise SystemExit(0)
+    lines = path.read_text().splitlines()
+    out = []
+    in_target = False
+    for line in lines:
+        stripped = line.strip()
+        upper = stripped.upper()
+        if upper.startswith('SERVERNAME '):
+            parts = stripped.split(None, 1)
+            in_target = len(parts) > 1 and parts[1] == server
+        if in_target and upper.startswith('PASSWORDACCESS'):
+            indent = line[:len(line) - len(line.lstrip())]
+            line = f"{indent}PASSWORDACCESS     GENERATE"
+        out.append(line)
+    path.write_text('\n'.join(out) + '\n')
+    PY
+  changed_when: false
+  failed_when: false
+
+- name: Restore BA dsm.opt default server after {{ auth_target.name }} bootstrap
+  ansible.builtin.copy:
+    dest: /opt/tivoli/tsm/client/ba/bin/dsm.opt
+    content: |
+      SERVERNAME {{ (ba_dsmopt_default_before.stdout | trim) if (ba_dsmopt_default_before.stdout | trim) else auth_target.name }}
+    owner: root
+    group: root
+    mode: '0644'
+  failed_when: false
+
+- name: Restore HSM dsm.opt default server after {{ auth_target.name }} bootstrap
+  ansible.builtin.copy:
+    dest: /opt/tivoli/tsm/client/hsm/bin/dsm.opt
+    content: |
+      SERVERNAME {{ (hsm_dsmopt_default_before.stdout | trim) if (hsm_dsmopt_default_before.stdout | trim) else auth_target.name }}
+    owner: root
+    group: root
+    mode: '0644'
+  failed_when: false

@@ -351,7 +351,6 @@
 - name: Installing packages on AIX
   block:
     # Installing GSKit packages using installp - dynamically find BFF files
-    # Pattern matching similar to BA Client approach
     - name: Install GSKit crypt library (gskcrypt) on AIX
       ansible.builtin.command: installp -acXYgd {{ item }} all
       with_items: "{{ extracted_files.files | map(attribute='path') | select('search', 'GSKit.*gskcrypt.*') | reject('search', '\\.sig$') | list }}"
@@ -497,7 +496,7 @@
     msg: "HSM Client installation verification failed. Please check logs."
   when: installation_check.rc != 0 and hsm_client_action == "install"
 
-# ============ 'is_installation_successful' fact indicates installation status =======
+# ============ 'is_installation_successful' fact is used in hsm_client_upgrade_aix.yml =======
 
 - name: Installation status summary
   ansible.builtin.set_fact:
@@ -527,3 +526,5 @@
         ps aux | grep dsm
       ========================================
 ...
+
+# Made with Bob

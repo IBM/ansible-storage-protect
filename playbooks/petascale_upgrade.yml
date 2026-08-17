@@ -1,0 +1,1667 @@
+---
+# ============================================================================
+# PETASCALE UPGRADE PLAYBOOK
+# ============================================================================
+#
+# This playbook upgrades IBM Storage Protect components to newer versions based on
+# inventory groups. It intelligently detects and upgrades:
+#   - BA Client (from ba_clients group)
+#   - HSM Client (from hsm_clients group)
+#   - SP Server (from sp_servers group)
+#
+# UPGRADE ORDER: 1st BA Client → 2nd HSM Client → 3rd SP Server
+#
+# ============================================================================
+# CONFIGURATION FILES
+# ============================================================================
+#
+# CUSTOMER: Before running this playbook, ensure:
+#
+# 1. Inventory File: playbooks/inventory/petascale.ini
+#    - Verify the hosts you want to upgrade are listed
+#    - Check the appropriate groups:
+#      * [ba_clients] - For BA Client upgrade
+#      * [hsm_clients] - For HSM Client upgrade
+#      * [sp_servers] - For SP Server upgrade
+#
+# 2. Host Variables: playbooks/host_vars/<hostname>.yml
+#    - Set target upgrade versions for each host:
+#      * ba_client_version: "8.2.1.0" (target version)
+#      * ba_client_state: "present" (role auto-detects upgrade)
+#      * hsm_client_version: "8.2.1.0" (target version)
+#      * hsm_client_state: "present" (role auto-detects upgrade)
+#      * sp_server_version: "8.2.2.000" (target version)
+#      * sp_server_state: "upgrade"
+#      * sp_server_action: "upgrade"
+#
+# 3. Group Variables: playbooks/group_vars/
+#    - ba_clients.yml - BA Client defaults
+#    - hsm_clients.yml - HSM Client defaults
+#    - sp_servers.yml - SP Server defaults
+#    - all.yml - Global defaults
+#
+# 4. Software Packages:
+#    - Ensure new version packages are present on remote nodes
+#    - Package location: Defined in package_location variable
+#    - Naming format: <version>*<identifier>*<os>*.<extension>
+#
+# ============================================================================
+# SAFETY WARNINGS
+# ============================================================================
+#
+# ⚠️  WARNING: This playbook will UPGRADE software components!
+# ⚠️  Downgrade is NOT supported - target version must be higher than current
+# ⚠️  Backup your data and configuration before upgrading
+# ⚠️  Test upgrades in non-production environment first
+# ⚠️  Requires explicit confirmation: -e "confirm_upgrade=yes"
+# ⚠️  BA Client includes automatic rollback on upgrade failure
+# ⚠️  SP Server upgrade requires manual rollback if needed
+#
+# ============================================================================
+# UPGRADE PROCESS
+# ============================================================================
+#
+# The upgrade process follows these steps:
+#
+# 1. Pre-Upgrade Validation:
+#    - Check Python 3.9 presence
+#    - Validate /tmp requirements (SP Servers)
+#    - Detect current installed versions
+#    - Validate new software packages exist
+#    - Prevent downgrade (fail if target < current)
+#
+# 2. Upgrade Execution (in order):
+#    - Upgrade BA Clients (if in ba_clients group) - FIRST
+#    - Upgrade HSM Clients (if in hsm_clients group) - SECOND
+#    - Upgrade SP Servers (if in sp_servers group) - THIRD
+#    - Each component upgraded independently
+#
+# 3. Post-Upgrade Verification:
+#    - Verify new versions installed
+#    - Generate upgrade summary report
+#    - Report any failures
+#
+# 4. Rollback (if needed):
+#    - BA Client: Automatic rollback on failure
+#    - HSM Client: Automatic rollback on failure
+#    - SP Server: Manual rollback required
+#
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+#
+# Upgrade all components (BA Clients, HSM Clients, SP Servers):
+#   ansible-playbook playbooks/petascale_upgrade.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_upgrade=yes"
+#
+# Upgrade only BA Clients:
+#   ansible-playbook playbooks/petascale_upgrade.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_upgrade=yes" \
+#     --limit ba_clients
+#
+# Upgrade only HSM Clients:
+#   ansible-playbook playbooks/petascale_upgrade.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_upgrade=yes" \
+#     --limit hsm_clients
+#
+# Upgrade only SP Servers:
+#   ansible-playbook playbooks/petascale_upgrade.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_upgrade=yes" \
+#     --limit sp_servers
+#
+# Upgrade specific hosts only:
+#   ansible-playbook playbooks/petascale_upgrade.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_upgrade=yes" \
+#     --limit sp-server-01,ba-client-01
+#
+# Dry run (check what would be upgraded):
+#   ansible-playbook playbooks/petascale_upgrade.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_upgrade=yes" \
+#     --check
+#
+# ============================================================================
+# ============================================================================
+# Detect OS and Set Python Interpreter Path
+# ============================================================================
+- name: Detect OS and set Python interpreter
+  hosts: all
+  gather_facts: false
+  become: false
+  tags:
+    - always
+  
+  tasks:
+    - name: Detect operating system
+      raw: uname -s
+      register: os_detection
+      changed_when: false
+      failed_when: false
+    
+    - name: Set Python interpreter path based on OS
+      ansible.builtin.set_fact:
+        ansible_python_interpreter: >-
+          {% if 'AIX' in os_detection.stdout %}
+          /opt/freeware/bin/python3.9
+          {% else %}
+          /usr/bin/python3.9
+          {% endif %}
+    
+    - name: Display detected OS and Python path
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          OS: {{ 'AIX' if 'AIX' in os_detection.stdout else 'Linux' }}
+          Python interpreter: {{ ansible_python_interpreter }}
+
+
+# ============================================================================
+# Display Warning and Confirmation
+# ============================================================================
+- name: Display upgrade warning and require confirmation
+  hosts: localhost
+  gather_facts: false
+  
+  tasks:
+    - name: Display critical upgrade warning message
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          ⚠️  PETASCALE UPGRADE PLAYBOOK ⚠️
+          ============================================================
+          
+          This playbook will UPGRADE components on the following hosts:
+          - BA Clients: {{ groups['ba_clients'] | default([]) | join(', ') or 'None configured' }}
+          - HSM Clients: {{ groups['hsm_clients'] | default([]) | join(', ') or 'None configured' }}
+          - SP Servers: {{ groups['sp_servers'] | default([]) | join(', ') or 'None configured' }}
+          
+          UPGRADE ORDER: BA Client → HSM Client → SP Server
+          
+          WHAT WILL HAPPEN:
+          ✓ Current versions will be detected
+          ✓ Target versions will be validated
+          ✓ Software packages will be verified
+          ✓ Components will be upgraded to new versions
+          ✓ Post-upgrade verification will be performed
+          
+          IMPORTANT NOTES:
+          ⚠️  DOWNGRADE IS NOT SUPPORTED
+          ⚠️  Target version must be higher than current version
+          ⚠️  Backup your data before upgrading
+          ⚠️  Test in non-production first
+          
+          SAFETY FEATURES:
+          ✓ Version validation (prevents downgrade)
+          ✓ Package pre-check before upgrade
+          ✓ BA Client automatic rollback on failure
+          ✓ Detailed upgrade reporting
+          
+          ROLLBACK CAPABILITIES:
+          ✓ BA Client: Automatic rollback if upgrade fails
+          ✓ HSM Client: Automatic rollback if upgrade fails
+          ✓ SP Server: Manual rollback required (backup recommended)
+          
+          To proceed, you must pass the confirmation variable:
+            -e "confirm_upgrade=yes"
+          
+          Example:
+            ansible-playbook playbooks/petascale_upgrade.yml \
+              -i playbooks/inventory/petascale.ini \
+              -e "confirm_upgrade=yes"
+          
+          ============================================================
+      run_once: true
+    
+    - name: Check for confirmation
+      ansible.builtin.assert:
+        that:
+          - confirm_upgrade is defined
+          - confirm_upgrade == "yes"
+        fail_msg: |
+          ============================================================
+          UPGRADE CANCELLED - Confirmation Required
+          ============================================================
+          
+          You must explicitly confirm the upgrade by passing:
+            -e "confirm_upgrade=yes"
+          
+          This is a safety measure to prevent accidental upgrades.
+          
+          Before upgrading:
+          1. Backup your data and configuration
+          2. Test in non-production environment
+          3. Review target versions in host_vars
+          4. Ensure new software packages are available
+          5. Plan for potential downtime
+          
+          ============================================================
+        success_msg: "Confirmation received. Proceeding with upgrade validation..."
+      run_once: true
+
+# ============================================================================
+# Check Python 3.9 presence on all target nodes
+# ============================================================================
+- name: Check Python 3.9 presence on all nodes
+  hosts: all
+  gather_facts: false
+  become: false
+  
+  tasks:
+    - name: Check if Python 3.9 is installed
+      raw: python3.9 --version
+      register: python39_check
+      failed_when: false
+      changed_when: false
+    
+    - name: Report Python 3.9 absence (only if missing)
+      ansible.builtin.debug:
+        msg: "⚠️  WARNING: Python 3.9 is ABSENT on {{ inventory_hostname }} ({{ group_names | join(', ') }}) - Will attempt operations anyway"
+      when: python39_check.rc != 0
+    
+    - name: Set Python 3.9 status fact
+      ansible.builtin.set_fact:
+        python39_present: "{{ python39_check.rc == 0 }}"
+
+# ============================================================================
+# System Requirements Check - /tmp validation for SP Servers
+# ============================================================================
+- name: Check /tmp requirements on SP server nodes
+  hosts: sp_servers
+  gather_facts: false
+  become: false
+  
+  tasks:
+    - name: Check /tmp mount options
+      ansible.builtin.shell: "mount | grep ' /tmp ' || echo 'not_mounted'"
+      register: tmp_mount_check
+      changed_when: false
+
+    - name: Display /tmp mount information
+      ansible.builtin.debug:
+        msg: "/tmp mount on {{ inventory_hostname }}: {{ tmp_mount_check.stdout }}"
+
+    - name: Check if /tmp has noexec flag
+      ansible.builtin.set_fact:
+        tmp_has_noexec: "{{ 'noexec' in tmp_mount_check.stdout }}"
+
+    - name: Fail if /tmp is mounted with noexec
+      ansible.builtin.fail:
+        msg: |
+          ============================================================
+          SYSTEM REQUIREMENT CHECK FAILED: /tmp Mount Options
+          ============================================================
+          
+          ERROR: /tmp is mounted with 'noexec' flag on {{ inventory_hostname }}
+          This prevents IBM Installation Manager from working.
+          
+          Current mount: {{ tmp_mount_check.stdout }}
+          
+          ACTION REQUIRED on {{ inventory_hostname }}:
+          
+          Option 1 - Temporary fix (until reboot):
+            sudo mount -o remount,exec /tmp
+          
+          Option 2 - Permanent fix:
+            1. Edit /etc/fstab
+            2. Find the /tmp mount line
+            3. Remove 'noexec' from the mount options
+            4. Save the file
+            5. Remount: sudo mount -o remount /tmp
+          
+          Verify with:
+            mount | grep /tmp
+            # Should NOT show 'noexec' in the options
+          
+          After fixing ALL SP Server nodes, re-run this playbook.
+          ============================================================
+      when: tmp_has_noexec | bool
+
+    - name: Check /tmp directory permissions
+      ansible.builtin.shell: stat -c '%a' /tmp
+      register: tmp_permissions
+      changed_when: false
+
+    - name: Display /tmp permissions
+      ansible.builtin.debug:
+        msg: "/tmp permissions on {{ inventory_hostname }}: {{ tmp_permissions.stdout }} (required: 1777)"
+
+    - name: Fail if /tmp permissions are incorrect
+      ansible.builtin.fail:
+        msg: |
+          ============================================================
+          SYSTEM REQUIREMENT CHECK FAILED: /tmp Permissions
+          ============================================================
+          
+          ERROR: /tmp has incorrect permissions on {{ inventory_hostname }}
+          
+          Current: {{ tmp_permissions.stdout }}
+          Required: 1777 (rwxrwxrwt)
+          
+          ACTION REQUIRED on {{ inventory_hostname }}:
+            sudo chmod 1777 /tmp
+          
+          Verify with:
+            ls -ld /tmp
+            # Should show: drwxrwxrwt
+          
+          After fixing ALL SP Server nodes, re-run this playbook.
+          ============================================================
+      when: tmp_permissions.stdout != '1777'
+
+    - name: Report /tmp validation success
+      ansible.builtin.debug:
+        msg: "✓ /tmp validation passed on {{ inventory_hostname }}"
+
+# ============================================================================
+# Pre-Upgrade Version Detection - SP Servers
+# ============================================================================
+- name: Detect current SP Server versions
+  hosts: sp_servers
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Display pre-upgrade check message
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Pre-Upgrade Version Check: {{ inventory_hostname }}
+          ============================================================
+          Detecting current SP Server version...
+          Target version: {{ sp_server_version | default('NOT SET') }}
+          ============================================================
+    
+    - name: Check if SP Server is currently installed
+      ansible.builtin.command: "{{ imcl_path | default('/opt/IBM/InstallationManager/eclipse/tools/imcl') }} listInstalledPackages"
+      register: sp_server_check
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+    
+    - name: Set SP Server installation status
+      ansible.builtin.set_fact:
+        sp_server_installed: "{{ sp_server_check.rc == 0 and 'com.tivoli.dsm.server' in sp_server_check.stdout }}"
+    
+    - name: Extract current SP Server version if installed
+      ansible.builtin.set_fact:
+        sp_server_current_version: "{{ sp_server_check.stdout | regex_search('com.tivoli.dsm.server_([0-9.]+)', '\\1') | first | default('Unknown') }}"
+      when: sp_server_installed
+    
+    - name: Set version as not installed if SP Server is not present
+      ansible.builtin.set_fact:
+        sp_server_current_version: "Not installed"
+      when: not sp_server_installed
+    
+    - name: Display current version
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          Current Version: {{ sp_server_current_version }}
+          Target Version: {{ sp_server_version | default('NOT SET') }}
+
+# ============================================================================
+# Pre-Upgrade Version Detection - BA Clients
+# ============================================================================
+- name: Detect current BA Client versions
+  hosts: ba_clients
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Display pre-upgrade check message
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Pre-Upgrade Version Check: {{ inventory_hostname }}
+          ============================================================
+          Detecting current BA Client version...
+          Target version: {{ ba_client_version | default('NOT SET') }}
+          ============================================================
+    
+    - name: Check if BA Client is currently installed
+      ansible.builtin.command: rpm -q TIVsm-BA
+      register: ba_client_check
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+    
+    - name: Set BA Client installation status
+      ansible.builtin.set_fact:
+        ba_client_installed: "{{ ba_client_check.rc == 0 }}"
+        ba_client_current_version: "{{ ba_client_check.stdout if ba_client_check.rc == 0 else 'Not installed' }}"
+    
+    - name: Display current version
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          Current Version: {{ ba_client_current_version }}
+          Target Version: {{ ba_client_version | default('NOT SET') }}
+
+# ============================================================================
+# Pre-Upgrade Version Detection - HSM Clients
+# ============================================================================
+- name: Detect current HSM Client versions
+  hosts: hsm_clients
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Display pre-upgrade check message
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Pre-Upgrade Version Check: {{ inventory_hostname }}
+          ============================================================
+          Detecting current HSM Client version...
+          Target version: {{ hsm_client_version | default('NOT SET') }}
+          ============================================================
+    
+    - name: Check if HSM Client is currently installed
+      ansible.builtin.command: rpm -q TIVsm-HSM
+      register: hsm_client_check
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+    
+    - name: Set HSM Client installation status
+      ansible.builtin.set_fact:
+        hsm_client_installed: "{{ hsm_client_check.rc == 0 }}"
+        hsm_client_current_version: "{{ hsm_client_check.stdout if hsm_client_check.rc == 0 else 'Not installed' }}"
+    
+    - name: Display current version
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          Current Version: {{ hsm_client_current_version }}
+          Target Version: {{ hsm_client_version | default('NOT SET') }}
+
+# ============================================================================
+# Version Validation - Prevent Downgrade
+# ============================================================================
+- name: Validate upgrade versions (prevent downgrade)
+  hosts: all
+  gather_facts: false
+  become: false
+  
+  tasks:
+    - name: Validate SP Server upgrade version
+      when:
+        - "'sp_servers' in group_names"
+        - sp_server_installed is defined
+        - sp_server_installed
+      block:
+        - name: Extract version numbers for comparison
+          ansible.builtin.set_fact:
+            current_version_normalized: "{{ sp_server_current_version | regex_replace('[^0-9.]', '') }}"
+            target_version_normalized: "{{ sp_server_version | regex_replace('[^0-9.]', '') }}"
+        
+        - name: Compare versions
+          ansible.builtin.set_fact:
+            version_comparison_valid: "{{ target_version_normalized is version(current_version_normalized, '>') }}"
+        
+        - name: Fail if downgrade attempted
+          ansible.builtin.fail:
+            msg: |
+              ============================================================
+              DOWNGRADE NOT SUPPORTED - SP Server
+              ============================================================
+              
+              Host: {{ inventory_hostname }}
+              Current Version: {{ sp_server_current_version }}
+              Target Version: {{ sp_server_version }}
+              
+              ERROR: Target version is not higher than current version!
+              Downgrade operations are not supported by this playbook.
+              
+              To upgrade, set a higher version in:
+                playbooks/host_vars/{{ inventory_hostname }}.yml
+              
+              Or in group_vars:
+                playbooks/group_vars/sp_servers.yml
+              
+              ============================================================
+          when: not version_comparison_valid
+        
+        - name: Report valid upgrade path
+          ansible.builtin.debug:
+            msg: "✓ Valid upgrade: {{ sp_server_current_version }} → {{ sp_server_version }}"
+          when: version_comparison_valid
+    
+    - name: Validate BA Client upgrade version
+      when:
+        - "'ba_clients' in group_names"
+        - ba_client_installed is defined
+        - ba_client_installed
+      block:
+        - name: Extract BA Client version numbers
+          ansible.builtin.set_fact:
+            ba_current_version_normalized: "{{ ba_client_current_version | regex_search('([0-9.]+)', '\\1') | first | default('0.0.0') }}"
+            ba_target_version_normalized: "{{ ba_client_version | regex_replace('[^0-9.]', '') }}"
+        
+        - name: Compare BA Client versions
+          ansible.builtin.set_fact:
+            ba_version_comparison_valid: "{{ ba_target_version_normalized is version(ba_current_version_normalized, '>') }}"
+        
+        - name: Fail if BA Client downgrade attempted
+          ansible.builtin.fail:
+            msg: |
+              ============================================================
+              DOWNGRADE NOT SUPPORTED - BA Client
+              ============================================================
+              
+              Host: {{ inventory_hostname }}
+              Current Version: {{ ba_client_current_version }}
+              Target Version: {{ ba_client_version }}
+              
+              ERROR: Target version is not higher than current version!
+              Downgrade operations are not supported by this playbook.
+              
+              To upgrade, set a higher version in:
+                playbooks/host_vars/{{ inventory_hostname }}.yml
+              
+              Or in group_vars:
+                playbooks/group_vars/ba_clients.yml
+              
+              ============================================================
+          when: not ba_version_comparison_valid
+        
+        - name: Report valid BA Client upgrade path
+          ansible.builtin.debug:
+            msg: "✓ Valid upgrade: {{ ba_client_current_version }} → {{ ba_client_version }}"
+          when: ba_version_comparison_valid
+    
+    - name: Validate HSM Client upgrade version
+      when:
+        - "'hsm_clients' in group_names"
+        - hsm_client_installed is defined
+        - hsm_client_installed
+      block:
+        - name: Extract HSM Client version numbers
+          ansible.builtin.set_fact:
+            hsm_current_version_normalized: "{{ hsm_client_current_version | regex_search('([0-9.]+)', '\\1') | first | default('0.0.0') }}"
+            hsm_target_version_normalized: "{{ hsm_client_version | regex_replace('[^0-9.]', '') }}"
+        
+        - name: Compare HSM Client versions
+          ansible.builtin.set_fact:
+            hsm_version_comparison_valid: "{{ hsm_target_version_normalized is version(hsm_current_version_normalized, '>') }}"
+        
+        - name: Fail if HSM Client downgrade attempted
+          ansible.builtin.fail:
+            msg: |
+              ============================================================
+              DOWNGRADE NOT SUPPORTED - HSM Client
+              ============================================================
+              
+              Host: {{ inventory_hostname }}
+              Current Version: {{ hsm_client_current_version }}
+              Target Version: {{ hsm_client_version }}
+              
+              ERROR: Target version is not higher than current version!
+              Downgrade operations are not supported by this playbook.
+              
+              To upgrade, set a higher version in:
+                playbooks/host_vars/{{ inventory_hostname }}.yml
+              
+              Or in group_vars:
+                playbooks/group_vars/hsm_clients.yml
+              
+              ============================================================
+          when: not hsm_version_comparison_valid
+        
+        - name: Report valid HSM Client upgrade path
+          ansible.builtin.debug:
+            msg: "✓ Valid upgrade: {{ hsm_client_current_version }} → {{ hsm_client_version }}"
+          when: hsm_version_comparison_valid
+
+# ============================================================================
+# Check Required Software Packages for Upgrade
+# ============================================================================
+- name: Check required upgrade software packages on all nodes
+  hosts: all
+  gather_facts: false
+  become: false
+  
+  tasks:
+    - name: Determine required package types for upgrade
+      ansible.builtin.set_fact:
+        required_packages: >-
+          {%- set packages = [] -%}
+          {%- if 'sp_servers' in group_names and sp_server_installed is defined and sp_server_installed -%}
+            {%- set server_version = sp_server_version | replace('.0', '.000') -%}
+            {%- set _ = packages.append({
+                'type': 'SP Server',
+                'identifier': 'SPSRV',
+                'search_pattern': server_version + '*SPSRV*.bin'
+              }) -%}
+          {%- endif -%}
+          {%- if 'ba_clients' in group_names and ba_client_installed is defined and ba_client_installed -%}
+            {%- set _ = packages.append({
+                'type': 'BA Client',
+                'identifier': 'TSMBAC',
+                'search_pattern': ba_client_version + '*TSMBAC*.tar'
+              }) -%}
+          {%- endif -%}
+          {%- if 'hsm_clients' in group_names and hsm_client_installed is defined and hsm_client_installed -%}
+            {%- set _ = packages.append({
+                'type': 'HSM Client',
+                'identifier': 'TSMHSM',
+                'search_pattern': hsm_client_version + '*TSMHSM*.tar'
+              }) -%}
+          {%- endif -%}
+          {{ packages }}
+    
+    - name: Display upgrade package search patterns
+      ansible.builtin.debug:
+        msg: |
+          Node: {{ inventory_hostname }}
+          Package location: {{ package_location }}
+          {% for pkg in required_packages %}
+          Package type: {{ pkg.type }}
+          Search pattern: {{ pkg.search_pattern }}
+          {% endfor %}
+      when: required_packages | length > 0
+    
+    - name: Check if BA Client package exists at specified path
+      ansible.builtin.stat:
+        path: "{{ ba_client_package_path }}"
+      register: ba_package_stat
+      when:
+        - "'ba_clients' in group_names"
+        - ba_client_installed is defined
+        - ba_client_installed
+        - ba_client_package_path is defined
+    
+    - name: Check if HSM Client package exists at specified path
+      ansible.builtin.stat:
+        path: "{{ hsm_client_package_path }}"
+      register: hsm_package_stat
+      when:
+        - "'hsm_clients' in group_names"
+        - hsm_client_installed is defined
+        - hsm_client_installed
+        - hsm_client_package_path is defined
+    
+    - name: Search for required upgrade packages on remote node
+      ansible.builtin.find:
+        paths: "{{ package_location }}"
+        patterns: "{{ item.search_pattern }}"
+        file_type: file
+      register: package_search
+      loop: "{{ required_packages }}"
+      when:
+        - required_packages | length > 0
+        - "'sp_servers' in group_names"
+    
+    - name: Set package availability facts for SP Server
+      ansible.builtin.set_fact:
+        missing_packages: >-
+          {%- set missing = [] -%}
+          {%- for result in package_search.results | default([]) -%}
+            {%- if result.files | length == 0 -%}
+              {%- set _ = missing.append({
+                  'type': result.item.type,
+                  'identifier': result.item.identifier,
+                  'search_pattern': result.item.search_pattern,
+                  'location': package_location
+                }) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ missing }}
+        found_packages: >-
+          {%- set found = [] -%}
+          {%- for result in package_search.results | default([]) -%}
+            {%- if result.files | length > 0 -%}
+              {%- set _ = found.append({
+                  'type': result.item.type,
+                  'identifier': result.item.identifier,
+                  'filename': result.files[0].path | basename,
+                  'path': result.files[0].path
+                }) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ found }}
+        all_packages_present: >-
+          {{ package_search.results | default([]) | selectattr('files', 'equalto', []) | list | length == 0 }}
+      when:
+        - required_packages | length > 0
+        - "'sp_servers' in group_names"
+    
+    - name: Set package availability facts for BA Client
+      ansible.builtin.set_fact:
+        missing_packages: >-
+          {%- set missing = [] -%}
+          {%- if ba_package_stat is defined and not ba_package_stat.stat.exists -%}
+            {%- set _ = missing.append({
+                'type': 'BA Client',
+                'identifier': 'TSMBAC',
+                'search_pattern': ba_client_package_path,
+                'location': ba_client_package_path | dirname
+              }) -%}
+          {%- endif -%}
+          {{ missing }}
+        found_packages: >-
+          {%- set found = [] -%}
+          {%- if ba_package_stat is defined and ba_package_stat.stat.exists -%}
+            {%- set _ = found.append({
+                'type': 'BA Client',
+                'identifier': 'TSMBAC',
+                'filename': ba_client_package_path | basename,
+                'path': ba_client_package_path
+              }) -%}
+          {%- endif -%}
+          {{ found }}
+        all_packages_present: >-
+          {{ ba_package_stat is defined and ba_package_stat.stat.exists }}
+      when:
+        - "'ba_clients' in group_names"
+        - ba_client_installed is defined
+        - ba_client_installed
+        - ba_package_stat is defined
+    
+    - name: Set package availability facts for HSM Client
+      ansible.builtin.set_fact:
+        missing_packages: >-
+          {%- set missing = [] -%}
+          {%- if hsm_package_stat is defined and not hsm_package_stat.stat.exists -%}
+            {%- set _ = missing.append({
+                'type': 'HSM Client',
+                'identifier': 'TSMHSM',
+                'search_pattern': hsm_client_package_path,
+                'location': hsm_client_package_path | dirname
+              }) -%}
+          {%- endif -%}
+          {{ missing }}
+        found_packages: >-
+          {%- set found = [] -%}
+          {%- if hsm_package_stat is defined and hsm_package_stat.stat.exists -%}
+            {%- set _ = found.append({
+                'type': 'HSM Client',
+                'identifier': 'TSMHSM',
+                'filename': hsm_client_package_path | basename,
+                'path': hsm_client_package_path
+              }) -%}
+          {%- endif -%}
+          {{ found }}
+        all_packages_present: >-
+          {{ hsm_package_stat is defined and hsm_package_stat.stat.exists }}
+      when:
+        - "'hsm_clients' in group_names"
+        - hsm_client_installed is defined
+        - hsm_client_installed
+        - hsm_package_stat is defined
+    
+    - name: Display package availability status
+      ansible.builtin.debug:
+        msg: |
+          {% if required_packages | length == 0 %}
+          Node {{ inventory_hostname }} has no components requiring upgrade
+          {% elif all_packages_present %}
+          ✓ All required upgrade packages are PRESENT on {{ inventory_hostname }}:
+          {% for pkg in found_packages %}
+            - {{ pkg.type }} ({{ pkg.identifier }}): {{ pkg.filename }}
+          {% endfor %}
+          {% else %}
+          ✗ MISSING upgrade packages on {{ inventory_hostname }}:
+          {% for pkg in missing_packages %}
+            - {{ pkg.type }} ({{ pkg.identifier }}): No file matching pattern "{{ pkg.search_pattern }}" found in {{ pkg.location }}
+          {% endfor %}
+          {% endif %}
+    
+    - name: Collect nodes with missing packages
+      ansible.builtin.set_fact:
+        node_missing_packages: true
+      when:
+        - required_packages | length > 0
+        - not all_packages_present
+
+# ============================================================================
+# Software Package Validation Summary
+# ============================================================================
+- name: Software package validation summary for upgrade
+  hosts: all
+  gather_facts: false
+  become: false
+  
+  tasks:
+    - name: Generate missing packages report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          UPGRADE PACKAGE VALIDATION SUMMARY
+          ============================================================
+          {% set nodes_with_missing = [] %}
+          {% for host in groups['all'] %}
+          {%   if hostvars[host].node_missing_packages is defined and hostvars[host].node_missing_packages %}
+          {%     set _ = nodes_with_missing.append(host) %}
+          {%   endif %}
+          {% endfor %}
+          
+          {% if nodes_with_missing | length > 0 %}
+          ✗ FAILED: Missing upgrade software packages detected!
+          
+          Nodes with missing packages:
+          {% for host in nodes_with_missing %}
+            
+            Host: {{ host }}
+            Groups: {{ hostvars[host].group_names | join(', ') }}
+            Missing packages:
+          {%   for pkg in hostvars[host].missing_packages %}
+              - {{ pkg.type }} ({{ pkg.identifier }}): No file matching pattern "{{ pkg.search_pattern }}"
+                Search location: {{ pkg.location }}
+          {%   endfor %}
+          {% endfor %}
+          
+          ACTION REQUIRED:
+          Please ensure the required upgrade packages are present on the remote nodes.
+          
+          Examples:
+            - SP Server: 8.2.2.000-IBM-SPSRV-LIC-LinuxX86_64-098.bin
+            - BA Client: 8.2.1.0-TIV-TSMBAC-LinuxX86.tar
+            - HSM Client: 8.2.1.0-TIV-TSMHSM-LinuxX86GPFS.tar
+          {% else %}
+          ✓ SUCCESS: All required upgrade packages are present!
+          
+          Found packages:
+          {% for host in groups['all'] %}
+          {%   if hostvars[host].found_packages is defined and hostvars[host].found_packages | length > 0 %}
+            {{ host }}:
+          {%     for pkg in hostvars[host].found_packages %}
+              - {{ pkg.type }}: {{ pkg.filename }}
+          {%     endfor %}
+          {%   endif %}
+          {% endfor %}
+          {% endif %}
+          ============================================================
+    
+    - name: Fail if any packages are missing
+      run_once: true
+      ansible.builtin.fail:
+        msg: |
+          ============================================================
+          UPGRADE PACKAGE VALIDATION FAILED!
+          ============================================================
+          
+          The following nodes are missing required upgrade packages:
+          
+          {% for host in groups['all'] %}
+          {%   if hostvars[host].node_missing_packages is defined and hostvars[host].node_missing_packages %}
+          Host: {{ host }}
+          Groups: {{ hostvars[host].group_names | join(', ') }}
+          Missing packages:
+          {%     for pkg in hostvars[host].missing_packages %}
+            - {{ pkg.type }} ({{ pkg.identifier }})
+              Search pattern: {{ pkg.search_pattern }}
+              Search location: {{ pkg.location }}
+          {%     endfor %}
+          
+          {%   endif %}
+          {% endfor %}
+          ACTION REQUIRED:
+          Copy the required upgrade packages to the remote nodes.
+          
+          ============================================================
+      when: >
+        groups['all']
+        | map('extract', hostvars, 'node_missing_packages')
+        | select('defined')
+        | select('equalto', true)
+        | list
+        | length > 0
+
+# ============================================================================
+# Upgrade Plan Summary
+# ============================================================================
+- name: Display upgrade plan summary
+  hosts: all
+  gather_facts: false
+  become: false
+  
+  tasks:
+    - name: Generate comprehensive upgrade plan
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          UPGRADE PLAN SUMMARY
+          ============================================================
+          
+          SP SERVERS:
+          {% for host in groups['sp_servers'] | default([]) %}
+          {%   if hostvars[host].sp_server_installed is defined %}
+          {%     if hostvars[host].sp_server_installed %}
+            {{ host }}:
+              Current: {{ hostvars[host].sp_server_current_version }}
+              Target:  {{ hostvars[host].sp_server_version }}
+              Action:  UPGRADE
+          {%     else %}
+            {{ host }}:
+              Status: Not installed - SKIP
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          BA CLIENTS:
+          {% for host in groups['ba_clients'] | default([]) %}
+          {%   if hostvars[host].ba_client_installed is defined %}
+          {%     if hostvars[host].ba_client_installed %}
+            {{ host }}:
+              Current: {{ hostvars[host].ba_client_current_version }}
+              Target:  {{ hostvars[host].ba_client_version }}
+              Action:  UPGRADE
+          {%     else %}
+            {{ host }}:
+              Status: Not installed - SKIP
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          HSM CLIENTS:
+          {% for host in groups['hsm_clients'] | default([]) %}
+          {%   if hostvars[host].hsm_client_installed is defined %}
+          {%     if hostvars[host].hsm_client_installed %}
+            {{ host }}:
+              Current: {{ hostvars[host].hsm_client_current_version }}
+              Target:  {{ hostvars[host].hsm_client_version }}
+              Action:  UPGRADE
+          {%     else %}
+            {{ host }}:
+              Status: Not installed - SKIP
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          UPGRADE ORDER: BA Client → HSM Client → SP Server
+          
+          Proceeding with upgrade...
+          ============================================================
+
+# ============================================================================
+# BA Client Upgrade (FIRST)
+# ============================================================================
+# UPGRADE ORDER: 1st BA Client, 2nd HSM Client, 3rd SP Server
+- name: Upgrade BA Client on ba_clients nodes
+  hosts: ba_clients
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Display BA Client upgrade configuration
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA Client Upgrade Configuration for {{ inventory_hostname }}
+          ============================================================
+          Current Version: {{ ba_client_current_version }}
+          Target Version: {{ ba_client_version }}
+          Package Path: {{ ba_client_package_path }}
+          
+          Configuration loaded from:
+          - playbooks/host_vars/{{ inventory_hostname }}.yml
+          - playbooks/group_vars/ba_clients.yml
+          - playbooks/group_vars/all.yml
+          ============================================================
+    
+    - name: Skip upgrade if BA Client is not installed
+      ansible.builtin.debug:
+        msg: "BA Client is not installed on {{ inventory_hostname }}. Skipping upgrade."
+      when: not ba_client_installed
+    
+    - name: Check if already at target version
+      ansible.builtin.set_fact:
+        ba_client_already_at_target: "{{ ba_client_current_version is search(ba_client_version) }}"
+      when: ba_client_installed
+    
+    - name: Skip upgrade if already at target version
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA Client Already at Target Version - {{ inventory_hostname }}
+          ============================================================
+          Current Version: {{ ba_client_current_version }}
+          Target Version: {{ ba_client_version }}
+          
+          No upgrade needed. Skipping upgrade process.
+          ============================================================
+      when:
+        - ba_client_installed
+        - ba_client_already_at_target | bool
+    
+    - name: Set BA Client variables for upgrade
+      ansible.builtin.set_fact:
+        ba_client_state: "present"
+        ba_client_action: "upgrade"
+        tar_file_path: "{{ ba_client_package_path }}"
+        ba_client_extract_dest: "{{ ba_client_extract_dest | default('/opt/baClient') }}"
+        ba_client_temp_dest: "{{ ba_client_temp_dest | default('/var/tmp/') }}"
+      when:
+        - ba_client_installed
+        - not (ba_client_already_at_target | default(false) | bool)
+    
+    - name: Gather system info for compatibility checks
+      ansible.builtin.include_role:
+        name: system_info
+      when:
+        - ba_client_installed
+        - not (ba_client_already_at_target | default(false) | bool)
+    
+    - name: Run BA Client upgrade tasks directly
+      ansible.builtin.include_tasks: ../roles/ba_client_install/tasks/ba_client_upgrade_linux.yml
+      when:
+        - ba_client_installed
+        - not (ba_client_already_at_target | default(false) | bool)
+    
+    - name: Verify BA Client upgrade
+      ansible.builtin.command: "rpm -q TIVsm-BA"
+      register: ba_client_verify
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: ba_client_installed
+    
+    - name: Extract upgraded version
+      ansible.builtin.set_fact:
+        ba_client_upgraded_version: "{{ ba_client_verify.stdout | default('Unknown') }}"
+      when:
+        - ba_client_installed
+        - ba_client_verify.rc == 0
+    
+    - name: Display BA Client upgrade result
+      ansible.builtin.debug:
+        msg: >-
+          {% if not ba_client_installed %}
+            BA Client was not installed - No action taken
+          {% elif ba_client_verify.rc == 0 and ba_client_upgraded_version is defined %}
+            ✓ BA Client successfully upgraded on {{ inventory_hostname }}
+            Old Version: {{ ba_client_current_version }}
+            New Version: {{ ba_client_upgraded_version }}
+          {% else %}
+            ✗ BA Client upgrade may have failed on {{ inventory_hostname }}
+          {% endif %}
+    
+    - name: Collect upgrade summary
+      ansible.builtin.set_fact:
+        ba_client_upgrade_status: >-
+          {% if not ba_client_installed %}
+            not_installed
+          {% elif ba_client_already_at_target | default(false) | bool %}
+            already_at_target
+          {% elif ba_client_verify.rc == 0 and ba_client_upgraded_version is defined %}
+            successfully_upgraded
+          {% else %}
+            upgrade_failed
+          {% endif %}
+
+# ============================================================================
+# SP Server Upgrade Summary
+# ============================================================================
+- name: SP Server Upgrade Summary
+  hosts: sp_servers
+  gather_facts: false
+  
+  tasks:
+    - name: Generate upgrade summary report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP SERVER UPGRADE SUMMARY REPORT
+          ============================================================
+          {% set not_installed = [] %}
+          {% set already_at_target = [] %}
+          {% set successfully_upgraded = [] %}
+          {% set failed = [] %}
+          {% for host in ansible_play_hosts_all %}
+          {%   if hostvars[host].sp_server_upgrade_status is defined %}
+          {%     if hostvars[host].sp_server_upgrade_status == 'not_installed' %}
+          {%       set _ = not_installed.append(host) %}
+          {%     elif hostvars[host].sp_server_upgrade_status == 'already_at_target' %}
+          {%       set _ = already_at_target.append(host) %}
+          {%     elif hostvars[host].sp_server_upgrade_status == 'successfully_upgraded' %}
+          {%       set _ = successfully_upgraded.append(host) %}
+          {%     elif hostvars[host].sp_server_upgrade_status == 'upgrade_failed' %}
+          {%       set _ = failed.append(host) %}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          Not Installed ({{ not_installed | length }}):
+          {% for host in not_installed %}
+            - {{ host }}
+          {% endfor %}
+          
+          Already at Target Version ({{ already_at_target | length }}):
+          {% for host in already_at_target %}
+            - {{ host }}: {{ hostvars[host].sp_server_current_version }} (target: {{ hostvars[host].sp_server_version }})
+          {% endfor %}
+          
+          Successfully Upgraded ({{ successfully_upgraded | length }}):
+          {% for host in successfully_upgraded %}
+            - {{ host }}: {{ hostvars[host].sp_server_current_version }} → {{ hostvars[host].sp_server_upgraded_version }}
+          {% endfor %}
+          
+          Failed Upgrades ({{ failed | length }}):
+          {% for host in failed %}
+            - {{ host }}
+          {% endfor %}
+          
+          {% if failed | length > 0 %}
+          ⚠️  WARNING: Some upgrades failed!
+          - Check the logs above for error details
+          {% elif successfully_upgraded | length > 0 %}
+          ✓ SUCCESS: All upgrades completed successfully!
+          {% elif already_at_target | length > 0 %}
+          ℹ️  INFO: No upgrades needed
+          - All specified hosts are already at target version
+          {% else %}
+          ℹ️  INFO: No SP Servers were upgraded
+          - All specified hosts did not have SP Server installed
+          {% endif %}
+          ============================================================
+    
+    - name: Fail if any SP Server upgrades failed
+      run_once: true
+      ansible.builtin.fail:
+        msg: "SP Server upgrade failed on one or more hosts. Please check the logs above."
+      when: >
+        ansible_play_hosts_all
+        | map('extract', hostvars, 'sp_server_upgrade_status')
+        | select('defined')
+        | select('equalto', 'upgrade_failed')
+        | list
+        | length > 0
+
+# ============================================================================
+# HSM Client Upgrade (SECOND)
+# ============================================================================
+# UPGRADE ORDER: 1st BA Client, 2nd HSM Client, 3rd SP Server
+- name: Upgrade HSM Client on hsm_clients nodes
+  hosts: hsm_clients
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Display HSM Client upgrade configuration
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM Client Upgrade Configuration for {{ inventory_hostname }}
+          ============================================================
+          Current Version: {{ hsm_client_current_version }}
+          Target Version: {{ hsm_client_version }}
+          Package Path: {{ hsm_client_package_path | default('NOT SET') }}
+          Extract Dest: {{ hsm_client_extract_dest | default('/opt/hsmClient') }}
+          
+          Configuration loaded from:
+          - playbooks/host_vars/{{ inventory_hostname }}.yml
+          - playbooks/group_vars/hsm_clients.yml
+          - playbooks/group_vars/all.yml
+          ============================================================
+      when: hsm_client_installed
+    
+    - name: Check if already at target version
+      ansible.builtin.set_fact:
+        hsm_client_already_at_target: "{{ hsm_client_current_version is search(hsm_client_version) }}"
+      when: hsm_client_installed
+    
+    - name: Skip upgrade if already at target version
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM Client Already at Target Version - {{ inventory_hostname }}
+          ============================================================
+          Current Version: {{ hsm_client_current_version }}
+          Target Version: {{ hsm_client_version }}
+          
+          No upgrade needed. Skipping upgrade process.
+          ============================================================
+      when:
+        - hsm_client_installed
+        - hsm_client_already_at_target | bool
+    
+    - name: Set facts for HSM Client upgrade (when installed and not at target)
+      ansible.builtin.set_fact:
+        hsm_client_state: "present"
+        hsm_client_action: "upgrade"
+        tar_file_path: "{{ hsm_client_package_path }}"
+      when:
+        - hsm_client_installed
+        - not (hsm_client_already_at_target | default(false) | bool)
+    
+    - name: Set facts for HSM Client fresh install (when not installed)
+      ansible.builtin.set_fact:
+        hsm_client_state: "present"
+        hsm_client_action: "install"
+        tar_file_path: "{{ hsm_client_package_path }}"
+      when: not hsm_client_installed
+    
+    - name: Call HSM Client upgrade/install using role
+      ansible.builtin.include_role:
+        name: ../roles/hsm_client_install
+      when:
+        - hsm_client_installed or not hsm_client_installed
+        - not (hsm_client_already_at_target | default(false) | bool)
+    
+    - name: Verify HSM Client installation/upgrade
+      ansible.builtin.command: rpm -q TIVsm-HSM
+      register: hsm_client_verify
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+    
+    - name: Display HSM Client result
+      ansible.builtin.debug:
+        msg: >-
+          {% if hsm_client_verify.rc == 0 %}
+            {% if hsm_client_current_version is defined and hsm_client_current_version != 'Not installed' %}
+              ✓ HSM Client successfully upgraded on {{ inventory_hostname }}
+              Old Version: {{ hsm_client_current_version }}
+              New Version: {{ hsm_client_verify.stdout }}
+            {% else %}
+              ✓ HSM Client successfully installed on {{ inventory_hostname }}
+              Version: {{ hsm_client_verify.stdout }}
+            {% endif %}
+          {% else %}
+            ✗ HSM Client installation/upgrade failed on {{ inventory_hostname }}
+          {% endif %}
+    
+    - name: Collect upgrade summary
+      ansible.builtin.set_fact:
+        hsm_client_upgrade_status: >-
+          {% if not hsm_client_installed %}
+            not_installed
+          {% elif hsm_client_already_at_target | default(false) | bool %}
+            already_at_target
+          {% elif hsm_client_verify.rc == 0 %}
+            successfully_upgraded
+          {% else %}
+            upgrade_failed
+          {% endif %}
+        hsm_client_upgraded_version: "{{ hsm_client_verify.stdout if hsm_client_verify.rc == 0 else 'Unknown' }}"
+
+# ============================================================================
+# HSM Client Upgrade Summary
+# ============================================================================
+- name: HSM Client Upgrade Summary
+  hosts: hsm_clients
+  gather_facts: false
+  become: false
+  
+  tasks:
+    - name: Generate upgrade summary report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM CLIENT UPGRADE SUMMARY REPORT
+          ============================================================
+          {% set not_installed = [] %}
+          {% set already_at_target = [] %}
+          {% set successfully_upgraded = [] %}
+          {% set failed = [] %}
+          {% for host in ansible_play_hosts_all %}
+          {%   if hostvars[host].hsm_client_upgrade_status is defined %}
+          {%     if hostvars[host].hsm_client_upgrade_status == 'not_installed' %}
+          {%       set _ = not_installed.append(host) %}
+          {%     elif hostvars[host].hsm_client_upgrade_status == 'already_at_target' %}
+          {%       set _ = already_at_target.append(host) %}
+          {%     elif hostvars[host].hsm_client_upgrade_status == 'successfully_upgraded' %}
+          {%       set _ = successfully_upgraded.append(host) %}
+          {%     elif hostvars[host].hsm_client_upgrade_status == 'upgrade_failed' %}
+          {%       set _ = failed.append(host) %}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          Not Installed ({{ not_installed | length }}):
+          {% for host in not_installed %}
+            - {{ host }}
+          {% endfor %}
+          
+          Already at Target Version ({{ already_at_target | length }}):
+          {% for host in already_at_target %}
+            - {{ host }}: {{ hostvars[host].hsm_client_current_version }}
+          {% endfor %}
+          
+          Successfully Upgraded ({{ successfully_upgraded | length }}):
+          {% for host in successfully_upgraded %}
+            - {{ host }}: {{ hostvars[host].hsm_client_current_version }} → {{ hostvars[host].hsm_client_upgraded_version }}
+          {% endfor %}
+          
+          Failed Upgrades ({{ failed | length }}):
+          {% for host in failed %}
+            - {{ host }}
+          {% endfor %}
+          
+          {% if failed | length > 0 %}
+          ❌ FAILED: Some HSM Client upgrades failed
+          {% elif successfully_upgraded | length > 0 %}
+          ✅ SUCCESS: All HSM Client upgrades completed successfully
+          {% elif already_at_target | length > 0 %}
+          ℹ️  INFO: All HSM Clients are already at target version {{ hostvars[already_at_target[0]].hsm_client_version }}
+          {% elif not_installed | length > 0 %}
+          ℹ️  INFO: No HSM Clients were upgraded - not installed on any hosts
+          {% endif %}
+          ============================================================
+    
+    - name: Fail if any HSM Client upgrades failed
+      run_once: true
+      ansible.builtin.fail:
+        msg: "HSM Client upgrade failed on one or more hosts. Please check the logs above."
+      when: >
+        ansible_play_hosts_all
+        | map('extract', hostvars, 'hsm_client_upgrade_status')
+        | select('defined')
+        | select('equalto', 'upgrade_failed')
+        | list
+        | length > 0
+
+# ============================================================================
+# SP Server Upgrade (THIRD)
+# ============================================================================
+# UPGRADE ORDER: 1st BA Client, 2nd HSM Client, 3rd SP Server
+- name: Upgrade SP Server on sp_servers nodes
+  hosts: sp_servers
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Display SP Server upgrade configuration
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP Server Upgrade Configuration for {{ inventory_hostname }}
+          ============================================================
+          Current Version: {{ sp_server_current_version }}
+          Target Version: {{ sp_server_version }}
+          Package Path: {{ sp_server_package_path }}
+          
+          Configuration loaded from:
+          - playbooks/host_vars/{{ inventory_hostname }}.yml
+          - playbooks/group_vars/sp_servers.yml
+          - playbooks/group_vars/all.yml
+          ============================================================
+    
+    - name: Skip upgrade if SP Server is not installed
+      ansible.builtin.debug:
+        msg: "SP Server is not installed on {{ inventory_hostname }}. Skipping upgrade."
+      when: not sp_server_installed
+    
+    - name: Check if already at target version
+      ansible.builtin.set_fact:
+        sp_server_already_at_target: "{{ sp_server_current_version is search(sp_server_version) }}"
+      when: sp_server_installed
+    
+    - name: Skip upgrade if already at target version
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP Server Already at Target Version - {{ inventory_hostname }}
+          ============================================================
+          Current Version: {{ sp_server_current_version }}
+          Target Version: {{ sp_server_version }}
+          
+          No upgrade needed. Skipping upgrade process.
+          ============================================================
+      when:
+        - sp_server_installed
+        - sp_server_already_at_target | bool
+    
+    - name: Set SP Server state and action for upgrade
+      ansible.builtin.set_fact:
+        sp_server_state: "upgrade"
+        sp_server_action: "upgrade"
+      when:
+        - sp_server_installed
+        - not (sp_server_already_at_target | default(false) | bool)
+    
+    - name: Include sp_server_install role for upgrade
+      ansible.builtin.include_role:
+        name: ../roles/sp_server_install
+      when:
+        - sp_server_installed
+        - not (sp_server_already_at_target | default(false) | bool)
+    
+    - name: Verify SP Server upgrade
+      ansible.builtin.command: "{{ imcl_path | default('/opt/IBM/InstallationManager/eclipse/tools/imcl') }} listInstalledPackages"
+      register: sp_server_verify
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: sp_server_installed
+    
+    - name: Extract upgraded version
+      ansible.builtin.set_fact:
+        sp_server_upgraded_version: "{{ sp_server_verify.stdout | regex_search('com.tivoli.dsm.server_([0-9.]+)', '\\1') | first | default('Unknown') }}"
+      when:
+        - sp_server_installed
+        - sp_server_verify.rc == 0
+    
+    - name: Display SP Server upgrade result
+      ansible.builtin.debug:
+        msg: >-
+          {% if not sp_server_installed %}
+            SP Server was not installed - No action taken
+          {% elif sp_server_already_at_target | default(false) | bool %}
+            SP Server already at target version - No action taken
+          {% elif sp_server_verify.rc == 0 and sp_server_upgraded_version is defined %}
+            ✓ SP Server successfully upgraded on {{ inventory_hostname }}
+            Old Version: {{ sp_server_current_version }}
+            New Version: {{ sp_server_upgraded_version }}
+          {% else %}
+            ✗ SP Server upgrade may have failed on {{ inventory_hostname }}
+          {% endif %}
+    
+    - name: Collect upgrade summary
+      ansible.builtin.set_fact:
+        sp_server_upgrade_status: >-
+          {% if not sp_server_installed %}
+            not_installed
+          {% elif sp_server_already_at_target | default(false) | bool %}
+            already_at_target
+          {% elif sp_server_verify.rc == 0 and sp_server_upgraded_version is defined %}
+            successfully_upgraded
+          {% else %}
+            upgrade_failed
+          {% endif %}
+
+# ============================================================================
+# BA Client Upgrade Summary
+# ============================================================================
+- name: BA Client Upgrade Summary
+  hosts: ba_clients
+  gather_facts: false
+  become: false
+  
+  tasks:
+    - name: Generate upgrade summary report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA CLIENT UPGRADE SUMMARY REPORT
+          ============================================================
+          {% set not_installed = [] %}
+          {% set already_at_target = [] %}
+          {% set successfully_upgraded = [] %}
+          {% set failed = [] %}
+          {% for host in ansible_play_hosts_all %}
+          {%   if hostvars[host].ba_client_upgrade_status is defined %}
+          {%     if hostvars[host].ba_client_upgrade_status == 'not_installed' %}
+          {%       set _ = not_installed.append(host) %}
+          {%     elif hostvars[host].ba_client_upgrade_status == 'already_at_target' %}
+          {%       set _ = already_at_target.append(host) %}
+          {%     elif hostvars[host].ba_client_upgrade_status == 'successfully_upgraded' %}
+          {%       set _ = successfully_upgraded.append(host) %}
+          {%     elif hostvars[host].ba_client_upgrade_status == 'upgrade_failed' %}
+          {%       set _ = failed.append(host) %}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          Not Installed ({{ not_installed | length }}):
+          {% for host in not_installed %}
+            - {{ host }}: BA Client was not installed
+          {% endfor %}
+          
+          Already at Target Version ({{ already_at_target | length }}):
+          {% for host in already_at_target %}
+            - {{ host }}: {{ hostvars[host].ba_client_current_version }} (target: {{ hostvars[host].ba_client_version }})
+          {% endfor %}
+          
+          Successfully Upgraded ({{ successfully_upgraded | length }}):
+          {% for host in successfully_upgraded %}
+            - {{ host }}: {{ hostvars[host].ba_client_current_version }} → {{ hostvars[host].ba_client_upgraded_version }}
+          {% endfor %}
+          
+          Failed Upgrades ({{ failed | length }}):
+          {% for host in failed %}
+            - {{ host }}: ✗ Upgrade failed (check logs)
+          {% endfor %}
+          
+          {% if failed | length > 0 %}
+          ⚠️  WARNING: Some upgrades failed!
+          - Check the logs above for error details
+          - BA Client includes automatic rollback on failure
+          - Previous version should be restored automatically
+          {% elif successfully_upgraded | length > 0 %}
+          ✓ SUCCESS: All upgrades completed successfully!
+          - Configuration files preserved
+          - Services restarted
+          - Verify backups are working
+          {% elif already_at_target | length > 0 %}
+          ℹ️  INFO: No upgrades needed
+          - All specified hosts are already at target version
+          {% else %}
+          ℹ️  INFO: No BA Clients were upgraded
+          - All specified hosts did not have BA Client installed
+          {% endif %}
+          ============================================================
+    
+    - name: Fail if any BA Client upgrades failed
+      run_once: true
+      ansible.builtin.fail:
+        msg: |
+          ============================================================
+          BA CLIENT UPGRADE FAILED
+          ============================================================
+          
+          Upgrade failed on one or more hosts.
+          
+          Failed hosts:
+          {% for host in ansible_play_hosts_all %}
+          {%   if hostvars[host].ba_client_upgrade_status is defined %}
+          {%     if hostvars[host].ba_client_upgrade_status == 'upgrade_failed' %}
+            - {{ host }}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          ACTIONS TAKEN:
+          - BA Client includes automatic rollback
+          - Previous version should be restored
+          - Configuration files preserved
+          
+          NEXT STEPS:
+          1. Review the error messages above
+          2. Check system logs on failed hosts
+          3. Verify previous version is running
+          4. Resolve issues before retrying
+          
+          ============================================================
+      when: >
+        ansible_play_hosts_all
+        | map('extract', hostvars, 'ba_client_upgrade_status')
+        | select('defined')
+        | select('equalto', 'upgrade_failed')
+        | list
+        | length > 0
+
+# ============================================================================
+# Final Upgrade Summary Report
+# ============================================================================
+- name: Final Upgrade Summary Report
+  hosts: localhost
+  gather_facts: false
+  
+  tasks:
+    - name: Generate final comprehensive upgrade report
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          PETASCALE UPGRADE COMPLETE - FINAL SUMMARY
+          ============================================================
+          
+          SP SERVER UPGRADES:
+          {% set sp_upgraded = 0 %}
+          {% set sp_failed = 0 %}
+          {% set sp_skipped = 0 %}
+          {% for host in groups['sp_servers'] | default([]) %}
+          {%   if hostvars[host].sp_server_upgrade_status is defined %}
+          {%     if hostvars[host].sp_server_upgrade_status == 'successfully_upgraded' %}
+          {%       set sp_upgraded = sp_upgraded + 1 %}
+            ✓ {{ host }}: {{ hostvars[host].sp_server_current_version }} → {{ hostvars[host].sp_server_upgraded_version }}
+          {%     elif hostvars[host].sp_server_upgrade_status == 'upgrade_failed' %}
+          {%       set sp_failed = sp_failed + 1 %}
+            ✗ {{ host }}: FAILED
+          {%     else %}
+          {%       set sp_skipped = sp_skipped + 1 %}
+            - {{ host }}: SKIPPED (not installed)
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          BA CLIENT UPGRADES:
+          {% set ba_upgraded = 0 %}
+          {% set ba_failed = 0 %}
+          {% set ba_skipped = 0 %}
+          {% for host in groups['ba_clients'] | default([]) %}
+          {%   if hostvars[host].ba_client_upgrade_status is defined %}
+          {%     if hostvars[host].ba_client_upgrade_status == 'successfully_upgraded' %}
+          {%       set ba_upgraded = ba_upgraded + 1 %}
+            ✓ {{ host }}: {{ hostvars[host].ba_client_current_version }} → {{ hostvars[host].ba_client_upgraded_version }}
+          {%     elif hostvars[host].ba_client_upgrade_status == 'upgrade_failed' %}
+          {%       set ba_failed = ba_failed + 1 %}
+            ✗ {{ host }}: FAILED
+          {%     else %}
+          {%       set ba_skipped = ba_skipped + 1 %}
+            - {{ host }}: SKIPPED (not installed)
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          STATISTICS:
+          - SP Servers Upgraded: {{ sp_upgraded }}
+          - SP Servers Failed: {{ sp_failed }}
+          - SP Servers Skipped: {{ sp_skipped }}
+          - BA Clients Upgraded: {{ ba_upgraded }}
+          - BA Clients Failed: {{ ba_failed }}
+          - BA Clients Skipped: {{ ba_skipped }}
+          
+          {% if sp_failed + ba_failed == 0 %}
+          ✓ SUCCESS: All upgrades completed successfully!
+          
+          NEXT STEPS:
+          1. Verify services are running
+          2. Test backup operations
+          3. Monitor system performance
+          4. Update documentation with new versions
+          {% else %}
+          ⚠️  WARNING: Some upgrades failed!
+          
+          NEXT STEPS:
+          1. Review error logs above
+          2. Check failed hosts
+          3. Verify rollback completed (BA Client)
+          4. Resolve issues before retrying
+          {% endif %}
+          
+          ============================================================
+      run_once: true
+
+# Made with Bob

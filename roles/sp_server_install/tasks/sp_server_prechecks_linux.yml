@@ -2,6 +2,254 @@
 # Prechecks:
 #  - checks if the binary exists on the control node
 #  - checks if the architecture is compatible and disk space is sufficient
+# ============================================================================
+# System Requirements Validation - Check First Before Any Operations
+# ============================================================================
+
+# ============================================================================
+# /tmp Directory Validation - Check mount options and permissions
+# ============================================================================
+
+- name: Check /tmp mount options
+  ansible.builtin.shell: "mount | grep ' /tmp ' || echo 'not_mounted'"
+  register: tmp_mount_check
+  changed_when: false
+
+- name: Display /tmp mount information
+  ansible.builtin.debug:
+    msg: "/tmp mount: {{ tmp_mount_check.stdout }}"
+
+- name: Check if /tmp has noexec flag
+  ansible.builtin.set_fact:
+    tmp_has_noexec: "{{ 'noexec' in tmp_mount_check.stdout }}"
+
+- name: Validate /tmp does not have noexec flag
+  ansible.builtin.fail:
+    msg: |
+      ============================================================
+      SYSTEM REQUIREMENT CHECK FAILED: /tmp Mount Options
+      ============================================================
+      
+      ERROR: /tmp is mounted with 'noexec' flag which prevents IBM Installation Manager from working.
+      
+      Current mount: {{ tmp_mount_check.stdout }}
+      
+      The SP Server installation requires /tmp to allow execution of files.
+      
+      ACTION REQUIRED:
+      
+      Option 1 - Temporary fix (until reboot):
+        sudo mount -o remount,exec /tmp
+      
+      Option 2 - Permanent fix:
+        1. Edit /etc/fstab on {{ inventory_hostname }}
+        2. Find the /tmp mount line (usually contains /dev/mapper/rootvg-tmplv or similar)
+        3. Remove 'noexec' from the mount options
+        4. Save the file
+        5. Remount: sudo mount -o remount /tmp
+      
+      Verify with:
+        mount | grep /tmp
+        # Should NOT show 'noexec' in the options
+      
+      Then re-run this playbook.
+      ============================================================
+  when: tmp_has_noexec | bool
+
+- name: Check /tmp directory permissions (cross-platform)
+  ansible.builtin.shell: |
+    if command -v stat >/dev/null 2>&1 && stat -c '%a' /tmp >/dev/null 2>&1; then
+      # GNU stat (Linux)
+      stat -c '%a' /tmp
+    else
+      # AIX or BSD stat - use ls and parse
+      ls -ld /tmp | awk '{print $1}' | sed 's/[^rwx-]//g' | sed 's/rwxrwxrwt/1777/; s/rwxrwxrwx/777/'
+    fi
+  register: tmp_permissions
+  changed_when: false
+  failed_when: false
+
+- name: Display current /tmp permissions
+  ansible.builtin.debug:
+    msg: |
+      /tmp directory permissions check:
+      Current: {{ tmp_permissions.stdout | default('Unable to determine') }}
+      Required: 1777 (rwxrwxrwt with sticky bit)
+      {% if tmp_permissions.rc != 0 %}
+      Note: Permission check failed, but continuing with installation
+      {% endif %}
+
+- name: Validate /tmp directory permissions
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      ⚠️  WARNING: /tmp Permissions Check
+      ============================================================
+      
+      {% if tmp_permissions.rc != 0 %}
+      Unable to verify /tmp permissions on this system.
+      This may be normal on AIX or other Unix systems.
+      {% elif tmp_permissions.stdout != '1777' %}
+      WARNING: The /tmp directory may not have the recommended permissions.
+      
+      Current permissions: {{ tmp_permissions.stdout }}
+      Recommended permissions: 1777 (rwxrwxrwt)
+      
+      The SP Server installation recommends /tmp to have:
+      - Read permission (r) for all users
+      - Write permission (w) for all users
+      - Execute permission (x) for all users
+      - Sticky bit (t) set to prevent users from deleting others' files
+      
+      RECOMMENDED ACTION:
+      Run the following command on {{ inventory_hostname }} as root:
+      
+        chmod 1777 /tmp
+      
+      Verify with:
+        ls -ld /tmp
+      {% else %}
+      ✅ /tmp permissions are correct (1777)
+      {% endif %}
+      
+      Continuing with installation...
+      ============================================================
+        # Should show: drwxrwxrwt
+      
+      Then re-run this playbook.
+      ============================================================
+  when: tmp_permissions.stdout != '1777'
+
+- name: Check SSH password authentication setting (cross-platform)
+  ansible.builtin.shell: |
+    # Try Linux location first
+    if [ -f /etc/ssh/sshd_config ]; then
+      grep -E "^PasswordAuthentication" /etc/ssh/sshd_config 2>/dev/null || echo "not_configured"
+    # Try AIX location
+    elif [ -f /etc/sshd_config ]; then
+      grep -E "^PasswordAuthentication" /etc/sshd_config 2>/dev/null || echo "not_configured"
+    else
+      echo "sshd_config_not_found"
+    fi
+  register: ssh_password_auth_check
+  changed_when: false
+  failed_when: false
+
+- name: Display SSH password authentication warning
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      ⚠️  WARNING: SSH Password Authentication Check
+      ============================================================
+      
+      {% if 'sshd_config_not_found' in ssh_password_auth_check.stdout %}
+      Unable to locate sshd_config file on this system.
+      This check will be skipped.
+      {% elif 'not_configured' in ssh_password_auth_check.stdout %}
+      SSH password authentication setting not explicitly configured.
+      Current setting: {{ ssh_password_auth_check.stdout }}
+      Recommended setting: PasswordAuthentication yes
+      
+      NOTE: The SP Server installation may require SSH password authentication.
+      If installation fails, enable it manually.
+      {% elif 'PasswordAuthentication yes' not in ssh_password_auth_check.stdout %}
+      SSH password authentication appears to be disabled.
+      Current setting: {{ ssh_password_auth_check.stdout }}
+      Recommended setting: PasswordAuthentication yes
+      
+      ⚠️  WARNING: The SP Server installation may fail without SSH password auth.
+      {% else %}
+      ✅ SSH password authentication is enabled.
+      Current setting: {{ ssh_password_auth_check.stdout }}
+      {% endif %}
+      
+      {% if 'PasswordAuthentication yes' not in ssh_password_auth_check.stdout and 'sshd_config_not_found' not in ssh_password_auth_check.stdout %}
+      RECOMMENDED ACTION (if installation fails):
+      Enable SSH password authentication on {{ inventory_hostname }} as root:
+      
+      Linux:
+      1. Edit /etc/ssh/sshd_config
+         vi /etc/ssh/sshd_config
+      2. Add or change: PasswordAuthentication yes
+      3. Restart: systemctl restart sshd (or service sshd restart)
+      
+      AIX:
+      1. Edit /etc/sshd_config (or /etc/ssh/sshd_config)
+         vi /etc/sshd_config
+      2. Add or change: PasswordAuthentication yes
+      3. Restart: stopsrc -s sshd && startsrc -s sshd
+      
+      Verify: grep "^PasswordAuthentication" /etc/ssh/sshd_config
+      {% endif %}
+      
+      Continuing with installation...
+      ============================================================
+
+- name: Report system requirements validation passed
+  ansible.builtin.debug:
+    msg: |
+      ✓ System requirements validation passed:
+        - /tmp permissions: {{ tmp_permissions.stdout }} (OK)
+        - SSH password auth: {{ 'Enabled' if 'PasswordAuthentication yes' in ssh_password_auth_check.stdout else 'Disabled (Warning only)' }}
+
+# Check if Installation Manager exists and is functional
+- name: Check if Installation Manager exists
+  ansible.builtin.stat:
+    path: /opt/IBM/InstallationManager/eclipse/tools/imcl
+  register: imcl_check
+
+- name: Test if Installation Manager is functional
+  ansible.builtin.command: /opt/IBM/InstallationManager/eclipse/tools/imcl listInstalledPackages
+  register: imcl_test
+  failed_when: false
+  changed_when: false
+  when: imcl_check.stat.exists
+
+- name: Fail if Installation Manager is corrupted
+  ansible.builtin.fail:
+    msg: |
+      ============================================================
+      SYSTEM REQUIREMENT CHECK FAILED: Corrupted Installation Manager
+      ============================================================
+      
+      ERROR: IBM Installation Manager exists but is corrupted or incomplete.
+      
+      Directory: /opt/IBM/InstallationManager
+      Status: {{ imcl_test.stdout if imcl_test.stdout else 'Unable to execute imcl' }}
+      
+      This is from a previous failed installation attempt and will block
+      the current installation with error:
+      CRIMA1039E: The installation directory exists and contains files.
+      
+      ACTION REQUIRED:
+      Clean up the corrupted Installation Manager on {{ inventory_hostname }} as root:
+      
+        # Remove corrupted Installation Manager
+        rm -rf /opt/IBM/InstallationManager
+        rm -rf /var/ibm/InstallationManager
+        
+        # Remove temporary installation files
+        rm -rf /tmp/cleanup*.tmp
+        
+        # Verify cleanup
+        ls -la /opt/IBM/
+        ls -la /var/ibm/
+      
+      Then re-run this playbook.
+      
+      Note: If you have other IBM products installed (BA Client, etc.),
+      they will need to be reinstalled after cleaning up the Installation Manager.
+      ============================================================
+  when:
+    - imcl_check.stat.exists
+    - imcl_test.rc is defined
+    - imcl_test.rc != 0
+    - sp_server_action == "install"
+
+# ============================================================================
+# Continue with existing prechecks
+# ============================================================================
+
 
 - name: Configure SP Server if state is present and sp server is already installed
   block:
@@ -67,36 +315,113 @@
         - not (sp_server_version_list > installed_sp_version_list)
 
 
-- name: Finding SP Server binary locally
-  ansible.builtin.find:
-    paths: "{{ sp_server_bin_repo }}"
-    patterns: "{{ sp_server_version }}*.bin"
-  register: file_status
-  when: sp_server_individual_component_name is not defined
-  delegate_to: localhost
+# ============================================================================
+# Package Location - Support both explicit path and pattern matching
+# ============================================================================
 
-- name: Find SP Server binary when individual component is specified
-  ansible.builtin.find:
-    paths: "{{ sp_server_bin_repo }}/{{ sp_server_individual_component_name }}"
-    patterns: "{{ sp_server_version }}*.bin"
-  register: file_status
-  when: sp_server_individual_component_name is defined
-  delegate_to: localhost
+# Option 1: Check if explicit package path is provided (recommended, like BA Client)
+- name: Check if explicit SP Server package path is provided
+  ansible.builtin.stat:
+    path: "{{ sp_server_package_path }}"
+  register: explicit_package_check
+  when: sp_server_package_path is defined
 
-
-- name: Fail if the binary does not exist
-  ansible.builtin.fail:
-    msg: > 
-        The binary file for {{ sp_server_version }}*.bin does not exist in the directory {{ sp_server_bin_repo }}.
-        Verify the availability of binary in the specified directory and ensure the correct path is specified.
-  when: file_status.matched == 0
-  delegate_to: localhost
-
-- name: Storing the found binary file path
+- name: Use explicit package path if provided and exists
   ansible.builtin.set_fact:
-    sp_server_binary_file_path: "{{ file_status.files[0].path }}"
-  when: file_status.matched > 0
-  delegate_to: localhost
+    sp_server_binary_file_path: "{{ sp_server_package_path }}"
+    package_discovery_method: "explicit_path"
+  when:
+    - sp_server_package_path is defined
+    - explicit_package_check.stat.exists
+
+- name: Fail if explicit package path provided but file not found
+  ansible.builtin.fail:
+    msg: |
+      ============================================================
+      SP Server Package Not Found
+      ============================================================
+      
+      ERROR: The specified SP Server package does not exist.
+      
+      Specified path: {{ sp_server_package_path }}
+      Host: {{ inventory_hostname }}
+      
+      Please verify:
+      1. The file exists on the remote host
+      2. The path is correct
+      3. You have read permissions
+      
+      To check on the remote host:
+        ls -la {{ sp_server_package_path }}
+      ============================================================
+  when:
+    - sp_server_package_path is defined
+    - not explicit_package_check.stat.exists
+
+# Option 2: Fall back to pattern matching if explicit path not provided (legacy method)
+- name: Finding SP Server binary using pattern matching (fallback)
+  when: sp_server_package_path is not defined
+  block:
+    - name: Finding SP Server binary on remote node
+      ansible.builtin.find:
+        paths: "{{ sp_server_bin_repo }}"
+        patterns: "{{ sp_server_version }}*.bin"
+      register: file_status
+      when: sp_server_individual_component_name is not defined
+
+    - name: Find SP Server binary when individual component is specified
+      ansible.builtin.find:
+        paths: "{{ sp_server_bin_repo }}/{{ sp_server_individual_component_name }}"
+        patterns: "{{ sp_server_version }}*.bin"
+      register: file_status
+      when: sp_server_individual_component_name is defined
+
+    - name: Fail if the binary does not exist
+      ansible.builtin.fail:
+        msg: |
+          ============================================================
+          SP Server Package Not Found (Pattern Matching)
+          ============================================================
+          
+          ERROR: No SP Server binary found matching the pattern.
+          
+          Search pattern: {{ sp_server_version }}*.bin
+          Search directory: {{ sp_server_bin_repo }}
+          Host: {{ inventory_hostname }}
+          
+          Please verify:
+          1. The binary file exists in the specified directory
+          2. The version number is correct
+          3. The file name matches the pattern
+          
+          To check on the remote host:
+            ls -la {{ sp_server_bin_repo }}/{{ sp_server_version }}*.bin
+          
+          TIP: For better control, use explicit package path instead:
+            sp_server_package_path: "/tmp/8.1.27.000-IBM-SPSRV-LinuxX86_64.bin"
+          ============================================================
+      when: file_status.matched == 0
+
+    - name: Warn if multiple binaries found
+      ansible.builtin.debug:
+        msg: |
+          WARNING: Multiple SP Server binaries found matching pattern {{ sp_server_version }}*.bin
+          Using first match: {{ file_status.files[0].path }}
+          
+          All matches found:
+          {% for file in file_status.files %}
+            - {{ file.path }}
+          {% endfor %}
+          
+          RECOMMENDATION: Use explicit package path to avoid ambiguity:
+            sp_server_package_path: "{{ file_status.files[0].path }}"
+      when: file_status.matched > 1
+
+    - name: Storing the found binary file path
+      ansible.builtin.set_fact:
+        sp_server_binary_file_path: "{{ file_status.files[0].path }}"
+        package_discovery_method: "pattern_matching"
+      when: file_status.matched > 0
 
 - name: Debug the binary path
   debug:
@@ -105,23 +430,51 @@
 - name: Debug binary path
   debug:
     msg: sp_server_binary_file_path
-- name: Gathering system info for compatibility checks
-  ansible.builtin.include_role:
-    name: system_info
+# Collect system information for compatibility checks
+- name: Collect system architecture
+  ansible.builtin.setup:
+    gather_subset:
+      - '!all'
+      - '!min'
+      - hardware
+
+- name: Get disk space for root filesystem (cross-platform)
+  ansible.builtin.shell: |
+    df -m / | tail -1 | awk '
+    {
+      # Check if column 2 contains a decimal (AIX format)
+      if ($2 ~ /\./) {
+        # AIX format: column 3 is available space
+        print int($3)
+      } else {
+        # Linux format: column 4 is available space
+        print int($4)
+      }
+    }'
+  register: root_disk_space_mb_raw
+  changed_when: false
+
+- name: Set disk space in MB
+  ansible.builtin.set_fact:
+    root_disk_space_mb: "{{ root_disk_space_mb_raw.stdout | int }}"
 
 - name: Checking architecture compatibility
   ansible.builtin.set_fact:
-    architecture_compatible: "{{ (system_info.Architecture | first) in sp_server_compatible_architectures }}"
+    architecture_compatible: "{{ ansible_facts['architecture'] in sp_server_compatible_architectures }}"
 
 - name: Checking available disk space
   ansible.builtin.set_fact:
-    avail_disk_space: "{{ disk_space.available_mb | int > 7500 }}"
+    avail_disk_space: "{{ root_disk_space_mb | int > 7500 }}"
 
 - name: Compatibility results
   ansible.builtin.debug:
     msg: |
       Architecture check: {{ architecture_compatible }}
-      Disk Space: {{ avail_disk_space }}
+      System architecture: {{ ansible_facts['architecture'] }}
+      Compatible architectures: {{ sp_server_compatible_architectures }}
+      Disk Space check: {{ avail_disk_space }}
+      Available disk space: {{ root_disk_space_mb }} MB
+      Required disk space: > 7500 MB
 
 - name: Compatibility check result
   ansible.builtin.debug:
@@ -135,13 +488,33 @@
 
 - name: Fail if system is incompatible
   ansible.builtin.fail:
-    msg: >
-      System compatibility checks failed. Please ensure the following
-      requirements are met: 
-      - Compatible architectures: {{ sp_server_compatible_architectures }}
-      - Sufficient disk space: > 7500 MB 
-      Architecture Found: {{ architecture_compatible }} 
-      Current Available Disk Space: {{ avail_disk_space }}
+    msg: |
+      ============================================================
+      System Compatibility Check Failed
+      ============================================================
+      
+      ERROR: System does not meet SP Server installation requirements.
+      
+      Architecture Check: {{ 'PASS' if architecture_compatible else 'FAIL' }}
+        System architecture: {{ ansible_facts['architecture'] }}
+        Compatible architectures: {{ sp_server_compatible_architectures }}
+      
+      Disk Space Check: {{ 'PASS' if avail_disk_space else 'FAIL' }}
+        Available disk space: {{ root_disk_space_mb }} MB
+        Required disk space: > 7500 MB
+      
+      ACTION REQUIRED:
+      {% if not architecture_compatible %}
+      - System architecture {{ ansible_architecture }} is not supported
+      - Supported architectures: {{ sp_server_compatible_architectures | join(', ') }}
+      {% endif %}
+      {% if not avail_disk_space %}
+      - Insufficient disk space on root filesystem
+      - Available: {{ root_disk_space_mb }} MB
+      - Required: > 7500 MB
+      - Free up disk space or use a different filesystem
+      {% endif %}
+      ============================================================
   when: not (architecture_compatible and avail_disk_space)
 
 - name: Set the directory for installation

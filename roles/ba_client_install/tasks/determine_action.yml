@@ -1,22 +1,35 @@
 ---
-- name: Query the installed version of TIVsm-BA
+- name: Query the installed version of TIVsm-BA (Linux)
   ansible.builtin.command: rpm -q TIVsm-BA
   register: installed_version_check
+  failed_when: false
+  changed_when: false
+  when: detected_os == "Linux"
+
+- name: Query the installed version of TIVsm-BA (AIX)
+  ansible.builtin.shell: lslpp -l tivoli.tsm.client.ba.64bit.base 2>/dev/null | grep tivoli.tsm.client.ba.64bit.base | awk '{print $2}'
+  register: installed_version_check_aix
   ignore_errors: true
   changed_when: false
+  when: detected_os == "AIX"
 
-- name: Extract installed version
+- name: Extract installed version (Linux)
   ansible.builtin.set_fact:
     installed_version: >-
       {{
         installed_version_check.stdout.split('-')[2] ~ '.' ~
         installed_version_check.stdout.split('-')[3].split('.')[0]
       }}
-  when: installed_version_check.rc == 0
+  when: detected_os == "Linux" and installed_version_check.rc == 0
+
+- name: Extract installed version (AIX)
+  ansible.builtin.set_fact:
+    installed_version: "{{ installed_version_check_aix.stdout | trim }}"
+  when: detected_os == "AIX" and installed_version_check_aix.rc == 0 and installed_version_check_aix.stdout | length > 0
 
 - name: Debug the installed version
   ansible.builtin.debug:
-    var: installed_version
+    msg: "Installed version: {{ installed_version | default('Not installed') }}"
 
 - name: Normalize the user version and installed version
   ansible.builtin.set_fact:

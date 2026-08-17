@@ -1,0 +1,918 @@
+---
+# ============================================================================
+# PETASCALE UNINSTALL PLAYBOOK
+# ============================================================================
+#
+# This playbook uninstalls IBM Storage Protect components from nodes based on
+# inventory groups. It intelligently detects and uninstalls:
+#   - SP Server (from sp_servers group)
+#   - HSM Client (from hsm_clients group)
+#   - BA Client (from ba_clients group)
+#
+# UNINSTALL ORDER: 1st SP Server → 2nd HSM Client → 3rd BA Client
+# (Reverse order of installation)
+#
+# ============================================================================
+# CONFIGURATION FILES
+# ============================================================================
+#
+# CUSTOMER: Before running this playbook, ensure:
+#
+# 1. Inventory File: playbooks/inventory/petascale.ini
+#    - Verify the hosts you want to uninstall from are listed
+#    - Check the appropriate groups:
+#      * [sp_servers] - For SP Server uninstallation
+#      * [hsm_clients] - For HSM Client uninstallation
+#      * [ba_clients] - For BA Client uninstallation
+#
+# 2. Host Variables: playbooks/host_vars/<hostname>.yml
+#    - Variables are loaded automatically for each host
+#    - Set appropriate state variables:
+#      * sp_server_state: "absent" (for SP Server uninstall)
+#      * hsm_client_state: "absent" (for HSM Client uninstall)
+#      * ba_client_state: "absent" (for BA Client uninstall)
+#
+# 3. Group Variables: playbooks/group_vars/
+#    - sp_servers.yml - SP Server defaults
+#    - hsm_clients.yml - HSM Client defaults
+#    - ba_clients.yml - BA Client defaults
+#    - all.yml - Global defaults
+#
+# ============================================================================
+# SAFETY WARNINGS
+# ============================================================================
+#
+# ⚠️  WARNING: This playbook will UNINSTALL software components!
+# ⚠️  Backed up data will NOT be deleted from the server
+# ⚠️  Configuration files will be backed up before uninstall
+# ⚠️  RPM packages will be backed up for potential reinstall
+# ⚠️  Requires explicit confirmation: -e "confirm_uninstall=yes"
+#
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+#
+# Uninstall from all nodes (SP Servers, HSM Clients, BA Clients):
+#   ansible-playbook playbooks/petascale_uninstall.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_uninstall=yes"
+#
+# Uninstall only SP Servers:
+#   ansible-playbook playbooks/petascale_uninstall.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_uninstall=yes" \
+#     --limit sp_servers
+#
+# Uninstall only HSM Clients:
+#   ansible-playbook playbooks/petascale_uninstall.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_uninstall=yes" \
+#     --limit hsm_clients
+#
+# Uninstall only BA Clients:
+#   ansible-playbook playbooks/petascale_uninstall.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_uninstall=yes" \
+#     --limit ba_clients
+#
+# Uninstall from specific hosts only:
+#   ansible-playbook playbooks/petascale_uninstall.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_uninstall=yes" \
+#     --limit sp-server-01,ba-client-01
+#
+# Dry run (check what would be uninstalled):
+#   ansible-playbook playbooks/petascale_uninstall.yml \
+#     -i playbooks/inventory/petascale.ini \
+#     -e "confirm_uninstall=yes" \
+#     --check
+#
+# ============================================================================
+# ============================================================================
+# Detect OS and Set Python Interpreter Path
+# ============================================================================
+- name: Detect OS and set Python interpreter
+  hosts: all
+  gather_facts: false
+  become: false
+  tags:
+    - always
+
+  tasks:
+    - name: Detect operating system
+      raw: uname -s
+      register: os_detection
+      changed_when: false
+      failed_when: false
+    
+    - name: Set Python interpreter path based on OS
+      ansible.builtin.set_fact:
+        ansible_python_interpreter: >-
+          {% if 'AIX' in os_detection.stdout %}
+          /opt/freeware/bin/python3.9
+          {% else %}
+          /usr/bin/python3.9
+          {% endif %}
+    
+    - name: Display detected OS and Python path
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          OS: {{ 'AIX' if 'AIX' in os_detection.stdout else 'Linux' }}
+          Python interpreter: {{ ansible_python_interpreter }}
+
+
+# ============================================================================
+# Display Warning and Confirmation
+# ============================================================================
+- name: Display uninstall warning
+  hosts: all
+  gather_facts: false
+  run_once: true
+  
+  tasks:
+    - name: Display critical warning message
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          ⚠️  PETASCALE UNINSTALL PLAYBOOK ⚠️
+          ============================================================
+          
+          This playbook will UNINSTALL components from the following hosts:
+          - SP Servers: {{ groups['sp_servers'] | default([]) | join(', ') or 'None configured' }}
+          - HSM Clients: {{ groups['hsm_clients'] | default([]) | join(', ') or 'None configured' }}
+          - BA Clients: {{ groups['ba_clients'] | default([]) | join(', ') or 'None configured' }}
+          
+          UNINSTALL ORDER: SP Server → HSM Client → BA Client
+          
+          WHAT WILL HAPPEN:
+          ✓ SP Server software will be removed (if configured)
+          ✓ HSM Client software will be removed (if configured)
+          ✓ BA Client software will be removed (if configured)
+          ✓ Configuration files will be backed up
+          ✓ Services will be stopped
+          
+          WHAT WILL NOT HAPPEN:
+          ✓ Backed up data will NOT be deleted
+          ✓ Node registrations will remain
+          ✓ Backup history will be preserved
+          
+          SAFETY FEATURES:
+          ✓ Automatic rollback if uninstall fails
+          ✓ Configuration backup before uninstall
+          ✓ Package backup for potential reinstall
+          
+          To proceed, you must pass the confirmation variable:
+            -e "confirm_uninstall=yes"
+          
+          Example:
+            ansible-playbook playbooks/petascale_uninstall.yml \
+              -i playbooks/inventory/petascale.ini \
+              -e "confirm_uninstall=yes"
+          
+          ============================================================
+      run_once: true
+    
+    - name: Check for confirmation
+      ansible.builtin.assert:
+        that:
+          - confirm_uninstall is defined
+          - confirm_uninstall == "yes"
+        fail_msg: |
+          ============================================================
+          UNINSTALL CANCELLED - Confirmation Required
+          ============================================================
+          
+          You must explicitly confirm the uninstall by passing:
+            -e "confirm_uninstall=yes"
+          
+          This is a safety measure to prevent accidental uninstalls.
+          ============================================================
+        success_msg: "Confirmation received. Proceeding with uninstall..."
+      run_once: true
+
+# ============================================================================
+# Python 3.9 check removed - handled by petascale_prechecks.yml playbook
+# Run: ansible-playbook playbooks/petascale_prechecks.yml before uninstall
+# ============================================================================
+# ============================================================================
+# System Requirements Check - Removed (handled by petascale_prechecks.yml)
+# ============================================================================
+# All system requirement checks (/tmp mount options, permissions, disk space)
+# are now handled by the dedicated prechecks playbook.
+# Run: ansible-playbook playbooks/petascale_prechecks.yml before uninstall
+# ============================================================================
+
+# ============================================================================
+# Pre-Uninstall Checks for SP Servers
+# ============================================================================
+- name: Pre-uninstall checks on SP server nodes
+  hosts: sp_servers
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Display uninstall start message
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Starting SP Server Uninstall Check on {{ inventory_hostname }}
+          ============================================================
+          Host: {{ inventory_hostname }}
+          IP: {{ ansible_host | default(inventory_hostname) }}
+          OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+          ============================================================
+    
+    - name: Check if SP Server is currently installed
+      ansible.builtin.command: "{{ imcl_path | default('/opt/IBM/InstallationManager/eclipse/tools/imcl') }} listInstalledPackages"
+      register: sp_server_check
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+    
+    - name: Display SP Server current status
+      ansible.builtin.debug:
+        msg: >-
+          {% if sp_server_check.rc == 0 and 'com.tivoli.dsm.server' in sp_server_check.stdout %}
+            SP Server is INSTALLED on {{ inventory_hostname }}
+            Will proceed with uninstallation.
+          {% else %}
+            SP Server is NOT INSTALLED on {{ inventory_hostname }}
+            Uninstall will be skipped for this host.
+          {% endif %}
+    
+    - name: Set SP Server installation status fact
+      ansible.builtin.set_fact:
+        sp_server_installed: "{{ sp_server_check.rc == 0 and 'com.tivoli.dsm.server' in sp_server_check.stdout }}"
+    
+    - name: Extract SP Server version if installed
+      ansible.builtin.set_fact:
+        sp_server_version_installed: "{{ sp_server_check.stdout | regex_search('com.tivoli.dsm.server_([0-9.]+)_', '\\1') | first | default('Unknown') }}"
+      when: sp_server_installed
+    
+    - name: Set version as not installed if SP Server is not present
+      ansible.builtin.set_fact:
+        sp_server_version_installed: "Not installed"
+      when: not sp_server_installed
+
+# ============================================================================
+# Pre-Uninstall Checks for HSM Clients
+# ============================================================================
+- name: Pre-uninstall checks on HSM client nodes
+  hosts: hsm_clients
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Display uninstall start message
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Starting HSM Client Uninstall on {{ inventory_hostname }}
+          ============================================================
+          Host: {{ inventory_hostname }}
+          IP: {{ ansible_host | default(inventory_hostname) }}
+          OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+          ============================================================
+    
+    - name: Check if HSM Client is currently installed (Linux)
+      ansible.builtin.command: rpm -q TIVsm-HSM
+      register: hsm_client_check_linux
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: ansible_facts['os_family'] != 'AIX'
+    
+    - name: Check if HSM Client is currently installed (AIX)
+      ansible.builtin.command: lslpp -l tivoli.tsm.client.hsm.gpfs
+      register: hsm_client_check_aix
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: ansible_facts['os_family'] == 'AIX'
+    
+    - name: Set unified check result
+      ansible.builtin.set_fact:
+        hsm_client_check: "{{ hsm_client_check_linux if ansible_facts['os_family'] != 'AIX' else hsm_client_check_aix }}"
+    
+    - name: Display HSM Client current status
+      ansible.builtin.debug:
+        msg: >-
+          {% if hsm_client_check.rc == 0 %}
+            HSM Client is INSTALLED on {{ inventory_hostname }} - {{ hsm_client_check.stdout }}
+            Will proceed with uninstallation.
+          {% else %}
+            HSM Client is NOT INSTALLED on {{ inventory_hostname }}
+            Uninstall will be skipped for this host.
+          {% endif %}
+    
+    - name: Set HSM Client installation status fact
+      ansible.builtin.set_fact:
+        hsm_client_installed: "{{ hsm_client_check.rc == 0 }}"
+        hsm_client_version_installed: "{{ hsm_client_check.stdout if hsm_client_check.rc == 0 else 'Not installed' }}"
+
+# ============================================================================
+# Pre-Uninstall Checks for BA Clients
+# ============================================================================
+- name: Pre-uninstall checks on BA client nodes
+  hosts: ba_clients
+  gather_facts: true
+  become: true
+  
+  tasks:
+    - name: Display uninstall start message
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          Starting BA Client Uninstall on {{ inventory_hostname }}
+          ============================================================
+          Host: {{ inventory_hostname }}
+          IP: {{ ansible_host | default(inventory_hostname) }}
+          OS: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+          ============================================================
+    
+    - name: Detect operating system
+      ansible.builtin.command: uname -s
+      register: os_detection
+      changed_when: false
+    
+    - name: Check if BA Client is currently installed (Linux)
+      ansible.builtin.command: rpm -q TIVsm-BA
+      register: ba_client_check
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: "'Linux' in os_detection.stdout"
+    
+    - name: Check if BA Client is currently installed (AIX)
+      ansible.builtin.shell: lslpp -l tivoli.tsm.client.ba.64bit.base 2>/dev/null | grep tivoli.tsm.client.ba.64bit.base
+      register: ba_client_check_aix
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: "'AIX' in os_detection.stdout"
+    
+    - name: Set unified BA Client check result
+      ansible.builtin.set_fact:
+        ba_client_check:
+          rc: "{{ ba_client_check.rc if 'Linux' in os_detection.stdout else ba_client_check_aix.rc }}"
+          stdout: "{{ ba_client_check.stdout if 'Linux' in os_detection.stdout else ba_client_check_aix.stdout }}"
+    
+    - name: Display BA Client current status
+      ansible.builtin.debug:
+        msg: >-
+          {% if ba_client_check.rc == 0 %}
+            BA Client is INSTALLED on {{ inventory_hostname }} - {{ ba_client_check.stdout }}
+            Will proceed with uninstallation.
+          {% else %}
+            BA Client is NOT INSTALLED on {{ inventory_hostname }}
+            Uninstall will be skipped for this host.
+          {% endif %}
+    
+    - name: Set BA Client installation status fact
+      ansible.builtin.set_fact:
+        ba_client_installed: "{{ ba_client_check.rc == 0 }}"
+        ba_client_version_installed: "{{ ba_client_check.stdout if ba_client_check.rc == 0 else 'Not installed' }}"
+
+# ============================================================================
+# Uninstall Summary Before Proceeding
+# ============================================================================
+- name: Display uninstall summary
+  hosts: ba_clients
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Generate uninstall summary
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA CLIENT UNINSTALL SUMMARY
+          ============================================================
+          {% set to_uninstall = [] %}
+          {% set already_absent = [] %}
+          {% for host in groups['ba_clients'] %}
+          {%   if hostvars[host].ba_client_installed is defined and hostvars[host].ba_client_installed %}
+          {%     set _ = to_uninstall.append(host) %}
+          {%   else %}
+          {%     set _ = already_absent.append(host) %}
+          {%   endif %}
+          {% endfor %}
+          
+          Hosts with BA Client to uninstall ({{ to_uninstall | length }}):
+          {% for host in to_uninstall %}
+            - {{ host }}: {{ hostvars[host].ba_client_version_installed }}
+          {% endfor %}
+          
+          Hosts without BA Client ({{ already_absent | length }}):
+          {% for host in already_absent %}
+            - {{ host }}: Not installed
+          {% endfor %}
+          
+          {% if to_uninstall | length > 0 %}
+          Proceeding with uninstallation on {{ to_uninstall | length }} host(s)...
+          {% else %}
+          No hosts require uninstallation. Playbook will complete.
+          {% endif %}
+          ============================================================
+
+# ============================================================================
+# SP Server Uninstallation
+# ============================================================================
+- name: Uninstall SP Server from sp_servers nodes
+  hosts: sp_servers
+  gather_facts: true
+  become: true
+  
+  # Variables are loaded from:
+  # - playbooks/host_vars/<hostname>.yml (per-host settings)
+  # - playbooks/group_vars/sp_servers.yml (group defaults)
+  # - playbooks/group_vars/all.yml (global defaults)
+  
+  tasks:
+    - name: Display SP Server uninstall configuration
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP Server Uninstall Configuration for {{ inventory_hostname }}
+          ============================================================
+          Installed Version: {{ sp_server_version_installed | default('Unknown') }}
+          Install Dest: {{ sp_server_install_dest | default('/opt/sp_server_binary/') }}
+          
+          Configuration loaded from:
+          - playbooks/host_vars/{{ inventory_hostname }}.yml
+          - playbooks/group_vars/sp_servers.yml
+          - playbooks/group_vars/all.yml
+          ============================================================
+    
+    - name: Skip uninstall if SP Server is not installed
+      ansible.builtin.debug:
+        msg: "SP Server is not installed on {{ inventory_hostname }}. Skipping uninstall."
+      when: not sp_server_installed
+    
+    - name: Set SP Server state for uninstallation
+      ansible.builtin.set_fact:
+        sp_server_state: "absent"
+      when: sp_server_installed
+    
+    - name: Include sp_server_install role for uninstallation
+      ansible.builtin.include_role:
+        name: ../roles/sp_server_install
+      when: sp_server_installed
+    
+    - name: Verify SP Server uninstallation
+      ansible.builtin.command: "{{ imcl_path | default('/opt/IBM/InstallationManager/eclipse/tools/imcl') }} listInstalledPackages"
+      register: sp_server_verify
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: sp_server_installed
+    
+    - name: Display SP Server uninstallation result
+      ansible.builtin.debug:
+        msg: >-
+          {% if not sp_server_installed %}
+            SP Server was not installed - No action taken
+          {% elif sp_server_verify.rc == 0 and 'com.tivoli.dsm.server' not in sp_server_verify.stdout %}
+            ✓ SP Server successfully uninstalled from {{ inventory_hostname }}
+          {% else %}
+            ✗ SP Server uninstallation may have failed on {{ inventory_hostname }}
+            Current status: {{ sp_server_verify.stdout | default('Unknown') }}
+          {% endif %}
+    
+    - name: Collect uninstallation summary
+      ansible.builtin.set_fact:
+        sp_server_uninstall_status: >-
+          {% if not sp_server_installed %}
+            not_installed
+          {% elif sp_server_verify.rc == 0 and 'com.tivoli.dsm.server' not in sp_server_verify.stdout %}
+            successfully_uninstalled
+          {% else %}
+            uninstall_failed
+          {% endif %}
+
+# ============================================================================
+# SP Server Uninstallation Summary
+# ============================================================================
+- name: SP Server Uninstallation Summary
+  hosts: sp_servers
+  gather_facts: false
+  
+  tasks:
+    - name: Generate uninstallation summary report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP SERVER UNINSTALLATION SUMMARY REPORT
+          ============================================================
+          {% set not_installed = [] %}
+          {% set successfully_uninstalled = [] %}
+          {% set failed = [] %}
+          {% for host in groups['sp_servers'] %}
+          {%   if hostvars[host].sp_server_uninstall_status is defined %}
+          {%     if hostvars[host].sp_server_uninstall_status == 'not_installed' %}
+          {%       set _ = not_installed.append(host) %}
+          {%     elif hostvars[host].sp_server_uninstall_status == 'successfully_uninstalled' %}
+          {%       set _ = successfully_uninstalled.append(host) %}
+          {%     elif hostvars[host].sp_server_uninstall_status == 'uninstall_failed' %}
+          {%       set _ = failed.append(host) %}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          Not Installed ({{ not_installed | length }}):
+          {% for host in not_installed %}
+            - {{ host }}
+          {% endfor %}
+          
+          Successfully Uninstalled ({{ successfully_uninstalled | length }}):
+          {% for host in successfully_uninstalled %}
+            - {{ host }}
+          {% endfor %}
+          
+          Failed Uninstallations ({{ failed | length }}):
+          {% for host in failed %}
+            - {{ host }}
+          {% endfor %}
+          
+          {% if successfully_uninstalled | length == 0 and not_installed | length > 0 %}
+          ℹ️  INFO: No SP Servers were uninstalled
+          - All specified hosts already had SP Server removed
+          {% endif %}
+          ============================================================
+    
+    - name: Fail if any SP Server uninstallations failed
+      run_once: true
+      ansible.builtin.fail:
+        msg: "SP Server uninstallation failed on one or more hosts. Please check the logs above."
+      when: >
+        groups['sp_servers']
+        | map('extract', hostvars, 'sp_server_uninstall_status')
+        | select('defined')
+        | select('equalto', 'uninstall_failed')
+        | list
+        | length > 0
+
+# ============================================================================
+# HSM Client Uninstallation (SECOND)
+# ============================================================================
+# UNINSTALL ORDER: 1st SP Server, 2nd HSM Client, 3rd BA Client
+- name: Uninstall HSM Client from hsm_client nodes
+  hosts: hsm_clients
+  gather_facts: true
+  become: true
+  
+  # Variables are loaded from:
+  # - playbooks/host_vars/<hostname>.yml (per-host settings)
+  # - playbooks/group_vars/hsm_clients.yml (group defaults)
+  # - playbooks/group_vars/all.yml (global defaults)
+  
+  tasks:
+    - name: Display HSM Client uninstall configuration
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM Client Uninstall Configuration for {{ inventory_hostname }}
+          ============================================================
+          Installed Version: {{ hsm_client_version_installed }}
+          Extract Dest: {{ hsm_client_extract_dest | default('/opt/hsmClient') }}
+          Backup Location: /opt/hsmClientPackagesBk
+          
+          Configuration loaded from:
+          - playbooks/host_vars/{{ inventory_hostname }}.yml
+          - playbooks/group_vars/hsm_clients.yml
+          - playbooks/group_vars/all.yml
+          ============================================================
+      when: hsm_client_installed
+    
+    - name: Skip uninstall if HSM Client is not installed
+      ansible.builtin.debug:
+        msg: "HSM Client is not installed on {{ inventory_hostname }}. Skipping uninstall."
+      when: not hsm_client_installed
+    
+    - name: Set HSM Client state for uninstallation
+      ansible.builtin.set_fact:
+        hsm_client_state: "absent"
+      when: hsm_client_installed
+    
+    - name: Include hsm_client_install role for uninstallation
+      ansible.builtin.include_role:
+        name: ../roles/hsm_client_install
+      when: hsm_client_installed
+    
+    - name: Verify HSM Client uninstallation
+      ansible.builtin.command: rpm -q TIVsm-HSM
+      register: hsm_client_verify
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: hsm_client_installed
+    
+    - name: Display HSM Client uninstallation result
+      ansible.builtin.debug:
+        msg: >-
+          {% if not hsm_client_installed %}
+            HSM Client was not installed - No action taken
+          {% elif hsm_client_verify.rc != 0 %}
+            ✓ HSM Client successfully uninstalled from {{ inventory_hostname }}
+          {% else %}
+            ✗ HSM Client uninstallation may have failed on {{ inventory_hostname }}
+            Current status: {{ hsm_client_verify.stdout }}
+          {% endif %}
+      when: hsm_client_installed or not hsm_client_installed
+    
+    - name: Collect uninstallation summary
+      ansible.builtin.set_fact:
+        hsm_client_uninstall_status: >-
+          {% if not hsm_client_installed %}
+            not_installed
+          {% elif hsm_client_verify.rc != 0 %}
+            successfully_uninstalled
+          {% else %}
+            uninstall_failed
+          {% endif %}
+
+# ============================================================================
+# HSM Client Uninstallation Summary
+# ============================================================================
+- name: HSM Client Uninstallation Summary
+  hosts: hsm_clients
+  gather_facts: false
+  become: false
+  
+  tasks:
+    - name: Generate uninstallation summary report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM CLIENT UNINSTALLATION SUMMARY REPORT
+          ============================================================
+          {% set not_installed = [] %}
+          {% set successfully_uninstalled = [] %}
+          {% set failed = [] %}
+          {% for host in groups['hsm_clients'] %}
+          {%   if hostvars[host].hsm_client_uninstall_status is defined %}
+          {%     if hostvars[host].hsm_client_uninstall_status == 'not_installed' %}
+          {%       set _ = not_installed.append(host) %}
+          {%     elif hostvars[host].hsm_client_uninstall_status == 'successfully_uninstalled' %}
+          {%       set _ = successfully_uninstalled.append(host) %}
+          {%     elif hostvars[host].hsm_client_uninstall_status == 'uninstall_failed' %}
+          {%       set _ = failed.append(host) %}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          Not Installed ({{ not_installed | length }}):
+          {% for host in not_installed %}
+            - {{ host }}: HSM Client was not installed
+          {% endfor %}
+          
+          Successfully Uninstalled ({{ successfully_uninstalled | length }}):
+          {% for host in successfully_uninstalled %}
+            - {{ host }}: ✓ HSM Client removed successfully
+          {% endfor %}
+          
+          Failed Uninstallations ({{ failed | length }}):
+          {% for host in failed %}
+            - {{ host }}: ✗ Uninstallation failed (check logs)
+          {% endfor %}
+          
+          {% if failed | length > 0 %}
+          ⚠️  WARNING: Some uninstallations failed!
+          - Check the logs above for error details
+          - Systems have been rolled back to previous state
+          - Configuration backups are in /opt/hsmClientPackagesBk
+          {% elif successfully_uninstalled | length > 0 %}
+          ✓ SUCCESS: All uninstallations completed successfully!
+          - Configuration backups: <file>.bk
+          - Package backups: /opt/hsmClientPackagesBk
+          - Node registrations on SP Server remain active
+          - Backed up data on SP Server is preserved
+          {% else %}
+          ℹ️  INFO: No HSM Clients were uninstalled
+          - All specified hosts already had HSM Client removed
+          {% endif %}
+          ============================================================
+    
+    - name: Fail if any HSM Client uninstallations failed
+      run_once: true
+      ansible.builtin.fail:
+        msg: |
+          ============================================================
+          HSM CLIENT UNINSTALLATION FAILED
+          ============================================================
+          
+          Uninstallation failed on one or more hosts.
+          
+          Failed hosts:
+          {% for host in groups['hsm_clients'] %}
+          {%   if hostvars[host].hsm_client_uninstall_status is defined %}
+          {%     if hostvars[host].hsm_client_uninstall_status == 'uninstall_failed' %}
+            - {{ host }}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          ACTIONS TAKEN:
+          - Failed systems have been rolled back
+          - Previously uninstalled packages were reinstalled
+          - Configuration files remain backed up
+          
+          NEXT STEPS:
+          1. Review the error messages above
+          2. Check system logs on failed hosts
+          3. Verify no HSM Client processes are running
+          4. Retry uninstallation after resolving issues
+          
+          ============================================================
+      when: >
+        groups['hsm_clients']
+        | map('extract', hostvars, 'hsm_client_uninstall_status')
+        | select('defined')
+        | select('equalto', 'uninstall_failed')
+        | list
+        | length > 0
+
+# ============================================================================
+# BA Client Uninstallation (THIRD)
+# ============================================================================
+# UNINSTALL ORDER: 1st SP Server, 2nd HSM Client, 3rd BA Client
+- name: Uninstall BA Client from ba_client nodes
+  hosts: ba_clients
+  gather_facts: true
+  become: true
+  
+  # Variables are loaded from:
+  # - playbooks/host_vars/<hostname>.yml (per-host settings)
+  # - playbooks/group_vars/ba_clients.yml (group defaults)
+  # - playbooks/group_vars/all.yml (global defaults)
+  
+  tasks:
+    - name: Display BA Client uninstall configuration
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA Client Uninstall Configuration for {{ inventory_hostname }}
+          ============================================================
+          Installed Version: {{ ba_client_version_installed }}
+          Extract Dest: {{ ba_client_extract_dest | default('/opt/baClient') }}
+          Backup Location: /opt/baClientPackagesBk
+          
+          Configuration loaded from:
+          - playbooks/host_vars/{{ inventory_hostname }}.yml
+          - playbooks/group_vars/ba_clients.yml
+          - playbooks/group_vars/all.yml
+          ============================================================
+      when: ba_client_installed
+    
+    - name: Skip uninstall if BA Client is not installed
+      ansible.builtin.debug:
+        msg: "BA Client is not installed on {{ inventory_hostname }}. Skipping uninstall."
+      when: not ba_client_installed
+    
+    - name: Set BA Client state for uninstallation
+      ansible.builtin.set_fact:
+        ba_client_state: "absent"
+      when: ba_client_installed
+    
+    - name: Include ba_client_install role for uninstallation
+      ansible.builtin.include_role:
+        name: ../roles/ba_client_install
+      when: ba_client_installed
+    
+    - name: Verify BA Client uninstallation
+      ansible.builtin.command: rpm -q TIVsm-BA
+      register: ba_client_verify
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: ba_client_installed
+    
+    - name: Display BA Client uninstallation result
+      ansible.builtin.debug:
+        msg: >-
+          {% if not ba_client_installed %}
+            BA Client was not installed - No action taken
+          {% elif ba_client_verify.rc != 0 %}
+            ✓ BA Client successfully uninstalled from {{ inventory_hostname }}
+          {% else %}
+            ✗ BA Client uninstallation may have failed on {{ inventory_hostname }}
+            Current status: {{ ba_client_verify.stdout }}
+          {% endif %}
+      when: ba_client_installed or not ba_client_installed
+    
+    - name: Collect uninstallation summary
+      ansible.builtin.set_fact:
+        ba_client_uninstall_status: >-
+          {% if not ba_client_installed %}
+            not_installed
+          {% elif ba_client_verify.rc != 0 %}
+            successfully_uninstalled
+          {% else %}
+            uninstall_failed
+          {% endif %}
+
+# ============================================================================
+# Uninstallation Summary Report
+# ============================================================================
+- name: BA Client Uninstallation Summary
+  hosts: ba_clients
+  gather_facts: false
+  become: false
+  
+  tasks:
+    - name: Generate uninstallation summary report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA CLIENT UNINSTALLATION SUMMARY REPORT
+          ============================================================
+          {% set not_installed = [] %}
+          {% set successfully_uninstalled = [] %}
+          {% set failed = [] %}
+          {% for host in groups['ba_clients'] %}
+          {%   if hostvars[host].ba_client_uninstall_status is defined %}
+          {%     if hostvars[host].ba_client_uninstall_status == 'not_installed' %}
+          {%       set _ = not_installed.append(host) %}
+          {%     elif hostvars[host].ba_client_uninstall_status == 'successfully_uninstalled' %}
+          {%       set _ = successfully_uninstalled.append(host) %}
+          {%     elif hostvars[host].ba_client_uninstall_status == 'uninstall_failed' %}
+          {%       set _ = failed.append(host) %}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          Not Installed ({{ not_installed | length }}):
+          {% for host in not_installed %}
+            - {{ host }}: BA Client was not installed
+          {% endfor %}
+          
+          Successfully Uninstalled ({{ successfully_uninstalled | length }}):
+          {% for host in successfully_uninstalled %}
+            - {{ host }}: ✓ BA Client removed successfully
+          {% endfor %}
+          
+          Failed Uninstallations ({{ failed | length }}):
+          {% for host in failed %}
+            - {{ host }}: ✗ Uninstallation failed (check logs)
+          {% endfor %}
+          
+          {% if failed | length > 0 %}
+          ⚠️  WARNING: Some uninstallations failed!
+          - Check the logs above for error details
+          - Systems have been rolled back to previous state
+          - Configuration backups are in /opt/baClientPackagesBk
+          {% elif successfully_uninstalled | length > 0 %}
+          ✓ SUCCESS: All uninstallations completed successfully!
+          - Configuration backups: <file>.bk
+          - Package backups: /opt/baClientPackagesBk
+          - Node registrations on SP Server remain active
+          - Backed up data on SP Server is preserved
+          {% else %}
+          ℹ️  INFO: No BA Clients were uninstalled
+          - All specified hosts already had BA Client removed
+          {% endif %}
+          ============================================================
+    
+    - name: Fail if any BA Client uninstallations failed
+      run_once: true
+      ansible.builtin.fail:
+        msg: |
+          ============================================================
+          BA CLIENT UNINSTALLATION FAILED
+          ============================================================
+          
+          Uninstallation failed on one or more hosts.
+          
+          Failed hosts:
+          {% for host in groups['ba_clients'] %}
+          {%   if hostvars[host].ba_client_uninstall_status is defined %}
+          {%     if hostvars[host].ba_client_uninstall_status == 'uninstall_failed' %}
+            - {{ host }}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          ACTIONS TAKEN:
+          - Failed systems have been rolled back
+          - Previously uninstalled packages were reinstalled
+          - Configuration files remain backed up
+          
+          NEXT STEPS:
+          1. Review the error messages above
+          2. Check system logs on failed hosts
+          3. Verify no BA Client processes are running
+          4. Retry uninstallation after resolving issues
+          
+          ============================================================
+      when: >
+        groups['ba_clients']
+        | map('extract', hostvars, 'ba_client_uninstall_status')
+        | select('defined')
+        | select('equalto', 'uninstall_failed')
+        | list
+        | length > 0
+

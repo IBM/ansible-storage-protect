@@ -24,7 +24,7 @@
 
 - name: Gather system info for sp erp compatibility
   ansible.builtin.include_role:
-    name: system_info
+    name: ../roles/system_info
   when: erp_check is defined and erp_check.rc == 0 and erp_action == "install"
 
 

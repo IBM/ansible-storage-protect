@@ -1,0 +1,122 @@
+# ============================================================================
+# IBM STORAGE PROTECT – CLIENT AUTH BOOTSTRAP (BA/HSM)
+# ============================================================================
+# Goal:
+# - Keep PASSWORDACCESS GENERATE in generated config
+# - Clear stale password cache
+# - Unlock node on server
+# - Perform one-time interactive bootstrap with expect so generated password works
+# - Validate non-interactive dsmc query session succeeds afterwards
+
+- name: Check if expect is installed
+  ansible.builtin.command: which expect
+  register: expect_check
+  changed_when: false
+  failed_when: false
+
+- name: Warn and skip auth bootstrap if expect is not installed
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      AUTH BOOTSTRAP SKIPPED - expect not found
+      ============================================================
+      The 'expect' command is not installed on {{ inventory_hostname }}.
+      Auth cache bootstrap will be skipped.
+      To complete bootstrap later, install expect and rerun:
+        ansible-playbook playbooks/petascale_configure.yml -i playbooks/inventory/petascale.ini
+      ============================================================
+  when: expect_check.rc != 0
+
+- name: Set expect_available flag
+  ansible.builtin.set_fact:
+    expect_available: "{{ expect_check.rc == 0 }}"
+
+- name: Detect HSM dsmc binary path
+  ansible.builtin.stat:
+    path: /opt/tivoli/tsm/client/hsm/bin/dsmc
+  register: hsm_dsmc_stat
+  when: expect_available
+
+- name: Set HSM bootstrap dsmc path
+  ansible.builtin.set_fact:
+    hsm_bootstrap_dsmc_bin: "{{ '/opt/tivoli/tsm/client/hsm/bin/dsmc' if hsm_dsmc_stat.stat.exists else '/opt/tivoli/tsm/client/ba/bin/dsmc' }}"
+  when: expect_available
+
+- name: Determine auth bootstrap targets for multi-server mode
+  ansible.builtin.set_fact:
+    auth_bootstrap_targets: "{{ sp_servers }}"
+  when: expect_available and sp_servers is defined and sp_servers | length > 0
+
+- name: Determine auth bootstrap target for single-server mode
+  ansible.builtin.set_fact:
+    auth_bootstrap_targets:
+      - name: "{{ sp_server_name }}"
+        address: "{{ sp_server_address }}"
+        port: "{{ sp_server_port }}"
+        node_name: "{{ node_name }}"
+  when: expect_available and (sp_servers is not defined or sp_servers | length == 0)
+
+- name: Bootstrap auth cache per server using PROMPT -> GENERATE sequence
+  ansible.builtin.include_tasks: ba_client_auth_bootstrap_per_server.yml
+  loop: "{{ auth_bootstrap_targets }}"
+  loop_control:
+    loop_var: auth_target
+    label: "{{ auth_target.name }} / {{ auth_target.node_name }}"
+  when: expect_available and auth_bootstrap_targets is defined
+
+- name: Validate non-interactive connectivity after bootstrap using resolved dsmc path
+  ansible.builtin.shell: |
+    timeout 15 {{ hsm_bootstrap_dsmc_bin }} query session -servername={{ item.name }} 2>&1
+  loop: "{{ auth_bootstrap_targets }}"
+  register: auth_connectivity_after_bootstrap
+  changed_when: false
+  failed_when: false
+  when: expect_available and auth_bootstrap_targets is defined
+
+- name: Unlock nodes again if validation failed after restore to GENERATE
+  ansible.builtin.shell: |
+    /opt/tivoli/tsm/client/ba/bin/dsmadmc \
+      -se={{ item.item.name }} \
+      -id={{ hostvars[item.item.inventory_name].admin_name | default(admin_name | default('admin')) }} \
+      -pa='{{ hostvars[item.item.inventory_name].admin_password | default(admin_password | default("")) }}' \
+      "unlock node {{ item.item.node_name }}" 2>&1 || true
+  loop: "{{ auth_connectivity_after_bootstrap.results }}"
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when:
+    - expect_available
+    - auth_connectivity_after_bootstrap is defined
+    - item.stdout is not search('Session established|IBM Storage Protect Server Connection Information')
+
+- name: Display auth bootstrap summary
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      CLIENT AUTH BOOTSTRAP SUMMARY
+      ============================================================
+      Validation Results:
+      {% for result in auth_connectivity_after_bootstrap.results %}
+      - {{ result.item.name }} / {{ result.item.node_name }} : {{ 'CONNECTED' if (result.stdout is search('Session established|IBM Storage Protect Server Connection Information')) else 'FAILED' }}
+        {{ result.stdout | trim }}
+      {% endfor %}
+
+      {% set failed_results = auth_connectivity_after_bootstrap.results | rejectattr('stdout', 'search', 'Session established|IBM Storage Protect Server Connection Information') | list %}
+      {% if failed_results | length > 0 %}
+      WARNING:
+      Immediate post-GENERATE validation failed for one or more servers.
+      The playbook has already attempted to unlock those nodes again.
+
+      Recommended next steps:
+      {% for result in failed_results %}
+      - Verify node is unlocked on {{ result.item.name }}:
+        dsmadmc -se={{ result.item.name }} -id=admin -pa='admin@@123456789' "unlock node {{ result.item.node_name }}"
+      - Test manual login in prompt mode if needed:
+        dsmc query session -servername={{ result.item.name }}
+      - Then verify mmbackup behavior for the mapped fileset/server.
+      {% endfor %}
+      {% else %}
+      All servers passed post-GENERATE validation.
+      {% endif %}
+      ============================================================
+  when: expect_available and auth_connectivity_after_bootstrap is defined

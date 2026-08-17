@@ -58,6 +58,9 @@ directories:
 
 sp_server_compatible_architectures:
   - x86_64
+  - chrp      # AIX on PowerPC
+  - ppc64     # PowerPC 64-bit
+  - ppc64le   # PowerPC 64-bit Little Endian
 
 server_size: 'xsmall'
 act_log_size:
@@ -85,3 +88,7 @@ server_password: "IBMSPServer@@123456789"
 server_blueprint: false
 admin_name: "tsmuser1"
 admin_password: "tsmuser1@@123456789"
+
+# Controls whether client node registration is performed during GPFS policy bootstrap.
+# Defaults to false in customer/production environments where node registration is a prerequisite.
+gpfs_policy_register_nodes: false

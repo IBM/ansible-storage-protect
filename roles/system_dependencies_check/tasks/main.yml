@@ -1,0 +1,591 @@
+---
+# System Dependencies Check Role - Main Tasks
+# Validates all required system dependencies before installation
+# Optionally installs missing dependencies if install_dependencies=true
+
+# ============================================================================
+# Initialize Validation Results
+# ============================================================================
+- name: Initialize dependency validation results
+  ansible.builtin.set_fact:
+    dependency_check_results:
+      python: {}
+      java: {}
+      perl: {}
+      packages: []
+      tmp_permissions: {}
+      tmp_mount_options: {}
+      tmp_disk_space: {}
+    missing_dependencies: []
+    validation_passed: true
+
+# ============================================================================
+# Detect OS Family
+# ============================================================================
+- name: Detect OS family using raw command (works without Python)
+  raw: |
+    if [ -f /etc/redhat-release ]; then
+      echo "RedHat"
+    elif [ -f /etc/debian_version ]; then
+      echo "Debian"
+    elif uname -s | grep -q AIX; then
+      echo "AIX"
+    else
+      echo "Unknown"
+    fi
+  register: os_family_detect
+  changed_when: false
+  failed_when: false
+
+- name: Set OS family fact
+  ansible.builtin.set_fact:
+    os_family: "{{ os_family_detect.stdout | trim }}"
+
+- name: Display OS detection
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      SYSTEM DEPENDENCIES CHECK - {{ inventory_hostname }}
+      ============================================================
+      OS Family: {{ os_family }}
+      Distribution: {{ ansible_facts['distribution'] | default('Unknown - Python may be missing') }}
+      Version: {{ ansible_facts['distribution_version'] | default('Unknown') }}
+      Architecture: {{ ansible_facts['architecture'] | default('Unknown') }}
+      ============================================================
+
+# ============================================================================
+# Check Python 3.9+
+# ============================================================================
+- name: Check if Python 3.9+ is installed
+  ansible.builtin.shell: |
+    # Check common Python 3.9 locations
+    for py_path in python3.9 /usr/bin/python3.9 /opt/freeware/bin/python3.9 /usr/local/bin/python3.9; do
+      if command -v $py_path >/dev/null 2>&1 || [ -x "$py_path" ]; then
+        $py_path --version 2>&1
+        exit 0
+      fi
+    done
+    exit 1
+  register: python_check
+  changed_when: false
+  failed_when: false
+
+- name: Set Python validation result
+  ansible.builtin.set_fact:
+    dependency_check_results: "{{ dependency_check_results | combine({'python': {'installed': python_check.rc == 0, 'version': python_check.stdout | default('Not installed'), 'required': required_python_version}}) }}"
+
+- name: Add Python to missing dependencies if not found
+  ansible.builtin.set_fact:
+    missing_dependencies: "{{ missing_dependencies + [{'name': 'Python 3.9+', 'package': python_package_names[os_family], 'type': 'python'}] }}"
+    validation_passed: false
+  when: python_check.rc != 0
+
+# ============================================================================
+# Check Java
+# ============================================================================
+- name: Check if Java is installed
+  ansible.builtin.shell: |
+    if command -v java >/dev/null 2>&1; then
+      java -version 2>&1 | head -n 1
+      exit 0
+    else
+      exit 1
+    fi
+  register: java_check
+  changed_when: false
+  failed_when: false
+
+- name: Set Java validation result
+  ansible.builtin.set_fact:
+    dependency_check_results: "{{ dependency_check_results | combine({'java': {'installed': java_check.rc == 0, 'version': java_check.stdout | default('Not installed'), 'required': required_java_version}}) }}"
+
+- name: Add Java to missing dependencies if not found
+  ansible.builtin.set_fact:
+    missing_dependencies: "{{ missing_dependencies + [{'name': 'Java ' + required_java_version + '+', 'package': java_package_names[os_family], 'type': 'java'}] }}"
+    validation_passed: false
+  when: java_check.rc != 0
+
+# ============================================================================
+# Check Perl
+# ============================================================================
+- name: Check if Perl is installed
+  ansible.builtin.shell: |
+    if command -v perl >/dev/null 2>&1; then
+      perl -v | grep -oP 'v\K[0-9]+\.[0-9]+' | head -n 1
+      exit 0
+    else
+      exit 1
+    fi
+  register: perl_check
+  changed_when: false
+  failed_when: false
+
+- name: Set Perl validation result
+  ansible.builtin.set_fact:
+    dependency_check_results: "{{ dependency_check_results | combine({'perl': {'installed': perl_check.rc == 0, 'version': perl_check.stdout | default('Not installed'), 'required': required_perl_version}}) }}"
+
+- name: Add Perl to missing dependencies if not found
+  ansible.builtin.set_fact:
+    missing_dependencies: "{{ missing_dependencies + [{'name': 'Perl ' + required_perl_version + '+', 'package': perl_package_names[os_family], 'type': 'perl'}] }}"
+    validation_passed: false
+  when: perl_check.rc != 0
+
+# ============================================================================
+# Check Required Packages (lsof, rsync)
+# ============================================================================
+- name: Check required system packages
+  ansible.builtin.shell: |
+    if command -v {{ item.name }} >/dev/null 2>&1; then
+      echo "installed"
+      exit 0
+    else
+      echo "not installed"
+      exit 1
+    fi
+  register: package_checks
+  changed_when: false
+  failed_when: false
+  loop: "{{ required_packages }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Process package check results
+  ansible.builtin.set_fact:
+    dependency_check_results: "{{ dependency_check_results | combine({'packages': dependency_check_results.packages + [{'name': item.item.name, 'installed': item.rc == 0, 'description': item.item.description}]}) }}"
+  loop: "{{ package_checks.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Add missing packages to dependencies list
+  ansible.builtin.set_fact:
+    missing_dependencies: "{{ missing_dependencies + [{'name': item.item.name, 'package': item.item.package_names[os_family], 'type': 'package', 'description': item.item.description}] }}"
+    validation_passed: false
+  loop: "{{ package_checks.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.rc != 0
+
+# ============================================================================
+# Check /tmp Directory Permissions
+# ============================================================================
+- name: Check /tmp directory permissions
+  ansible.builtin.shell: stat -c '%a' /tmp
+  register: tmp_permissions_check
+  changed_when: false
+  failed_when: false
+
+- name: Set /tmp permissions validation result
+  ansible.builtin.set_fact:
+    dependency_check_results: "{{ dependency_check_results | combine({'tmp_permissions': {'current': tmp_permissions_check.stdout | default('unknown'), 'required': tmp_required_permissions, 'valid': (tmp_permissions_check.rc == 0 and tmp_permissions_check.stdout == tmp_required_permissions)}}) }}"
+
+- name: Add /tmp permissions to issues if incorrect
+  ansible.builtin.set_fact:
+    missing_dependencies: "{{ missing_dependencies + [{'name': '/tmp permissions', 'type': 'tmp_permissions', 'current': tmp_permissions_check.stdout | default('unknown'), 'required': tmp_required_permissions}] }}"
+    validation_passed: false
+  when: tmp_permissions_check.rc != 0 or tmp_permissions_check.stdout != tmp_required_permissions
+
+# ============================================================================
+# Check /tmp Mount Options
+# ============================================================================
+- name: Check /tmp mount options
+  ansible.builtin.shell: "mount | grep ' /tmp ' || echo 'not_mounted'"
+  register: tmp_mount_check
+  changed_when: false
+  failed_when: false
+
+- name: Check for forbidden mount options
+  ansible.builtin.set_fact:
+    tmp_has_noexec: "{{ tmp_mount_check.rc == 0 and 'noexec' in (tmp_mount_check.stdout | default('')) }}"
+
+- name: Set /tmp mount options validation result
+  ansible.builtin.set_fact:
+    dependency_check_results: "{{ dependency_check_results | combine({'tmp_mount_options': {'mount_info': tmp_mount_check.stdout | default('unknown'), 'has_noexec': tmp_has_noexec, 'valid': not tmp_has_noexec}}) }}"
+
+- name: Add /tmp mount options to issues if noexec found
+  ansible.builtin.set_fact:
+    missing_dependencies: "{{ missing_dependencies + [{'name': '/tmp mount options', 'type': 'tmp_mount', 'issue': 'noexec flag present'}] }}"
+    validation_passed: false
+  when: tmp_has_noexec
+
+# ============================================================================
+# Check /tmp Disk Space
+# ============================================================================
+- name: Check /tmp disk space (cross-platform)
+  ansible.builtin.shell: |
+    # Get free space in MB - works on both Linux and AIX
+    df -m /tmp | tail -1 | awk '
+    {
+      # Check if this is AIX format (has decimal point in column 2)
+      # AIX: Filesystem MB_blocks Free %Used Iused %Iused Mounted
+      # Linux: Filesystem 1M-blocks Used Available Use% Mounted
+      if ($2 ~ /\./) {
+        # AIX format: Free space is in column 2 (with decimal)
+        print int($2)
+      } else {
+        # Linux format: Available space is in column 4
+        print $4
+      }
+    }'
+  register: tmp_space_check
+  changed_when: false
+  failed_when: false
+
+- name: Set /tmp disk space validation result
+  ansible.builtin.set_fact:
+    tmp_space_available: "{{ tmp_space_check.stdout | default('0') | int }}"
+    tmp_space_sufficient: "{{ tmp_space_check.rc == 0 and (tmp_space_check.stdout | default('0') | int) >= tmp_required_space_mb }}"
+
+- name: Update /tmp disk space in results
+  ansible.builtin.set_fact:
+    dependency_check_results: "{{ dependency_check_results | combine({'tmp_disk_space': {'available_mb': tmp_space_available, 'required_mb': tmp_required_space_mb, 'sufficient': tmp_space_sufficient}}) }}"
+
+- name: Add /tmp disk space to issues if insufficient
+  ansible.builtin.set_fact:
+    missing_dependencies: "{{ missing_dependencies + [{'name': '/tmp disk space', 'type': 'tmp_space', 'available': tmp_space_available, 'required': tmp_required_space_mb}] }}"
+    validation_passed: false
+  when: not tmp_space_sufficient
+
+# ============================================================================
+# Display Validation Summary
+# ============================================================================
+- name: Display dependency validation summary
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      DEPENDENCY VALIDATION SUMMARY - {{ inventory_hostname }}
+      ============================================================
+      
+      Python 3.9+:
+        Status: {{ '✓ INSTALLED' if dependency_check_results.python.installed else '✗ MISSING' }}
+        {{ 'Version: ' + dependency_check_results.python.version if dependency_check_results.python.installed else 'Required: ' + dependency_check_results.python.required + '+' }}
+      
+      Java:
+        Status: {{ '✓ INSTALLED' if dependency_check_results.java.installed else '✗ MISSING' }}
+        {{ dependency_check_results.java.version if dependency_check_results.java.installed else 'Required: ' + dependency_check_results.java.required + '+' }}
+      
+      Perl:
+        Status: {{ '✓ INSTALLED' if dependency_check_results.perl.installed else '✗ MISSING' }}
+        {{ 'Version: ' + dependency_check_results.perl.version if dependency_check_results.perl.installed else 'Required: ' + dependency_check_results.perl.required + '+' }}
+      
+      System Packages:
+      {% for pkg in dependency_check_results.packages %}
+        {{ pkg.name }}: {{ '✓ INSTALLED' if pkg.installed else '✗ MISSING' }} - {{ pkg.description }}
+      {% endfor %}
+      
+      /tmp Directory:
+        Permissions: {{ '✓ VALID' if dependency_check_results.tmp_permissions.valid else '✗ INVALID' }} ({{ dependency_check_results.tmp_permissions.current }} / required: {{ dependency_check_results.tmp_permissions.required }})
+        Mount Options: {{ '✓ VALID' if dependency_check_results.tmp_mount_options.valid else '✗ INVALID (noexec present)' }}
+        Disk Space: {{ '✓ SUFFICIENT' if dependency_check_results.tmp_disk_space.sufficient else '✗ INSUFFICIENT' }} ({{ dependency_check_results.tmp_disk_space.available_mb }}MB / required: {{ dependency_check_results.tmp_disk_space.required_mb }}MB)
+      
+      Overall Status: {{ '✓ ALL DEPENDENCIES MET' if validation_passed else '✗ MISSING DEPENDENCIES DETECTED' }}
+      ============================================================
+
+# ============================================================================
+# Generate Remediation Report
+# ============================================================================
+- name: Generate remediation report for missing dependencies
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      REMEDIATION REPORT - {{ inventory_hostname }}
+      ============================================================
+      
+      The following dependencies are missing or misconfigured:
+      
+      {% for dep in missing_dependencies %}
+      {% if dep.type == 'python' %}
+      {{ loop.index }}. Python 3.9+
+         Issue: Python 3.9 or higher is not installed
+         Required for: Ansible modules and IBM Storage Protect components
+         
+         Installation command ({{ os_family }}):
+         {% if os_family == 'RedHat' %}
+         sudo yum install -y {{ dep.package }}
+         {% elif os_family == 'Debian' %}
+         sudo apt-get update && sudo apt-get install -y {{ dep.package }}
+         {% elif os_family == 'AIX' %}
+         sudo yum install -y {{ dep.package }}
+         {% endif %}
+      
+      {% elif dep.type == 'java' %}
+      {{ loop.index }}. Java {{ required_java_version }}+
+         Issue: Java is not installed
+         Required for: IBM Installation Manager and SP Server
+         
+         Installation command ({{ os_family }}):
+         {% if os_family == 'RedHat' %}
+         sudo yum install -y {{ dep.package }}
+         {% elif os_family == 'Debian' %}
+         sudo apt-get update && sudo apt-get install -y {{ dep.package }}
+         {% elif os_family == 'AIX' %}
+         sudo yum install -y {{ dep.package }}
+         {% endif %}
+      
+      {% elif dep.type == 'perl' %}
+      {{ loop.index }}. Perl {{ required_perl_version }}+
+         Issue: Perl is not installed
+         Required for: BA Client and HSM Client operations
+         
+         Installation command ({{ os_family }}):
+         {% if os_family == 'RedHat' %}
+         sudo yum install -y {{ dep.package }}
+         {% elif os_family == 'Debian' %}
+         sudo apt-get update && sudo apt-get install -y {{ dep.package }}
+         {% elif os_family == 'AIX' %}
+         sudo yum install -y {{ dep.package }}
+         {% endif %}
+      
+      {% elif dep.type == 'package' %}
+      {{ loop.index }}. {{ dep.name }}
+         Issue: {{ dep.description }} is not installed
+         Required for: IBM Storage Protect operations
+         
+         Installation command ({{ os_family }}):
+         {% if os_family == 'RedHat' %}
+         sudo yum install -y {{ dep.package }}
+         {% elif os_family == 'Debian' %}
+         sudo apt-get update && sudo apt-get install -y {{ dep.package }}
+         {% elif os_family == 'AIX' %}
+         sudo yum install -y {{ dep.package }}
+         {% endif %}
+      
+      {% elif dep.type == 'tmp_permissions' %}
+      {{ loop.index }}. /tmp Directory Permissions
+         Issue: Current permissions are {{ dep.current }}, required: {{ dep.required }}
+         Required for: Temporary file operations during installation
+         
+         Remediation command:
+         sudo chmod {{ dep.required }} /tmp
+         
+         Verify with:
+         ls -ld /tmp
+         # Should show: drwxrwxrwt
+      
+      {% elif dep.type == 'tmp_mount' %}
+      {{ loop.index }}. /tmp Mount Options
+         Issue: {{ dep.issue }}
+         Required for: IBM Installation Manager execution
+         
+         Temporary fix (until reboot):
+         sudo mount -o remount,exec /tmp
+         
+         Permanent fix:
+         1. Edit /etc/fstab
+         2. Find the /tmp mount line
+         3. Remove 'noexec' from mount options
+         4. Save and remount: sudo mount -o remount /tmp
+         
+         Verify with:
+         mount | grep /tmp
+         # Should NOT show 'noexec'
+      
+      {% elif dep.type == 'tmp_space' %}
+      {{ loop.index }}. /tmp Disk Space
+         Issue: Only {{ dep.available }}MB available, required: {{ dep.required }}MB
+         Required for: Package extraction and temporary operations
+         
+         Remediation options:
+         1. Clean up /tmp directory:
+            sudo find /tmp -type f -atime +7 -delete
+         
+         2. Increase /tmp filesystem size (if using LVM):
+            sudo lvextend -L +2G /dev/mapper/rootvg-tmplv
+            sudo resize2fs /dev/mapper/rootvg-tmplv
+         
+         3. Use alternative temporary directory:
+            Set environment variable: export TMPDIR=/path/to/larger/tmp
+      
+      {% endif %}
+      {% endfor %}
+      
+      ============================================================
+      QUICK FIX - Install All Missing Dependencies
+      ============================================================
+      
+      To automatically install all missing dependencies, re-run with:
+      
+        ansible-playbook playbooks/petascale_install.yml \
+          -i playbooks/inventory/petascale.ini \
+          -e "install_dependencies=true"
+      
+      ⚠️  WARNING: Auto-installation should only be used in:
+         - Non-production environments
+         - Controlled test environments
+         - With explicit customer approval
+      
+      For production systems, manually install dependencies following
+      the remediation steps above.
+      ============================================================
+  when: not validation_passed and generate_remediation_report
+
+# ============================================================================
+# Auto-Install Missing Dependencies (if enabled)
+# ============================================================================
+- name: Auto-install missing dependencies
+  when:
+    - not validation_passed
+    - install_dependencies | bool
+  block:
+    - name: Display auto-install warning
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          AUTO-INSTALL ENABLED - {{ inventory_hostname }}
+          ============================================================
+          
+          ⚠️  WARNING: Automatically installing missing dependencies
+          
+          This feature should only be used in:
+          - Non-production environments
+          - Controlled test environments
+          - With explicit customer approval
+          
+          Installing dependencies...
+          ============================================================
+
+    - name: Install Python 3.9+ (if missing) - RedHat
+      ansible.builtin.raw: "yum install -y {{ python_package_names[os_family] }}"
+      when:
+        - not dependency_check_results.python.installed
+        - os_family == 'RedHat'
+      become: true
+      changed_when: true
+
+    - name: Install Python 3.9+ (if missing) - Debian
+      ansible.builtin.raw: "apt-get update && apt-get install -y {{ python_package_names[os_family] }}"
+      when:
+        - not dependency_check_results.python.installed
+        - os_family == 'Debian'
+      become: true
+      changed_when: true
+
+    - name: Install Python 3.9+ (if missing) - AIX
+      ansible.builtin.raw: "yum install -y {{ python_package_names[os_family] }}"
+      when:
+        - not dependency_check_results.python.installed
+        - os_family == 'AIX'
+      become: true
+      changed_when: true
+
+    - name: Re-gather facts after Python installation
+      ansible.builtin.setup:
+      when: not dependency_check_results.python.installed
+      ignore_errors: true
+
+    - name: Install Java (if missing) - RedHat/AIX
+      ansible.builtin.raw: "yum install -y {{ java_package_names[os_family] }}"
+      when:
+        - not dependency_check_results.java.installed
+        - os_family in ['RedHat', 'AIX']
+      become: true
+      changed_when: true
+
+    - name: Install Java (if missing) - Debian
+      ansible.builtin.raw: "apt-get update && apt-get install -y {{ java_package_names[os_family] }}"
+      when:
+        - not dependency_check_results.java.installed
+        - os_family == 'Debian'
+      become: true
+      changed_when: true
+
+    - name: Install Perl (if missing) - RedHat/AIX
+      ansible.builtin.raw: "yum install -y {{ perl_package_names[os_family] }}"
+      when:
+        - not dependency_check_results.perl.installed
+        - os_family in ['RedHat', 'AIX']
+      become: true
+      changed_when: true
+
+    - name: Install Perl (if missing) - Debian
+      ansible.builtin.raw: "apt-get update && apt-get install -y {{ perl_package_names[os_family] }}"
+      when:
+        - not dependency_check_results.perl.installed
+        - os_family == 'Debian'
+      become: true
+      changed_when: true
+
+    - name: Install missing system packages ({{ os_family }})
+      ansible.builtin.raw: >-
+        {% if os_family == 'AIX' %}
+        /opt/freeware/bin/yum install -y {{ item.package }}
+        {% elif os_family == 'RedHat' %}
+        yum install -y {{ item.package }}
+        {% elif os_family == 'Debian' %}
+        apt-get install -y {{ item.package }}
+        {% endif %}
+      loop: "{{ missing_dependencies }}"
+      when: item.type == 'package'
+      become: true
+      register: package_install_result
+      failed_when: false
+      changed_when: package_install_result.rc == 0
+
+    - name: Display package installation results
+      ansible.builtin.debug:
+        msg: "{{ '✓' if item.rc == 0 else '⚠️' }}  Package {{ item.item.package }}: {{ 'Installed successfully' if item.rc == 0 else 'Not available in repository (may need manual installation)' }}"
+      loop: "{{ package_install_result.results }}"
+      when:
+        - package_install_result is defined
+        - package_install_result.results is defined
+        - item.skipped is not defined or not item.skipped
+        - item.item.type == 'package'
+
+    - name: Fix /tmp permissions (if incorrect)
+      ansible.builtin.file:
+        path: /tmp
+        mode: "{{ tmp_required_permissions }}"
+      when: not dependency_check_results.tmp_permissions.valid
+      become: true
+      register: tmp_permissions_fix
+      failed_when: false
+
+    - name: Display /tmp permissions fix result
+      ansible.builtin.debug:
+        msg: "{{ '✓' if tmp_permissions_fix.changed else '⚠️' }}  /tmp permissions: {{ 'Fixed successfully' if tmp_permissions_fix.changed else 'Could not be fixed automatically (may require manual intervention)' }}"
+      when: tmp_permissions_fix is defined
+
+    - name: Display auto-install completion
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          AUTO-INSTALL COMPLETED - {{ inventory_hostname }}
+          ============================================================
+          
+          Dependencies have been installed. Please note:
+          
+          - /tmp mount options (noexec) require manual intervention
+          - /tmp disk space issues require manual intervention
+          - /tmp permissions issues may require manual intervention
+          - Verify installations before proceeding
+          
+          Re-run validation to confirm all dependencies are met.
+          ============================================================
+
+# ============================================================================
+# Fail if Dependencies Missing (and auto-install disabled)
+# ============================================================================
+- name: Display dependency validation warning (non-blocking)
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      ⚠️  DEPENDENCY VALIDATION WARNING - {{ inventory_hostname }}
+      ============================================================
+      
+      Some dependencies are missing or misconfigured, but the
+      playbook will continue (non-blocking mode).
+      
+      Please review the REMEDIATION REPORT above for detailed
+      instructions on how to resolve each issue.
+      
+      Missing dependencies may cause installation failures later.
+      
+      Options:
+      1. Manually install dependencies (recommended for production)
+      2. Re-run with -e "install_dependencies=true" (non-production only)
+      3. Continue anyway (current behavior)
+      
+      ============================================================
+  when:
+    - not validation_passed
+    - not (install_dependencies | bool)
+

@@ -60,6 +60,74 @@ Some Ansible collections (including baclient-installation) require Python 3.9 or
 
 To address this without modifying the collection code, you can use the `python_version_install.yml` playbook to automatically install Python 3.9+ from source on the remote host. After installation, you can instruct Ansible to use the new Python interpreter for all tasks.
 
+## ⚠️ Critical Deployment Constraint: Node Separation
+
+**IMPORTANT: SP Server and BA/HSM Clients MUST NOT be installed on the same node!**
+
+### Why This Restriction Exists:
+
+Different IBM Storage Protect components require **incompatible GSKit versions**:
+
+- **SP Server 8.1.27** requires GSKit 8.0.55.31
+- **BA/HSM Client 8.1.x** requires GSKit 8.0.60.1
+
+### The Problem:
+
+1. **Version Conflict**: Installing BA/HSM Client on an SP Server node will **overwrite** the SP Server's GSKit (8.0.55.31 → 8.0.60.1), causing the SP Server to use an incompatible GSKit version.
+
+2. **Uninstall Impact**: Uninstalling BA/HSM Client will **remove GSKit entirely**, making the SP Server unusable.
+
+### Deployment Architecture:
+
+```
+✅ CORRECT:
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   SP Server     │     │   BA Client     │     │   HSM Client    │
+│   Node 1        │     │   Node 2        │     │   Node 3        │
+│   GSKit 8.55.31 │     │   GSKit 8.60.1  │     │   GSKit 8.60.1  │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+
+❌ INCORRECT:
+┌─────────────────────────────┐
+│   SP Server + BA Client     │  ← GSKit version conflict!
+│   Node 1                    │
+└─────────────────────────────┘
+```
+
+### Inventory Configuration:
+
+Ensure your `inventory/petascale.ini` has **separate nodes** for each component:
+
+```ini
+[sp_servers]
+sp-server-01
+
+[ba_clients]
+ba-client-01
+ba-client-02
+
+[hsm_clients]
+hsm-client-01
+hsm-client-02
+
+# ❌ NEVER do this:
+# [sp_servers]
+# server-01
+#
+# [ba_clients]
+# server-01  ← Same node as SP Server!
+```
+
+### Summary:
+
+| Component | GSKit Version | Can Co-exist With |
+|-----------|---------------|-------------------|
+| SP Server | 8.0.55.31 | ❌ BA Client, ❌ HSM Client |
+| BA Client | 8.0.60.1 | ✅ HSM Client, ❌ SP Server |
+| HSM Client | 8.0.60.1 | ✅ BA Client, ❌ SP Server |
+
+**Always deploy SP Server on dedicated nodes separate from BA/HSM Clients.**
+
 ## Use Cases
 
 ### Preparing Storage Protect client system-option file

@@ -1,0 +1,381 @@
+---
+# Uninstall BA Client and all related packages on AIX
+- name: Check for any TSM/Tivoli packages installed (AIX)
+  ansible.builtin.shell: lslpp -L 2>/dev/null | grep -Ei "TIVsm|tivoli.tsm" || true
+  register: ba_packages_check
+  changed_when: false
+
+- name: Check specifically for BA package
+  ansible.builtin.command: lslpp -l tivoli.tsm.client.ba.64bit.base
+  register: ba_specific_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Check for API packages
+  ansible.builtin.command: lslpp -l tivoli.tsm.client.api.64bit
+  register: api_specific_check
+  ignore_errors: true
+  changed_when: false
+
+# Extract version from any installed package (BA or API)
+- name: Extract installed version from BA package (AIX)
+  ansible.builtin.shell: lslpp -l tivoli.tsm.client.ba.64bit.base 2>/dev/null | grep tivoli.tsm.client.ba.64bit.base | awk '{print $2}' | head -1
+  register: aix_version_raw
+  ignore_errors: true
+  changed_when: false
+  when: ba_specific_check.rc == 0
+
+- name: Set installed version from BA (AIX)
+  ansible.builtin.set_fact:
+    installed_version: "{{ aix_version_raw.stdout | regex_replace('^([0-9]+\\.[0-9]+\\.[0-9]+).*', '\\1') }}"
+  when:
+    - ba_specific_check.rc == 0
+    - aix_version_raw.stdout is defined
+    - aix_version_raw.stdout != ''
+
+- name: Extract installed version from API package (AIX)
+  ansible.builtin.shell: lslpp -l tivoli.tsm.client.api.64bit 2>/dev/null | grep tivoli.tsm.client.api.64bit | awk '{print $2}' | head -1
+  register: aix_api_version_raw
+  ignore_errors: true
+  changed_when: false
+  when:
+    - ba_specific_check.rc != 0
+    - api_specific_check.rc == 0
+
+- name: Set installed version from API (AIX)
+  ansible.builtin.set_fact:
+    installed_version: "{{ aix_api_version_raw.stdout | regex_replace('^([0-9]+\\.[0-9]+\\.[0-9]+).*', '\\1') }}"
+  when:
+    - ba_specific_check.rc != 0
+    - api_specific_check.rc == 0
+    - aix_api_version_raw.stdout is defined
+    - aix_api_version_raw.stdout != ''
+
+- name: Display version information (AIX)
+  ansible.builtin.debug:
+    msg: |
+      Installed BA Client version: {{ installed_version | default('Not installed') }}
+      Version specified in host_vars: {{ ba_client_version | default('Not specified') }}
+  when: installed_version is defined
+
+- name: Validate version match before uninstall (AIX)
+  ansible.builtin.fail:
+    msg: |
+      ============================================================
+      VERSION MISMATCH - UNINSTALL ABORTED
+      ============================================================
+      
+      Installed BA Client version: {{ installed_version }}
+      Version specified in host_vars: {{ ba_client_version }}
+      
+      ERROR: The installed version does not match the version
+      specified in your host_vars file ({{ inventory_hostname }}.yml).
+      
+      This is a safety check to prevent accidental uninstallation
+      of the wrong version.
+      
+      ACTIONS:
+      1. If you want to uninstall version {{ installed_version }}:
+         Update playbooks/host_vars/{{ inventory_hostname }}.yml
+         Set: ba_client_version: "{{ installed_version }}"
+      
+      2. If you want to force uninstall regardless of version:
+         Add this variable to your playbook execution:
+         -e "force_uninstall=yes"
+      
+      3. To check what's installed on this host:
+         ansible {{ inventory_hostname }} -i playbooks/inventory/petascale.ini \
+           -m shell -a "lslpp -l tivoli.tsm.client.ba.64bit.base" --become
+      
+      ============================================================
+  when:
+    - installed_version is defined
+    - ba_client_version is defined
+    - installed_version != ba_client_version
+    - force_uninstall is not defined or not force_uninstall
+
+- name: Display force uninstall warning
+  ansible.builtin.debug:
+    msg: |
+      ⚠️  WARNING: Force uninstall is enabled!
+      Proceeding with uninstall despite version mismatch.
+      Installed: {{ installed_version | default('Unknown') }}
+      Expected: {{ ba_client_version | default('Unknown') }}
+  when:
+    - force_uninstall is defined
+    - force_uninstall
+    - installed_version is defined
+    - ba_client_version is defined
+    - installed_version != ba_client_version
+
+- name: Check if BA Client is not installed
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      BA CLIENT NOT INSTALLED
+      ============================================================
+      BA Client is not currently installed on this AIX system.
+      Nothing to uninstall.
+      ============================================================
+  when: ba_specific_check.rc != 0 and api_specific_check.rc != 0
+
+- name: End play if BA Client is not installed
+  ansible.builtin.meta: end_play
+  when: ba_specific_check.rc != 0 and api_specific_check.rc != 0
+
+# Stop dsmcad service before uninstall
+- name: Stop dsmcad service on AIX
+  ansible.builtin.command: stopsrc -s dsmcad
+  register: dsmcad_stop_result
+  failed_when: false
+  changed_when: dsmcad_stop_result.rc == 0
+
+- name: Display dsmcad stop result
+  ansible.builtin.debug:
+    msg: "dsmcad service stop result: {{ 'Stopped successfully' if dsmcad_stop_result.rc == 0 else 'Not running or already stopped' }}"
+
+# Remove dsmcad from inittab
+- name: Remove dsmcad from inittab
+  ansible.builtin.command: rmitab dsmcad
+  register: dsmcad_rmitab_result
+  failed_when: false
+  changed_when: dsmcad_rmitab_result.rc == 0
+
+- name: Display dsmcad inittab removal result
+  ansible.builtin.debug:
+    msg: "dsmcad inittab removal: {{ 'Removed successfully' if dsmcad_rmitab_result.rc == 0 else 'Not found in inittab' }}"
+
+# Check what packages are actually installed before uninstalling
+- name: List all installed TSM/Tivoli packages
+  ansible.builtin.shell: lslpp -L 2>/dev/null | grep -Ei "tivoli.tsm|gsk8" || true
+  register: installed_packages_list
+  changed_when: false
+
+- name: Display installed packages
+  ansible.builtin.debug:
+    msg: |
+      ========================================
+      Currently Installed TSM/GSKit Packages:
+      ========================================
+      {{ installed_packages_list.stdout_lines | join('\n') }}
+      ========================================
+
+# Uninstall packages in reverse dependency order
+- name: Uninstall BA Client WebGUI package
+  ansible.builtin.command: installp -u tivoli.tsm.client.webgui
+  register: webgui_uninstall
+  failed_when: false
+  changed_when: webgui_uninstall.rc == 0
+
+- name: Display WebGUI uninstall result
+  ansible.builtin.debug:
+    msg: "WebGUI uninstall: {{ 'Success' if webgui_uninstall.rc == 0 else 'Not installed or failed' }}"
+
+- name: Uninstall BA Client base package
+  ansible.builtin.command: installp -u tivoli.tsm.client.ba.64bit
+  register: ba_uninstall
+  failed_when: false
+  changed_when: ba_uninstall.rc == 0
+
+- name: Display BA Client uninstall result
+  ansible.builtin.debug:
+    msg: "BA Client uninstall: {{ 'Success' if ba_uninstall.rc == 0 else 'Failed' }}"
+
+- name: Fail if BA Client uninstall failed
+  ansible.builtin.fail:
+    msg: |
+      ============================================================
+      BA CLIENT UNINSTALL FAILED
+      ============================================================
+      Failed to uninstall BA Client base package.
+      Error: {{ ba_uninstall.stderr | default('Unknown error') }}
+      
+      This may be due to:
+      1. Package dependencies (other packages depend on BA Client)
+      2. Package corruption
+      3. Insufficient permissions
+      
+      Try manual uninstall:
+      installp -u tivoli.tsm.client.ba.64bit
+      
+      Or force uninstall (use with caution):
+      installp -u -f tivoli.tsm.client.ba.64bit
+      ============================================================
+  when: ba_uninstall.rc != 0
+
+- name: Uninstall API package
+  ansible.builtin.command: installp -u tivoli.tsm.client.api.64bit
+  register: api_uninstall
+  failed_when: false
+  changed_when: api_uninstall.rc == 0
+
+- name: Display API uninstall result
+  ansible.builtin.debug:
+    msg: "API package uninstall: {{ 'Success' if api_uninstall.rc == 0 else 'Not installed or failed' }}"
+
+# ⚠️  WARNING: GSKit uninstall section
+# GSKit libraries are shared between SP Server and BA/HSM Clients
+# ONLY uninstall GSKit if:
+# 1. This node does NOT have SP Server installed
+# 2. This node does NOT have HSM Client installed
+# 3. No other IBM products use GSKit
+
+- name: Check if SP Server is installed
+  ansible.builtin.command: lslpp -l tivoli.tsm.server
+  register: sp_server_check
+  failed_when: false
+  changed_when: false
+
+- name: Check if HSM Client is installed
+  ansible.builtin.command: lslpp -l tivoli.tsm.client.hsm.gpfs
+  register: hsm_client_check
+  failed_when: false
+  changed_when: false
+
+- name: Display GSKit uninstall warning
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      ⚠️  GSKit UNINSTALL WARNING
+      ============================================================
+      
+      GSKit libraries (gsk8ssl64, gsk8cry64) are shared components
+      used by multiple IBM products:
+      - IBM Storage Protect Server
+      - IBM Storage Protect BA Client
+      - IBM Storage Protect HSM Client
+      - Other IBM products
+      
+      Current system status:
+      - SP Server installed: {{ 'YES' if sp_server_check.rc == 0 else 'NO' }}
+      - HSM Client installed: {{ 'YES' if hsm_client_check.rc == 0 else 'NO' }}
+      
+      {% if sp_server_check.rc == 0 or hsm_client_check.rc == 0 %}
+      ❌ SKIPPING GSKit uninstall - other IBM products detected!
+      
+      GSKit libraries will NOT be removed because:
+      {% if sp_server_check.rc == 0 %}
+      - SP Server is installed and requires GSKit
+      {% endif %}
+      {% if hsm_client_check.rc == 0 %}
+      - HSM Client is installed and requires GSKit
+      {% endif %}
+      
+      To remove GSKit, you must first uninstall all dependent products.
+      {% else %}
+      ✅ No other IBM products detected - GSKit can be safely removed
+      {% endif %}
+      ============================================================
+
+- name: Uninstall GSKit SSL library (only if no other IBM products)
+  ansible.builtin.command: installp -u GSKit8.gskssl64.ppc.rte
+  register: gskssl_uninstall
+  failed_when: false
+  changed_when: gskssl_uninstall.rc == 0
+  when:
+    - sp_server_check.rc != 0
+    - hsm_client_check.rc != 0
+
+- name: Display GSKit SSL uninstall result
+  ansible.builtin.debug:
+    msg: "GSKit SSL uninstall: {{ 'Success' if gskssl_uninstall.rc == 0 else ('Skipped - other products installed' if (sp_server_check.rc == 0 or hsm_client_check.rc == 0) else 'Not installed or failed') }}"
+
+- name: Uninstall GSKit cryptographic library (only if no other IBM products)
+  ansible.builtin.command: installp -u GSKit8.gskcrypt64.ppc.rte
+  register: gskcrypt_uninstall
+  failed_when: false
+  changed_when: gskcrypt_uninstall.rc == 0
+  when:
+    - sp_server_check.rc != 0
+    - hsm_client_check.rc != 0
+
+- name: Display GSKit crypt uninstall result
+  ansible.builtin.debug:
+    msg: "GSKit crypt uninstall: {{ 'Success' if gskcrypt_uninstall.rc == 0 else ('Skipped - other products installed' if (sp_server_check.rc == 0 or hsm_client_check.rc == 0) else 'Not installed or failed') }}"
+
+# Verify uninstallation
+- name: Verify BA Client uninstallation
+  ansible.builtin.command: lslpp -l tivoli.tsm.client.ba.64bit.base
+  register: verify_uninstall
+  failed_when: false
+  changed_when: false
+
+- name: Display uninstallation verification result
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      BA CLIENT UNINSTALLATION {{ 'SUCCESSFUL' if verify_uninstall.rc != 0 else 'FAILED' }}
+      ============================================================
+      {% if verify_uninstall.rc != 0 %}
+      ✅ BA Client has been successfully uninstalled from this AIX system.
+      
+      Uninstalled packages:
+      - tivoli.tsm.client.ba.64bit (BA Client)
+      - tivoli.tsm.client.api.64bit (API)
+      - tivoli.tsm.client.webgui (WebGUI) - if installed
+      {% if sp_server_check.rc != 0 and hsm_client_check.rc != 0 %}
+      - GSKit8.gskssl64.ppc.rte (GSKit SSL)
+      - GSKit8.gskcrypt64.ppc.rte (GSKit Crypto)
+      {% endif %}
+      
+      Services stopped:
+      - dsmcad (removed from inittab)
+      {% else %}
+      ❌ BA Client uninstallation verification FAILED!
+      
+      The BA Client package is still detected on the system.
+      This may indicate:
+      1. Uninstallation failed
+      2. Package corruption
+      3. Dependency issues
+      
+      Please check the logs above for error details.
+      {% endif %}
+      ============================================================
+
+- name: Fail if uninstallation verification failed
+  ansible.builtin.fail:
+    msg: "BA Client uninstallation verification failed. Package is still installed."
+  when: verify_uninstall.rc == 0
+
+# Optional: Clean up installation directories
+- name: Check if /opt/baClient directory exists
+  ansible.builtin.stat:
+    path: "{{ ba_client_extract_dest }}"
+  register: ba_client_dir
+
+- name: Remove /opt/baClient directory
+  ansible.builtin.file:
+    path: "{{ ba_client_extract_dest }}"
+    state: absent
+  when: ba_client_dir.stat.exists
+  register: dir_cleanup
+
+- name: Display directory cleanup result
+  ansible.builtin.debug:
+    msg: "Installation directory cleanup: {{ 'Removed' if dir_cleanup.changed else 'Not found or already removed' }}"
+
+- name: Uninstallation summary
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      BA CLIENT UNINSTALLATION SUMMARY
+      ============================================================
+      Version uninstalled: {{ installed_version | default('Unknown') }}
+      
+      Package removal status:
+      - BA Client: {{ 'Removed' if ba_uninstall.rc == 0 else 'Failed' }}
+      - API: {{ 'Removed' if api_uninstall.rc == 0 else 'Not installed' }}
+      - WebGUI: {{ 'Removed' if webgui_uninstall.rc == 0 else 'Not installed' }}
+      - GSKit SSL: {{ 'Removed' if (gskssl_uninstall.rc is defined and gskssl_uninstall.rc == 0) else 'Skipped or not installed' }}
+      - GSKit Crypto: {{ 'Removed' if (gskcrypt_uninstall.rc is defined and gskcrypt_uninstall.rc == 0) else 'Skipped or not installed' }}
+      
+      Service status:
+      - dsmcad: Stopped and removed from inittab
+      
+      Directory cleanup:
+      - {{ ba_client_extract_dest }}: {{ 'Removed' if dir_cleanup.changed else 'Not found' }}
+      ============================================================
+...
+
+# Made with Bob

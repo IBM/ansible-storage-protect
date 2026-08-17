@@ -2,22 +2,68 @@
 #  ansible.builtin.shell: "pkill -f dsmserv"
 #  ignore_errors: true
 
+# Check if TSM user exists before attempting cleanup
+- name: Check if TSM user exists
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ tsm_user }}"
+  register: tsm_user_check
+  failed_when: false
+
+- name: Check if DB2 binary exists
+  ansible.builtin.stat:
+    path: "/opt/tivoli/tsm/db2/bin/db2fmcu"
+  register: db2_binary_check
+
 - name: Stop DB2 process
   ansible.builtin.shell: "/opt/tivoli/tsm/db2/bin/db2fmcu -d"
-  ignore_errors: true
   become: true
+  when: db2_binary_check.stat.exists
+  register: db2_stop_result
+  failed_when: false
 # sudo /opt/tivoli/tsm/db2/bin/db2fmcu -d
+
+- name: Display DB2 stop result
+  ansible.builtin.debug:
+    msg: "DB2 process stop: {{ 'SUCCESS' if db2_stop_result.rc == 0 else 'FAILED (rc=' + (db2_stop_result.rc | string) + ')' }}"
+  when: db2_binary_check.stat.exists
 
 # sudo su - tsminst1 -c ". /home/tsminst1/sqllib/db2profile && db2 force application all"
 - name: Kill DB2 Processes
   ansible.builtin.shell: "sudo su - {{ tsm_user }} -c '. /home/{{ tsm_user }}/sqllib/db2profile && db2 force application all' "
-  ignore_errors: true
+  when: tsm_user_check.ansible_facts is defined
+  register: db2_force_result
+  failed_when: false
+
+- name: Display DB2 force applications result
+  ansible.builtin.debug:
+    msg: "DB2 force applications: {{ 'SUCCESS' if db2_force_result.rc == 0 else 'FAILED (rc=' + (db2_force_result.rc | string) + ')' }}"
+  when: tsm_user_check.ansible_facts is defined
 
 # sudo su - tsminst1 -c ". /home/tsminst1/sqllib/db2profile && db2stop force"
-
 - name: Stop DB2 instance
   ansible.builtin.shell: "sudo su - {{ tsm_user }} -c '. /home/{{ tsm_user }}/sqllib/db2profile && db2stop force'"
-  ignore_errors: true
+  when: tsm_user_check.ansible_facts is defined
+  register: db2_instance_stop_result
+  failed_when: false
+
+- name: Display DB2 instance stop result
+  ansible.builtin.debug:
+    msg: "DB2 instance stop: {{ 'SUCCESS' if db2_instance_stop_result.rc == 0 else 'FAILED (rc=' + (db2_instance_stop_result.rc | string) + ')' }}"
+  when: tsm_user_check.ansible_facts is defined
+
+- name: Verify DB2 is stopped
+  ansible.builtin.shell: "ps aux | grep -i db2 | grep -v grep"
+  register: db2_process_check
+  failed_when: false
+  changed_when: false
+
+- name: Fail if DB2 processes still running
+  ansible.builtin.fail:
+    msg: "DB2 processes are still running after stop attempts. Manual intervention required."
+  when:
+    - tsm_user_check.ansible_facts is defined
+    - db2_process_check.rc == 0
 
 #- name: Stop the DB2 instance
 #  ansible.builtin.shell: "su - {{ tsm_user }} -c 'db2stop'"
@@ -25,36 +71,97 @@
 
 - name: Kill all dsmserv processes
   ansible.builtin.shell: "pkill -f dsmserv"
-  ignore_errors: true
+  register: dsmserv_kill_result
+  failed_when: false
+
+- name: Display dsmserv kill result
+  ansible.builtin.debug:
+    msg: "Kill dsmserv processes: {{ 'SUCCESS (processes killed)' if dsmserv_kill_result.rc == 0 else 'NO PROCESSES FOUND' if dsmserv_kill_result.rc == 1 else 'FAILED (rc=' + (dsmserv_kill_result.rc | string) + ')' }}"
+
+- name: Verify dsmserv processes are stopped
+  ansible.builtin.shell: "ps aux | grep -i dsmserv | grep -v grep"
+  register: dsmserv_process_check
+  failed_when: false
+  changed_when: false
+
+- name: Fail if dsmserv processes still running
+  ansible.builtin.fail:
+    msg: "dsmserv processes are still running after kill attempts. Manual intervention required."
+  when: dsmserv_process_check.rc == 0
 
 # sudo su - tsminst1 -c ". /home/tsminst1/sqllib/db2profile && dsmserv removedb tsmdb001"
 - name: Remove the TSM database
   ansible.builtin.shell: "sudo su - {{ tsm_user }} -c '. dsmserv removedb TSMdbspace01'"
   args:
     chdir: "/{{ tsm_user }}"
-  ignore_errors: true
+  when: tsm_user_check.ansible_facts is defined
+  register: db_remove_result
+  failed_when: false
+
+- name: Display TSM database removal result
+  ansible.builtin.debug:
+    msg: "TSM database removal: {{ 'SUCCESS' if db_remove_result.rc == 0 else 'FAILED (rc=' + (db_remove_result.rc | string) + ') - ' + db_remove_result.stderr }}"
+  when: tsm_user_check.ansible_facts is defined
 
 - name: Drop the DB2 instance
   ansible.builtin.shell: "{{ db2_instance_path }}/db2idrop {{ tsm_user }}"
-  ignore_errors: true
+  when: tsm_user_check.ansible_facts is defined
+  register: db2_drop_result
+  failed_when: false
+
+- name: Display DB2 instance drop result
+  ansible.builtin.debug:
+    msg: "DB2 instance drop: {{ 'SUCCESS' if db2_drop_result.rc == 0 else 'FAILED (rc=' + (db2_drop_result.rc | string) + ') - Instance may not exist' }}"
+  when: tsm_user_check.ansible_facts is defined
 
 # sudo pkill -KILL -u tsminst1
 - name: Kill the processes of user before removing
   ansible.builtin.shell: "sudo pkill -KILL -u {{ tsm_user }}"
-  ignore_errors: true
+  when: tsm_user_check.ansible_facts is defined
+  register: user_kill_result
+  failed_when: false
+
+- name: Display user process kill result
+  ansible.builtin.debug:
+    msg: "Kill user processes: {{ 'SUCCESS (processes killed)' if user_kill_result.rc == 0 else 'NO PROCESSES FOUND' if user_kill_result.rc == 1 else 'FAILED (rc=' + (user_kill_result.rc | string) + ')' }}"
+  when: tsm_user_check.ansible_facts is defined
+
+- name: Verify user processes are stopped
+  ansible.builtin.shell: "ps aux | grep {{ tsm_user }} | grep -v grep"
+  register: user_process_check
+  failed_when: false
+  changed_when: false
+  when: tsm_user_check.ansible_facts is defined
+
+- name: Fail if user processes still running
+  ansible.builtin.fail:
+    msg: "Processes for user {{ tsm_user }} are still running. Manual intervention required."
+  when:
+    - tsm_user_check.ansible_facts is defined
+    - user_process_check.rc == 0
 
 - name: Remove the TSM user
   ansible.builtin.user:
     name: "{{ tsm_user }}"
     state: absent
     remove: true
-  ignore_errors: true
+  when: tsm_user_check.ansible_facts is defined
+  register: user_remove_result
+
+- name: Display user removal result
+  ansible.builtin.debug:
+    msg: "TSM user removal: {{ 'SUCCESS' if user_remove_result is succeeded else 'FAILED' }}"
+  when: tsm_user_check.ansible_facts is defined
 
 - name: Remove the TSM group
   ansible.builtin.group:
     name: "{{ tsm_group }}"
     state: absent
-  ignore_errors: true
+  register: group_remove_result
+
+- name: Display group removal result
+  ansible.builtin.debug:
+    msg: "TSM group removal: {{ 'SUCCESS' if group_remove_result is succeeded else 'FAILED' }}"
 
 #- name: Unmount /tsmroot
 #  ansible.builtin.command: "sudo umount {{ root_dir }}"

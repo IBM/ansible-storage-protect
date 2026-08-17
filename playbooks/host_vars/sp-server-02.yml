@@ -1,0 +1,174 @@
+---
+# Host-specific variables for sp-server-02
+# This file contains configuration specific to this SP Server node
+#
+# CUSTOMER: Edit this file to customize settings for sp-server-02
+
+# ============================================================================
+# SP Server Installation Settings
+# ============================================================================
+
+# SP Server version to install
+# Must match the package file available on the remote node
+sp_server_version: "8.1.27.000"
+
+# Installation state
+# Options: present (install), absent (uninstall), upgrade
+sp_server_state: "present"
+
+# Installation action
+# Options: install, upgrade
+sp_server_action: "install"
+
+# ============================================================================
+# Package Location
+# ============================================================================
+
+# RECOMMENDED: Explicit package path (like BA Client)
+# Specify the exact path to the SP Server binary file on the remote node
+# This eliminates ambiguity when multiple packages exist in the same directory
+sp_server_package_path: "/tmp/8.1.27.000-IBM-SPSRV-LIC-Linuxx86_64-162.bin"
+
+# LEGACY: Pattern matching approach (kept for backward compatibility)
+# If sp_server_package_path is not defined, the system will search for files
+# matching the pattern: {{ sp_server_version }}*.bin in sp_server_bin_repo
+# sp_server_bin_repo: "/tmp"
+# sp_server_version: "8.1.27.000"
+
+# ============================================================================
+# Installation Directories
+# ============================================================================
+
+# Directory for SP Server installation binaries
+sp_server_install_dest: "/opt/sp_server_binary/"
+
+# Directory for SP Server upgrade binaries (if upgrading)
+sp_server_upgrade_dest: "/opt/sp_server_upgrade_binary"
+
+# DB2 instance path
+db2_instance_path: "/opt/tivoli/tsm/db2/instance"
+
+# ============================================================================
+# Server Configuration
+# ============================================================================
+
+# Server name (must be unique in the environment)
+server_name: "PETASCALE-SP02"
+
+# Server password (change this!)
+server_password: "IBMSPServer@@123456789"
+
+# Admin user credentials
+admin_name: "admin"
+admin_password: "admin@@123456789"
+
+# ============================================================================
+# Server Sizing
+# ============================================================================
+
+# Server size: xsmall, small, medium, large
+# This affects active log size and max sessions
+server_size: "xsmall"
+
+# Active log size (MB) - automatically set based on server_size
+# Can be overridden here if needed
+# sp_server_active_log_size: 131072
+sp_server_active_log_size: 30000
+
+# ============================================================================
+# TSM User Configuration
+# ============================================================================
+
+# TSM group
+tsm_group: "tsmusers"
+tsm_group_gid: "10001"
+
+# TSM user
+tsm_user: "tsminst1"
+tsm_user_uid: "10001"
+tsm_user_password: "Tsmuser@@123456789"
+
+# ============================================================================
+# SSL Configuration
+# ============================================================================
+
+# Secure port
+secure_port: "9443"
+
+# SSL password (change this!)
+ssl_password: "YourSSLPassword@@123"
+ssl_password_confirm: "{{ ssl_password }}"
+
+# ============================================================================
+# Component Selection
+# ============================================================================
+
+# Components to install
+offerings:
+  server: true          # SP Server (required)
+  stagent: true         # Storage Agent
+  devices: true         # Device drivers
+  oc: true              # Operations Center
+  ossm: true            # OSSM
+
+# ============================================================================
+# Database Configuration
+# ============================================================================
+
+# Database directories
+# These will be created during installation
+directories:
+  - TSMdbspace01
+  - TSMdbspace02
+  - TSMdbspace03
+  - TSMdbspace04
+  - TSMalog
+  - TSMarchlog
+
+# ============================================================================
+# Backup Configuration
+# ============================================================================
+
+# Database backup settings
+backup_start_time: "12:00"
+backup_start_time_string: "12PM"
+backup_start_plus_fourteen: "14:00"
+backup_start_plus_ten: "10:00"
+
+# Maximum capacity
+maxcap: "100G"
+
+# Database backup streams
+dbbk_streams: "4"
+
+# Database backup compression
+dbbk_compress: "YES"
+
+# Database backup password (change this!)
+dbbk_password: "YourDBkPassword@@123456789"
+
+# ============================================================================
+# License Configuration
+# ============================================================================
+
+# License value
+license_value: "tsm"
+
+# License option
+license_option: "A"
+
+# ============================================================================
+# Advanced Settings (Optional)
+# ============================================================================
+
+# Profile ID
+profile_id: "IBM Storage Protect"
+
+# Installation location
+install_location: "/opt/IBM/InstallationManager/eclipse"
+
+# Installation Manager command line path
+imcl_path: "/opt/IBM/InstallationManager/eclipse/tools/imcl"
+
+# Server blueprint mode
+server_blueprint: false

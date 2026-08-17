@@ -1,0 +1,140 @@
+---
+# Upgrade HSM Client to a newer version
+- name: Check if HSM Client is installed
+  ansible.builtin.command: rpm -q TIVsm-HSM
+  register: hsm_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Fail if HSM Client is not installed
+  ansible.builtin.fail:
+    msg: "HSM Client is not installed. Cannot perform upgrade. Please install first."
+  when: hsm_check.rc != 0
+
+- name: Display current HSM Client version
+  ansible.builtin.debug:
+    msg: "Current HSM Client version: {{ hsm_check.stdout }}"
+
+# Backup configuration files before upgrade
+- name: Display backup information
+  ansible.builtin.debug:
+    msg: |
+      ========================================
+      Starting HSM Client Upgrade Process
+      ========================================
+      Current version: {{ hsm_check.stdout }}
+      Target version: {{ hsm_client_version }}
+      
+      Step 1: Backing up configuration files...
+      ========================================
+
+- name: Backup dsm.opt configuration file
+  ansible.builtin.copy:
+    src: /opt/tivoli/tsm/client/hsm/bin/dsm.opt
+    dest: /opt/tivoli/tsm/client/hsm/bin/dsm.opt.bk
+    remote_src: true
+  register: backup_opt_upgrade
+  failed_when: false
+
+- name: Display dsm.opt backup status
+  ansible.builtin.debug:
+    msg: "ℹ️  Configuration file dsm.opt {{ 'backed up successfully' if backup_opt_upgrade.changed else 'not found (skipped)' }}"
+
+- name: Backup dsm.sys configuration file
+  ansible.builtin.copy:
+    src: /opt/tivoli/tsm/client/hsm/bin/dsm.sys
+    dest: /opt/tivoli/tsm/client/hsm/bin/dsm.sys.bk
+    remote_src: true
+  register: backup_sys_upgrade
+  failed_when: false
+
+- name: Display dsm.sys backup status
+  ansible.builtin.debug:
+    msg: "ℹ️  Configuration file dsm.sys {{ 'backed up successfully' if backup_sys_upgrade.changed else 'not found (skipped)' }}"
+
+- name: Display backup completion
+  ansible.builtin.debug:
+    msg: |
+      ========================================
+      Configuration Backup Completed
+      ========================================
+      Backed up: dsm.opt and dsm.sys
+      ========================================
+
+# Backup installed RPM packages
+- name: Create backup directory for old RPMs
+  ansible.builtin.file:
+    path: /opt/hsmClientPackagesBk
+    state: directory
+    mode: '0755'
+
+- name: Find installed HSM packages
+  ansible.builtin.command: rpm -qa 'TIVsm*' 'gsk*'
+  register: installed_packages
+  changed_when: false
+
+- name: Display packages to be backed up
+  ansible.builtin.debug:
+    msg: "Backing up packages: {{ installed_packages.stdout_lines }}"
+
+# Uninstall current version
+- name: Uninstall current HSM Client
+  ansible.builtin.include_tasks: hsm_client_uninstall_linux.yml
+
+# Install new version
+- name: Install new HSM Client version
+  ansible.builtin.include_tasks: hsm_client_install_linux.yml
+
+# Restore configuration files
+- name: Restore dsm.opt configuration file
+  ansible.builtin.copy:
+    src: /opt/tivoli/tsm/client/hsm/bin/dsm.opt.bk
+    dest: /opt/tivoli/tsm/client/hsm/bin/dsm.opt
+    remote_src: true
+  when: is_installation_successful | default(false)
+  ignore_errors: true
+
+- name: Restore dsm.sys configuration file
+  ansible.builtin.copy:
+    src: /opt/tivoli/tsm/client/hsm/bin/dsm.sys.bk
+    dest: /opt/tivoli/tsm/client/hsm/bin/dsm.sys
+    remote_src: true
+  when: is_installation_successful | default(false)
+  ignore_errors: true
+
+# Verify upgrade
+- name: Verify upgraded HSM Client version
+  ansible.builtin.command: rpm -q TIVsm-HSM
+  register: upgraded_version_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Display upgraded HSM Client version
+  ansible.builtin.debug:
+    msg: "Upgraded HSM Client version: {{ upgraded_version_check.stdout }}"
+  when: upgraded_version_check.rc == 0
+
+- name: Upgrade status
+  ansible.builtin.debug:
+    msg: "HSM Client upgrade completed successfully from {{ hsm_check.stdout }} to {{ upgraded_version_check.stdout }}"
+  when: upgraded_version_check.rc == 0 and is_installation_successful | default(false)
+
+# Cleanup backup files on successful upgrade
+- name: Remove backup directory
+  ansible.builtin.file:
+    path: /opt/hsmClientPackagesBk
+    state: absent
+  when: is_installation_successful | default(false)
+
+- name: Remove configuration backups
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /opt/tivoli/tsm/client/hsm/bin/dsm.opt.bk
+    - /opt/tivoli/tsm/client/hsm/bin/dsm.sys.bk
+  when: is_installation_successful | default(false)
+  ignore_errors: true
+...
+
+# Made with Bob

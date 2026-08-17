@@ -1,0 +1,16 @@
+---
+- name: Install HSM Client on Linux using Role
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: yes
+  become: true
+
+  vars:
+    hsm_client_state: "present"
+    hsm_client_start_daemon: true
+
+  tasks:
+    - name: Include hsm_client_install role
+      include_role:
+        name: hsm_client_install
+
+# Made with Bob

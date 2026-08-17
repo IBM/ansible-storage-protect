@@ -1,0 +1,118 @@
+---
+- name: Configure HSM Client on Linux
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: yes
+  become: true
+
+  vars_files:
+    - ../../vars/main.yml
+
+  vars:
+    hsm_config_dir: "/opt/tivoli/tsm/client/hsm/bin"
+    ba_config_dir: "/opt/tivoli/tsm/client/ba/bin"
+    
+  tasks:
+    - name: Check if HSM Client is installed
+      ansible.builtin.command: rpm -q TIVsm-HSM
+      register: hsm_installed
+      ignore_errors: true
+      changed_when: false
+
+    - name: Fail if HSM Client is not installed
+      ansible.builtin.fail:
+        msg: "HSM Client is not installed. Please install it first before configuring."
+      when: hsm_installed.rc != 0
+
+    - name: Ensure HSM configuration directory exists
+      ansible.builtin.file:
+        path: "{{ hsm_config_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Ensure BA configuration directory exists (for shared config)
+      ansible.builtin.file:
+        path: "{{ ba_config_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Create or update dsm.sys for HSM
+      ansible.builtin.template:
+        src: "{{ dsm_sys_template | default('dsm.sys.j2') }}"
+        dest: "{{ hsm_config_dir }}/dsm.sys"
+        mode: '0644'
+        backup: yes
+      when: dsm_sys_template is defined
+
+    - name: Create or update dsm.opt for HSM
+      ansible.builtin.template:
+        src: "{{ dsm_opt_template | default('dsm.opt.j2') }}"
+        dest: "{{ hsm_config_dir }}/dsm.opt"
+        mode: '0644'
+        backup: yes
+      when: dsm_opt_template is defined
+
+    - name: Configure dsm.sys with basic settings (if no template provided)
+      ansible.builtin.blockinfile:
+        path: "{{ hsm_config_dir }}/dsm.sys"
+        create: yes
+        mode: '0644'
+        marker: "* {mark} ANSIBLE MANAGED BLOCK - HSM Configuration"
+        block: |
+          SErvername  {{ server_name | default('TSM_SERVER') }}
+              TCPServeraddress  {{ server_address | default('tsm.example.com') }}
+              TCPPort           {{ server_port | default('1500') }}
+              NODENAME          {{ node_name | default(ansible_hostname) }}
+              PASSWORDACCESS    GENERATE
+              MANAGEDSERVICES   WEBCLIENT SCHEDULE HSM
+      when: dsm_sys_template is not defined
+
+    - name: Configure dsm.opt with basic settings (if no template provided)
+      ansible.builtin.blockinfile:
+        path: "{{ hsm_config_dir }}/dsm.opt"
+        create: yes
+        mode: '0644'
+        marker: "* {mark} ANSIBLE MANAGED BLOCK - HSM Options"
+        block: |
+          SErvername  {{ server_name | default('TSM_SERVER') }}
+          NODENAME    {{ node_name | default(ansible_hostname) }}
+          ERRORLOGNAME  {{ hsm_config_dir }}/dsmerror.log
+          SCHEDLOGNAME  {{ hsm_config_dir }}/dsmsched.log
+          MANAGEDSERVICES WEBCLIENT SCHEDULE HSM
+      when: dsm_opt_template is not defined
+
+    - name: Set proper permissions on configuration files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        mode: '0644'
+        owner: root
+        group: root
+      loop:
+        - "{{ hsm_config_dir }}/dsm.sys"
+        - "{{ hsm_config_dir }}/dsm.opt"
+
+    - name: Verify configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ hsm_config_dir }}/dsm.sys"
+        - "{{ hsm_config_dir }}/dsm.opt"
+      register: config_check
+
+    - name: Display configuration status
+      ansible.builtin.debug:
+        msg: "Configuration file {{ item.item }} {{ 'exists' if item.stat.exists else 'missing' }}"
+      loop: "{{ config_check.results }}"
+
+    - name: Test HSM configuration (optional)
+      ansible.builtin.command: dsmc query session
+      register: test_connection
+      changed_when: false
+      ignore_errors: true
+      when: test_hsm_connection | default(false)
+
+    - name: Display connection test result
+      ansible.builtin.debug:
+        msg: "HSM connection test: {{ 'SUCCESS' if test_connection.rc == 0 else 'FAILED' }}"
+      when: test_hsm_connection | default(false)
+
+# Made with Bob

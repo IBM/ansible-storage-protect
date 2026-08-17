@@ -6,15 +6,62 @@
   ignore_errors: true
   changed_when: false
 
+- name: Extract installed HSM Client version
+  ansible.builtin.set_fact:
+    installed_hsm_version: >-
+      {{
+        hsm_uninstall_check.stdout.split('-')[2] ~ '.' ~
+        hsm_uninstall_check.stdout.split('-')[3].split('.')[0]
+      }}
+  when: hsm_uninstall_check.rc == 0
+
+- name: Display version information
+  ansible.builtin.debug:
+    msg: |
+      Installed HSM Client version: {{ installed_hsm_version | default('Not installed') }}
+      Version specified in host_vars: {{ hsm_client_version | default('Not specified') }}
+  when: hsm_uninstall_check.rc == 0
+
+- name: Validate version match before uninstall
+  ansible.builtin.fail:
+    msg: |
+      ============================================================
+      VERSION MISMATCH - UNINSTALL ABORTED
+      ============================================================
+      
+      Installed HSM Client version: {{ installed_hsm_version }}
+      Version specified in host_vars: {{ hsm_client_version }}
+      
+      ERROR: The installed version does not match the version
+      specified in your host_vars file ({{ inventory_hostname }}.yml).
+      
+      This is a safety check to prevent accidental uninstallation
+      of the wrong version.
+      
+      ACTIONS:
+      1. If you want to uninstall version {{ installed_hsm_version }}:
+         Update playbooks/host_vars/{{ inventory_hostname }}.yml
+         Set: hsm_client_version: "{{ installed_hsm_version }}"
+      
+      2. If you want to force uninstall regardless of version:
+         Add this variable to your playbook execution:
+         -e "force_uninstall=yes"
+      
+      3. To check what's installed on this host:
+         ansible {{ inventory_hostname }} -i playbooks/inventory/petascale.ini \
+           -m shell -a "rpm -q TIVsm-HSM" --become
+      
+      ============================================================
+  when:
+    - hsm_uninstall_check.rc == 0
+    - installed_hsm_version is defined
+    - hsm_client_version is defined
+    - installed_hsm_version != hsm_client_version
+    - force_uninstall is not defined or force_uninstall != "yes"
+
 - name: Check if BA Client is installed
   ansible.builtin.command: rpm -q TIVsm-BA
   register: ba_uninstall_check
-  ignore_errors: true
-  changed_when: false
-
-- name: Check if API64 is installed
-  ansible.builtin.command: rpm -q TIVsm-API64
-  register: api_uninstall_check
   ignore_errors: true
   changed_when: false
 
@@ -24,131 +71,71 @@
   ignore_errors: true
   changed_when: false
 
-# Extract version from any installed TIVsm package (HSM, BA, or API)
-- name: Extract installed version from HSM package
-  ansible.builtin.set_fact:
-    installed_version: "{{ hsm_uninstall_check.stdout | regex_search('TIVsm-HSM-([0-9.]+)', '\\1') | first | default('') }}"
-  when: hsm_uninstall_check.rc == 0
-
-- name: Extract installed version from BA package
-  ansible.builtin.set_fact:
-    installed_version: "{{ ba_uninstall_check.stdout | regex_search('TIVsm-BA-([0-9.]+)', '\\1') | first | default('') }}"
-  when:
-    - hsm_uninstall_check.rc != 0
-    - ba_uninstall_check.rc == 0
-
-- name: Extract installed version from API64 package
-  ansible.builtin.set_fact:
-    installed_version: "{{ api_uninstall_check.stdout | regex_search('TIVsm-API64-([0-9.]+)', '\\1') | first | default('') }}"
-  when:
-    - hsm_uninstall_check.rc != 0
-    - ba_uninstall_check.rc != 0
-    - api_uninstall_check.rc == 0
-
 - name: Display installation status
   ansible.builtin.debug:
     msg: |
-      ========================================
-      Installed TIVsm Packages Status
-      ========================================
-      HSM Client: {{ 'Installed' if hsm_uninstall_check.rc == 0 else 'Not installed' }}
-      BA Client: {{ 'Installed' if ba_uninstall_check.rc == 0 else 'Not installed' }}
-      API64: {{ 'Installed' if api_uninstall_check.rc == 0 else 'Not installed' }}
-      
-      Detected version: {{ installed_version | default('N/A') }}
-      Requested uninstall version: {{ hsm_client_version | default('Not specified') }}
-      
-      All TIVsm packages found:
-      {{ any_tivoli_packages.stdout_lines | join('\n      ') if any_tivoli_packages.stdout_lines | length > 0 else '      None' }}
-      ========================================
+      HSM Client installed: {{ 'Yes' if hsm_uninstall_check.rc == 0 else 'No' }}
+      BA Client installed: {{ 'Yes' if ba_uninstall_check.rc == 0 else 'No' }}
+      All TIVsm packages: {{ any_tivoli_packages.stdout_lines if any_tivoli_packages.stdout_lines | length > 0 else 'None' }}
 
 - name: Skip uninstallation if nothing is installed
   ansible.builtin.meta: end_play
-  when: any_tivoli_packages.stdout_lines | length == 0
-
-# Version mismatch check - fail if trying to uninstall a different version
-- name: Check for version mismatch
-  ansible.builtin.fail:
-    msg: |
-      ========================================
-      ❌ Version Mismatch - Cannot Uninstall
-      ========================================
-      Installed TIVsm version: {{ installed_version }}
-      Requested uninstall version: {{ hsm_client_version }}
-      
-      The installed version does not match the requested uninstall version.
-      
-      Installed packages:
-      {{ any_tivoli_packages.stdout_lines | join('\n      ') }}
-      
-      To uninstall the currently installed version, use:
-        -e "hsm_client_version={{ installed_version }}"
-      
-      Or to uninstall regardless of version:
-        -e "force_uninstall=true"
-      ========================================
   when:
-    - hsm_client_version is defined
-    - hsm_client_version != ''
-    - installed_version is defined
-    - installed_version != ''
-    - installed_version != hsm_client_version
-    - not (force_uninstall | default(false))
+    - hsm_uninstall_check.rc != 0
+    - ba_uninstall_check.rc != 0
+    - any_tivoli_packages.stdout_lines | length == 0
 
 # Stop HSM daemon/service
 - name: Stop dsmhsm service
   ansible.builtin.systemd:
     name: dsmhsm.service
     state: stopped
-  ignore_errors: true
+  register: stop_service_result
+  failed_when: false
+  changed_when: stop_service_result.changed | default(false)
+
+- name: Display service stop status
+  ansible.builtin.debug:
+    msg: "ℹ️  HSM service {{ 'stopped successfully' if stop_service_result.changed else 'was not running or not found' }}"
+  when: stop_service_result is defined
 
 - name: Kill any running HSM processes
   ansible.builtin.command: killall dsmhsm
-  ignore_errors: true
+  register: kill_processes_result
+  failed_when: false
   changed_when: false
 
-# Backup configuration files before uninstall to a safe location
-- name: Create backup directory for configuration files
-  ansible.builtin.file:
-    path: /var/backups/hsm
-    state: directory
-    mode: '0755'
+- name: Display process kill status
+  ansible.builtin.debug:
+    msg: "ℹ️  HSM processes {{ 'terminated' if kill_processes_result.rc == 0 else 'not found (already stopped)' }}"
+  when: kill_processes_result is defined
 
+# Backup configuration files before uninstall
 - name: Backup dsm.opt configuration file
   ansible.builtin.copy:
     src: /opt/tivoli/tsm/client/hsm/bin/dsm.opt
-    dest: /var/backups/hsm/dsm.opt.{{ ansible_date_time.iso8601_basic_short }}
+    dest: /opt/tivoli/tsm/client/hsm/bin/dsm.opt.bk
     remote_src: true
-  ignore_errors: true
-  register: dsm_opt_backup
+  register: backup_opt_result
+  failed_when: false
+
+- name: Display dsm.opt backup status
+  ansible.builtin.debug:
+    msg: "ℹ️  Configuration file dsm.opt {{ 'backed up successfully' if backup_opt_result.changed else 'not found (skipped)' }}"
+  when: backup_opt_result is defined
 
 - name: Backup dsm.sys configuration file
   ansible.builtin.copy:
     src: /opt/tivoli/tsm/client/hsm/bin/dsm.sys
-    dest: /var/backups/hsm/dsm.sys.{{ ansible_date_time.iso8601_basic_short }}
+    dest: /opt/tivoli/tsm/client/hsm/bin/dsm.sys.bk
     remote_src: true
-  ignore_errors: true
-  register: dsm_sys_backup
+  register: backup_sys_result
+  failed_when: false
 
-- name: Backup BA client configuration if exists
-  ansible.builtin.copy:
-    src: /opt/tivoli/tsm/client/ba/bin/dsm.opt
-    dest: /var/backups/hsm/ba_dsm.opt.{{ ansible_date_time.iso8601_basic_short }}
-    remote_src: true
-  ignore_errors: true
-  when: ba_uninstall_check.rc == 0
-
-- name: Display backup location
+- name: Display dsm.sys backup status
   ansible.builtin.debug:
-    msg: |
-      ========================================
-      Configuration Backups Created
-      ========================================
-      Backup location: /var/backups/hsm/
-      Files backed up:
-      {{ '  - dsm.opt.' + ansible_date_time.iso8601_basic_short if dsm_opt_backup.changed else '  - dsm.opt (not found or failed)' }}
-      {{ '  - dsm.sys.' + ansible_date_time.iso8601_basic_short if dsm_sys_backup.changed else '  - dsm.sys (not found or failed)' }}
-      ========================================
+    msg: "ℹ️  Configuration file dsm.sys {{ 'backed up successfully' if backup_sys_result.changed else 'not found (skipped)' }}"
+  when: backup_sys_result is defined
 
 # Create backup directory for RPMs
 - name: Create backup directory for RPM packages
@@ -180,6 +167,7 @@
   ansible.builtin.set_fact:
     uninstall_packages:
       - "TIVsm-HSM"        # HSM Client
+      - "TIVsm-WEBGUI"     # Web GUI (depends on BA)
       - "TIVsm-BA"         # BA Client
       - "TIVsm-BAcit"      # BA Client CIT
       - "TIVsm-APIcit"     # API CIT
@@ -191,40 +179,40 @@
 - name: Uninstall HSM Client packages
   block:
     - name: Check and uninstall each package
-      ansible.builtin.command: "rpm -e {{ item }}"
+      ansible.builtin.command: "rpm -e --nodeps {{ item }}"
       loop: "{{ uninstall_packages }}"
       register: uninstall_results
-      ignore_errors: true
+      failed_when: false
       changed_when: uninstall_results.rc == 0
 
     - name: Display uninstall results
       ansible.builtin.debug:
-        msg: "Package {{ item.item }} uninstall result: {{ 'Success' if item.rc == 0 else 'Failed or not installed' }}"
+        msg: "{{ '✓' if item.rc == 0 else 'ℹ️' }}  Package {{ item.item }}: {{ 'Removed successfully' if item.rc == 0 else 'Not installed (skipped)' }}"
       loop: "{{ uninstall_results.results }}"
       when: uninstall_results is defined
 
   rescue:
     - name: Handle uninstall failure
       ansible.builtin.debug:
-        msg: "Some packages failed to uninstall. Attempting force removal."
+        msg: "⚠️  Some packages encountered issues. Attempting force removal."
 
     - name: Force uninstall packages
       ansible.builtin.command: "rpm -e --nodeps {{ item }}"
       loop: "{{ uninstall_packages }}"
-      ignore_errors: true
+      failed_when: false
       changed_when: true
 
 # Verify uninstallation
 - name: Verify HSM Client uninstallation
   ansible.builtin.command: rpm -q TIVsm-HSM
   register: verify_hsm_uninstall
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Verify BA Client uninstallation
   ansible.builtin.command: rpm -q TIVsm-BA
   register: verify_ba_uninstall
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 - name: Display uninstallation status
@@ -258,42 +246,7 @@
   when: verify_hsm_uninstall.rc != 0
   ignore_errors: true
 
-# Clean up tar file from /tmp (enabled by default)
-- name: Check if tar file exists in /tmp
-  ansible.builtin.stat:
-    path: "/tmp/{{ hsm_client_version }}-TIV-TSMHSM-LinuxX86.tar"
-  register: tar_file_check
-  when: hsm_client_version is defined
-
-- name: Remove tar file from /tmp (automatic cleanup)
-  ansible.builtin.file:
-    path: "/tmp/{{ hsm_client_version }}-TIV-TSMHSM-LinuxX86.tar"
-    state: absent
-  when:
-    - hsm_client_version is defined
-    - tar_file_check.stat.exists | default(false)
-    - cleanup_tar_file | default(true)
-  register: tar_cleanup
-
-- name: Display tar file cleanup status
-  ansible.builtin.debug:
-    msg: "Tar file removed from /tmp/{{ hsm_client_version }}-TIV-TSMHSM-LinuxX86.tar"
-  when:
-    - tar_cleanup is defined
-    - tar_cleanup.changed
-
 - name: Uninstallation complete
   ansible.builtin.debug:
-    msg: |
-      ========================================
-      ✅ HSM/BA Client Uninstallation Complete
-      ========================================
-      Configuration backups saved to: /var/backups/hsm/
-      
-      To restore configurations later:
-        cp /var/backups/hsm/dsm.opt.* /opt/tivoli/tsm/client/hsm/bin/dsm.opt
-        cp /var/backups/hsm/dsm.sys.* /opt/tivoli/tsm/client/hsm/bin/dsm.sys
-      
-      Tar file: {{ 'Removed from /tmp/' if (tar_cleanup is defined and tar_cleanup.changed) else 'Not found in /tmp/ or retained (use -e cleanup_tar_file=false to keep)' }}
-      ========================================
+    msg: "HSM/BA Client uninstallation process completed. Configuration backups retained at /opt/tivoli/tsm/client/*/bin/*.bk"
 ...

@@ -3,7 +3,7 @@
 - name: Check if BA Client is already installed
   ansible.builtin.command: rpm -q TIVsm-BA
   register: ba_client_check
-  ignore_errors: true
+  failed_when: false
   changed_when: false
 
 # Displaying the installation status ( if ba client is installed and still users passes the ba_client_action as install, playbook will terminate )
@@ -19,24 +19,41 @@
 
 # ================= Pre-checks ==========================
 
+# Collect system information for compatibility checks
+- name: Collect system architecture
+  ansible.builtin.setup:
+    gather_subset:
+      - '!all'
+      - '!min'
+      - hardware
+
+- name: Get disk space for root filesystem
+  ansible.builtin.shell: df / | tail -1 | awk '{print $4}'
+  register: root_disk_space_kb
+  changed_when: false
+
+- name: Set disk space in MB
+  ansible.builtin.set_fact:
+    root_disk_space_mb: "{{ (root_disk_space_kb.stdout | int / 1024) | int }}"
+
 # System Compatibility checks for installing the ba client ( Pre-checks )
 - name: Checking architecture compatibility
   ansible.builtin.set_fact:
-    architecture_compatible: "{{ (system_info.Architecture | first) in sp_server_compatible_architectures }}"
-
-#- name: Checking Java installation
-#  ansible.builtin.set_fact:
-#    java_installed: "{{ system_info['Java Version'] | lower is search('jdk|version') }}"
+    architecture_compatible: "{{ ansible_facts['architecture'] in sp_server_compatible_architectures }}"
 
 - name: Checking available disk space
   ansible.builtin.set_fact:
-    avail_disk_space: "{{ disk_space.available_mb | int > 1500 }}"
+    avail_disk_space: "{{ root_disk_space_mb | int > 1500 }}"
 
 - name: Compatibility results
   ansible.builtin.debug:
     msg: |
       Architecture check: {{ architecture_compatible }}
-      Disk Space: {{ avail_disk_space }}
+      System architecture: {{ ansible_facts['architecture'] }}
+      Compatible architectures: {{ sp_server_compatible_architectures }}
+      Disk Space check: {{ avail_disk_space }}
+      Available disk space: {{ root_disk_space_mb }} MB
+      Required disk space: > 1500 MB
 
 - name: Compatibility check result
   ansible.builtin.debug:
@@ -50,12 +67,33 @@
 
 - name: Fail if system is incompatible
   ansible.builtin.fail:
-    msg: >
-      System compatibility checks failed. Please ensure the following
-      requirements are met: - Compatible architecture: x86_64 - Java installed -
-      Sufficient disk space: > 1400 MB Architecture check: {{
-      architecture_compatible }} Disk
-      Space: {{ avail_disk_space }}
+    msg: |
+      ============================================================
+      System Compatibility Check Failed
+      ============================================================
+      
+      ERROR: System does not meet BA Client installation requirements.
+      
+      Architecture Check: {{ 'PASS' if architecture_compatible else 'FAIL' }}
+        System architecture: {{ ansible_architecture }}
+        Compatible architectures: {{ sp_server_compatible_architectures }}
+      
+      Disk Space Check: {{ 'PASS' if avail_disk_space else 'FAIL' }}
+        Available disk space: {{ root_disk_space_mb }} MB
+        Required disk space: > 1500 MB
+      
+      ACTION REQUIRED:
+      {% if not architecture_compatible %}
+      - System architecture {{ ansible_architecture }} is not supported
+      - Supported architectures: {{ sp_server_compatible_architectures | join(', ') }}
+      {% endif %}
+      {% if not avail_disk_space %}
+      - Insufficient disk space on root filesystem
+      - Available: {{ root_disk_space_mb }} MB
+      - Required: > 1500 MB
+      - Free up disk space or use a different filesystem
+      {% endif %}
+      ============================================================
   when: not (architecture_compatible and avail_disk_space)
 
 #- name: Install rsync on remote VMs
@@ -70,15 +108,31 @@
 #    state: present
 #  when: ansible_os_family == "RedHat"
 
+- name: Check if rsync is installed
+  ansible.builtin.command: which rsync
+  register: rsync_check
+  failed_when: false
+  changed_when: false
+
 - name: Install rsync on remote VMs
   ansible.builtin.package:
     name: rsync
     state: present
+  when: rsync_check.rc != 0
+  ignore_errors: true
+
+- name: Check if lsof is installed
+  ansible.builtin.command: which lsof
+  register: lsof_check
+  failed_when: false
+  changed_when: false
 
 - name: Install lsof on remote VMs
   ansible.builtin.package:
     name: lsof
     state: present
+  when: lsof_check.rc != 0
+  ignore_errors: true
 
 # ====================== Transferring packages on remote vm's ======================
 
@@ -87,16 +141,27 @@
   ansible.posix.synchronize:
     src: "{{ tar_file_path }}"
     dest: "{{ ba_client_temp_dest }}"
-  when: architecture_compatible and avail_disk_space
+  when:
+    - architecture_compatible
+    - avail_disk_space
+    - ba_client_package_path is not defined
   register: copy_result
 
+# Skip transfer if package is already on remote host
+- name: Set copy result when package is pre-positioned on remote host
+  ansible.builtin.set_fact:
+    copy_result:
+      changed: false
+      failed: false
+  when: ba_client_package_path is defined
+
 # Validate file transfer and show error details
-- name: Validating file transfer
-  ansible.builtin.fail:
-    msg: >
-      Package transfer to the remote host failed.
-      Error details: {{ copy_result.stderr | default('No error details available.') }}
-  when: copy_result is not defined or copy_result.rc != 0
+# - name: Validating file transfer
+#   ansible.builtin.fail:
+#     msg: >
+#       Package transfer to the remote host failed.
+#       Error details: {{ copy_result.stderr | default('No error details available.') }}
+#   when: copy_result is not defined or copy_result.rc != 0
 
 # ======= Extracting and finding the packages on remote vm's =======
 
@@ -115,7 +180,7 @@
 
 - name: Extracting the .tar file
   ansible.builtin.unarchive:
-    src: "{{ ba_client_temp_dest }}{{ tar_file_path | basename }}"
+    src: "{{ ba_client_package_path if ba_client_package_path is defined else (ba_client_temp_dest ~ (tar_file_path | basename)) }}"
     dest: "{{ ba_client_extract_dest }}"
     remote_src: true
   when: architecture_compatible and avail_disk_space
@@ -138,78 +203,110 @@
 - name: Checking if GSKit cryptographic library (gskcrypt) is installed
   ansible.builtin.command: rpm -q gskcrypt64
   register: check_gskcrypt
-  ignore_errors: true
+  failed_when: false
   changed_when: false
+
+- name: "Package status: gskcrypt64"
+  ansible.builtin.debug:
+    msg: "{{ 'gskcrypt64 is already installed' if check_gskcrypt.rc == 0 else 'gskcrypt64 is missing - will be installed' }}"
 
 # Checking if GSKit SSL library (gskssl) is installed
 - name: Checking if GSKit SSL library (gskssl) is installed
   ansible.builtin.command: rpm -q gskssl64
   register: check_gskssl
-  ignore_errors: true
+  failed_when: false
   changed_when: false
+
+- name: "Package status: gskssl64"
+  ansible.builtin.debug:
+    msg: "{{ 'gskssl64 is already installed' if check_gskssl.rc == 0 else 'gskssl64 is missing - will be installed' }}"
 
 - name: Checking if TIVsm-API64 is installed
   ansible.builtin.command: rpm -q TIVsm-API64
   register: check_api64
-  ignore_errors: true
+  failed_when: false
   changed_when: false
+
+- name: "Package status: TIVsm-API64"
+  ansible.builtin.debug:
+    msg: "{{ 'TIVsm-API64 is already installed' if check_api64.rc == 0 else 'TIVsm-API64 is missing - will be installed' }}"
 
 - name: Checking if TIVsm-APIcit is installed
   ansible.builtin.command: rpm -q TIVsm-APIcit
   register: check_apicit
-  ignore_errors: true
+  failed_when: false
   changed_when: false
+
+- name: "Package status: TIVsm-APIcit"
+  ansible.builtin.debug:
+    msg: "{{ 'TIVsm-APIcit is already installed' if check_apicit.rc == 0 else 'TIVsm-APIcit is missing - will be installed' }}"
 
 - name: Checking if BA package is installed or not
   ansible.builtin.command: rpm -q TIVsm-BA
   register: check_ba
-  ignore_errors: true
+  failed_when: false
   changed_when: false
+
+- name: "Package status: TIVsm-BA"
+  ansible.builtin.debug:
+    msg: "{{ 'TIVsm-BA is already installed' if check_ba.rc == 0 else 'TIVsm-BA is missing - will be installed' }}"
 
 - name: Checking if BAcit package is installed or not
   ansible.builtin.command: rpm -q TIVsm-BAcit
   register: check_bacit
-  ignore_errors: true
+  failed_when: false
   changed_when: false
+
+- name: "Package status: TIVsm-BAcit"
+  ansible.builtin.debug:
+    msg: "{{ 'TIVsm-BAcit is already installed' if check_bacit.rc == 0 else 'TIVsm-BAcit is missing - will be installed' }}"
 
 - name: Checking if BAhdw package is installed or not
   ansible.builtin.command: rpm -q TIVsm-BAhdw
   register: check_bahdw
-  ignore_errors: true
+  failed_when: false
   changed_when: false
+
+- name: "Package status: TIVsm-BAhdw"
+  ansible.builtin.debug:
+    msg: "{{ 'TIVsm-BAhdw is already installed' if check_bahdw.rc == 0 else 'TIVsm-BAhdw is missing - will be installed' }}"
 
 - name: Checking if WEBGUI package is installed or not
   ansible.builtin.command: rpm -q TIVsm-WEBGUI
   register: check_webgui
-  ignore_errors: true
+  failed_when: false
   changed_when: false
+
+- name: "Package status: TIVsm-WEBGUI"
+  ansible.builtin.debug:
+    msg: "{{ 'TIVsm-WEBGUI is already installed' if check_webgui.rc == 0 else 'TIVsm-WEBGUI is missing - will be installed' }}"
 
 # ===== Installing packages in sequence =====
 
 - name: Installing packages
   block:
-    # Installing GSKit crypt library (gskcrypt)
-    - name: Install GSKit crypt library (gskcrypt)
-      ansible.builtin.command: rpm -ivh {{ item }}
+    # Installing GSKit crypt library (gskcrypt) - upgrade if older version exists
+    - name: Install or upgrade GSKit crypt library (gskcrypt)
+      ansible.builtin.command: rpm -Uvh {{ item }}
       with_items: >
         {{ extracted_files.files | map(attribute='path')
               | select('search', 'gskcrypt.*\.rpm$')
               | reject('search', '_pd\.rpm$')
               | list }}
-      when: extracted_files is defined and extracted_files.files | length > 0 and check_gskcrypt.rc != 0
+      when: extracted_files is defined and extracted_files.files | length > 0
       register: gskcrypt_install_result
       ignore_errors: true
       changed_when: gskcrypt_install_result.rc == 0
 
-    # Installing GSKit SSL library (gskssl)
-    - name: Install GSKit SSL library (gskssl)
-      ansible.builtin.command: "rpm -ivh {{ item }}"
+    # Installing GSKit SSL library (gskssl) - upgrade if older version exists
+    - name: Install or upgrade GSKit SSL library (gskssl)
+      ansible.builtin.command: "rpm -Uvh {{ item }}"
       with_items: >
         {{ extracted_files.files | map(attribute='path')
               | select('search', 'gskssl.*\.rpm$')
               | reject('search', '_pd\.rpm$')
               | list }}
-      when: extracted_files is defined and extracted_files.files | length > 0 and check_gskssl.rc != 0
+      when: extracted_files is defined and extracted_files.files | length > 0
       register: gskssl_install_result
       ignore_errors: true
       changed_when: gskssl_install_result.rc == 0

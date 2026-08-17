@@ -1,0 +1,1074 @@
+---
+# Petascale Installation Playbook - Main Orchestrator
+# This playbook orchestrates the complete petascale deployment across multiple nodes
+# including BA clients, HSM clients, and SP servers
+#
+# INSTALLATION ORDER: 1st BA Client → 2nd HSM Client → 3rd SP Server
+#
+# ============================================================================
+# CONFIGURATION FILES
+# ============================================================================
+#
+# CUSTOMER: Before running this playbook, configure the following files:
+#
+# 1. Inventory File: playbooks/inventory/petascale.ini
+#    - Define your hosts (BA clients, HSM clients, SP servers)
+#    - Set connection parameters (ansible_host, ansible_user, etc.)
+#
+# 2. Global Variables: playbooks/group_vars/all.yml
+#    - Set global defaults for all hosts
+#    - Configure software versions, package locations, etc.
+#
+# 3. BA Client Group Variables: playbooks/group_vars/ba_clients.yml
+#    - Set defaults for all BA client installations
+#    - Configure common BA client settings
+#
+# 4. HSM Client Group Variables: playbooks/group_vars/hsm_clients.yml
+#    - Set defaults for all HSM client installations
+#    - Configure common HSM client settings
+#
+# 5. SP Server Group Variables: playbooks/group_vars/sp_servers.yml
+#    - Set defaults for all SP Server installations
+#    - Configure common SP Server settings
+#
+# 6. Per-Host Variables: playbooks/host_vars/<hostname>.yml
+#    - Customize settings for individual hosts
+#    - Each host can have different versions and configurations
+#    - Examples: ba-client-01.yml, hsm-client-01.yml, sp-server-01.yml
+#
+# Variable Precedence (highest to lowest):
+#   1. host_vars/<hostname>.yml (highest priority)
+#   2. group_vars/<groupname>.yml
+#   3. group_vars/all.yml
+#   4. Playbook defaults (lowest priority)
+#
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+#
+# IMPORTANT: SP Server installation requires the --tags install flag
+#
+# Install ALL components (BA Client + HSM Client + SP Server):
+#   ansible-playbook playbooks/petascale_install.yml -i playbooks/inventory/petascale.ini --tags install
+#
+# Install ONLY BA Client and HSM Client (skip SP Server):
+#   ansible-playbook playbooks/petascale_install.yml -i playbooks/inventory/petascale.ini
+#
+# With custom variables file:
+#   ansible-playbook playbooks/petascale_install.yml -i playbooks/inventory/petascale.ini \
+#     -e @playbooks/vars/custom_vars.yml
+#
+# Limit to specific hosts:
+#   ansible-playbook playbooks/petascale_install.yml -i playbooks/inventory/petascale.ini \
+#     --limit ba-client-01,ba-client-02
+#
+# Limit to specific group:
+#   ansible-playbook playbooks/petascale_install.yml -i playbooks/inventory/petascale.ini \
+#     --limit ba_clients
+#
+# ============================================================================
+
+# ============================================================================
+# Global Variables Setup
+# ============================================================================
+# Variables are now loaded from:
+# - playbooks/group_vars/all.yml (global defaults)
+# - playbooks/host_vars/<hostname>.yml (per-host overrides)
+# No hardcoded variables in this playbook
+# ============================================================================
+- name: Set global variables
+  hosts: localhost
+  gather_facts: false
+  tags:
+    - always
+  
+  tasks:
+    - name: Display configuration source information
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          PETASCALE INSTALLATION PLAYBOOK
+          ============================================================
+          Configuration is loaded from:
+          - Global: playbooks/group_vars/all.yml
+          - BA Clients: playbooks/group_vars/ba_clients.yml
+          - HSM Clients: playbooks/group_vars/hsm_clients.yml
+          - SP Servers: playbooks/group_vars/sp_servers.yml
+          - Per-Host: playbooks/host_vars/<hostname>.yml
+          
+          Installation Order: BA Client → HSM Client → SP Server
+          
+          Ensure all configuration files are properly set before proceeding.
+          ============================================================
+      run_once: true
+    
+    - name: Set global facts from group_vars
+      ansible.builtin.set_fact:
+        software_version: "{{ software_version | default('8.2.1.0') }}"
+        os_type: "{{ os_type | default('LinuxX86') }}"
+        package_location: "{{ package_location | default('/tmp') }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+# ============================================================================
+# Detect OS and Set Python Interpreter Path
+# ============================================================================
+- name: Detect OS and set Python interpreter
+  hosts: all
+  gather_facts: false
+  become: false
+  tags:
+    - always
+  
+  tasks:
+    - name: Detect operating system
+      raw: uname -s
+      register: os_detection
+      changed_when: false
+      failed_when: false
+    
+    - name: Set Python interpreter path based on OS
+      ansible.builtin.set_fact:
+        ansible_python_interpreter: >-
+          {% if 'AIX' in os_detection.stdout %}
+          /opt/freeware/bin/python3.9
+          {% else %}
+          /usr/bin/python3.9
+          {% endif %}
+    
+    - name: Display detected OS and Python path
+      ansible.builtin.debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          OS: {{ 'AIX' if 'AIX' in os_detection.stdout else 'Linux' }}
+          Python interpreter: {{ ansible_python_interpreter }}
+
+# ============================================================================
+# System Dependencies Validation
+# ============================================================================
+# Validates all required dependencies: Python 3.9+, Java, lsof, rsync, /tmp config
+# Provides detailed remediation report if dependencies are missing
+# Optionally installs dependencies with: -e "install_dependencies=true"
+- name: Validate system dependencies on all nodes
+  hosts: all
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+  tags:
+    - always
+  
+  roles:
+    - role: ../roles/system_dependencies_check
+      vars:
+        # Validation only by default (no auto-install)
+        # To enable auto-install: -e "install_dependencies=true"
+        install_dependencies: "{{ install_dependencies_flag | default(false) }}"
+        # Changed to false: Report missing dependencies but don't fail
+        # Installation will proceed with warnings
+        fail_on_missing_dependencies: false
+        generate_remediation_report: true
+
+# ============================================================================
+# Check Required Software Packages on Remote Nodes
+# ============================================================================
+- name: Check required software packages on all nodes
+  hosts: all
+  gather_facts: false
+  become: false
+  tags:
+    - always
+  
+  # Variables loaded from:
+  # - playbooks/group_vars/all.yml (defaults)
+  # - playbooks/host_vars/<hostname>.yml (per-host overrides)
+  
+  tasks:
+    - name: Determine required package types for each node based on group membership
+      ansible.builtin.set_fact:
+        required_packages: >-
+          {%- set packages = [] -%}
+          {%- if 'sp_servers' in group_names -%}
+            {%- set server_version = sp_server_version | default(software_version) -%}
+            {%- set _ = packages.append({
+                'type': 'SP Server',
+                'identifier': 'SPSRV',
+                'search_pattern': server_version + '*SPSRV*.bin'
+              }) -%}
+          {%- endif -%}
+          {%- if 'ba_clients' in group_names -%}
+            {%- set ba_version = ba_client_version | default(software_version) -%}
+            {%- set _ = packages.append({
+                'type': 'BA Client',
+                'identifier': 'TSMBAC',
+                'search_pattern': ba_version + '*TSMBAC*.tar*'
+              }) -%}
+          {%- endif -%}
+          {%- if 'hsm_clients' in group_names -%}
+            {%- set hsm_version = hsm_client_version | default(software_version) -%}
+            {%- set _ = packages.append({
+                'type': 'HSM Client',
+                'identifier': 'TSMHSM',
+                'search_pattern': hsm_version + '*TSMHSM*.tar*'
+              }) -%}
+          {%- endif -%}
+          {{ packages }}
+    
+    - name: Debug - Display search patterns
+      ansible.builtin.debug:
+        msg: |
+          Node: {{ inventory_hostname }}
+          Package location: {{ package_location }}
+          {% for pkg in required_packages %}
+          Package type: {{ pkg.type }}
+          Search pattern: {{ pkg.search_pattern }}
+          {% endfor %}
+    
+    - name: Display required package types for this node
+      ansible.builtin.debug:
+        msg: |
+          Node: {{ inventory_hostname }}
+          Groups: {{ group_names }}
+          Required package types: {{ required_packages | map(attribute='type') | list }}
+          Search patterns: {{ required_packages | map(attribute='search_pattern') | list }}
+    
+    - name: Search for required packages on remote node
+      ansible.builtin.shell: |
+        ls -1 {{ package_location }}/{{ item.search_pattern }} 2>/dev/null || echo "NO_FILES_FOUND"
+      register: package_search_raw
+      loop: "{{ required_packages }}"
+      when: required_packages | length > 0
+      failed_when: false
+      changed_when: false
+    
+    - name: Process search results
+      ansible.builtin.set_fact:
+        package_search:
+          results: >-
+            {%- set processed = [] -%}
+            {%- for result in package_search_raw.results | default([]) -%}
+              {%- set files_list = [] -%}
+              {%- if result.stdout is defined and result.stdout != "NO_FILES_FOUND" and result.stdout | length > 0 -%}
+                {%- for line in result.stdout_lines -%}
+                  {%- set _ = files_list.append({'path': line}) -%}
+                {%- endfor -%}
+              {%- endif -%}
+              {%- set _ = processed.append({
+                  'item': result.item,
+                  'files': files_list
+                }) -%}
+            {%- endfor -%}
+            {{ processed }}
+      when: required_packages | length > 0
+    
+    - name: Debug - Display search results
+      ansible.builtin.debug:
+        msg: |
+          Search results for {{ inventory_hostname }}:
+          {% for result in package_search.results | default([]) %}
+          Pattern: {{ result.item.search_pattern }}
+          Files found: {{ result.files | length }}
+          {% if result.files | length > 0 %}
+          Found files:
+          {% for file in result.files %}
+            - {{ file.path }}
+          {% endfor %}
+          {% else %}
+          No files found matching this pattern
+          {% endif %}
+          {% endfor %}
+      when: required_packages | length > 0
+    
+    - name: Set package availability facts
+      ansible.builtin.set_fact:
+        missing_packages: >-
+          {%- set missing = [] -%}
+          {%- for result in package_search.results | default([]) -%}
+            {%- if result.files | length == 0 -%}
+              {%- set _ = missing.append({
+                  'type': result.item.type,
+                  'identifier': result.item.identifier,
+                  'search_pattern': result.item.search_pattern,
+                  'location': package_location
+                }) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ missing }}
+        found_packages: >-
+          {%- set found = [] -%}
+          {%- for result in package_search.results | default([]) -%}
+            {%- if result.files | length > 0 -%}
+              {%- set _ = found.append({
+                  'type': result.item.type,
+                  'identifier': result.item.identifier,
+                  'filename': result.files[0].path | basename,
+                  'path': result.files[0].path
+                }) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ found }}
+        all_packages_present: >-
+          {{ package_search.results | default([]) | selectattr('files', 'equalto', []) | list | length == 0 }}
+      when: required_packages | length > 0
+    
+    - name: Display package availability status
+      ansible.builtin.debug:
+        msg: |
+          {% if required_packages | length == 0 %}
+          Node {{ inventory_hostname }} is not in any software installation group (sp_servers, ba_clients, hsm_clients)
+          {% elif all_packages_present %}
+          ✓ All required packages are PRESENT on {{ inventory_hostname }}:
+          {% for pkg in found_packages %}
+            - {{ pkg.type }} ({{ pkg.identifier }}): {{ pkg.filename }}
+          {% endfor %}
+          {% else %}
+          ✗ MISSING packages on {{ inventory_hostname }}:
+          {% for pkg in missing_packages %}
+            - {{ pkg.type }} ({{ pkg.identifier }}): No file matching pattern "{{ pkg.search_pattern }}" found in {{ pkg.location }}
+          {% endfor %}
+          {% endif %}
+    
+    - name: Collect nodes with missing packages
+      ansible.builtin.set_fact:
+        node_missing_packages: true
+      when:
+        - required_packages | length > 0
+        - not all_packages_present
+
+# ============================================================================
+# Software Package Validation Summary
+# ============================================================================
+- name: Software package validation summary
+  hosts: all
+  gather_facts: false
+  become: false
+  tags:
+    - always
+  
+  tasks:
+    - name: Generate missing packages report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SOFTWARE PACKAGE VALIDATION SUMMARY
+          ============================================================
+          {% set nodes_with_missing = [] %}
+          {% for host in groups['all'] %}
+          {%   if hostvars[host].node_missing_packages is defined and hostvars[host].node_missing_packages %}
+          {%     set _ = nodes_with_missing.append(host) %}
+          {%   endif %}
+          {% endfor %}
+          
+          {% if nodes_with_missing | length > 0 %}
+          ✗ FAILED: Missing software packages detected!
+          
+          Nodes with missing packages:
+          {% for host in nodes_with_missing %}
+            
+            Host: {{ host }}
+            Groups: {{ hostvars[host].group_names | join(', ') }}
+            Missing packages:
+          {%   for pkg in hostvars[host].missing_packages %}
+              - {{ pkg.type }} ({{ pkg.identifier }}): No file matching pattern "{{ pkg.search_pattern }}"
+                Search location: {{ pkg.location }}
+          {%   endfor %}
+          {% endfor %}
+          
+          ACTION REQUIRED:
+          Please ensure the required software packages are present on the remote nodes.
+          Package files must match the pattern: <version>*<identifier>*<os>*.<extension>
+          
+          Examples:
+            - SP Server: 8.2.1.000-IBM-SPSRV-LIC-LinuxX86_64-098.bin
+            - BA Client: 8.2.1.0-TIV-TSMBAC-LinuxX86.tar
+            - HSM Client: 8.2.1.0-TIV-TSMHSM-LinuxX86GPFS.tar
+          {% else %}
+          ✓ SUCCESS: All required software packages are present on all nodes!
+          
+          Found packages:
+          {% for host in groups['all'] %}
+          {%   if hostvars[host].found_packages is defined and hostvars[host].found_packages | length > 0 %}
+            {{ host }}:
+          {%     for pkg in hostvars[host].found_packages %}
+              - {{ pkg.type }}: {{ pkg.filename }}
+          {%     endfor %}
+          {%   endif %}
+          {% endfor %}
+          {% endif %}
+          ============================================================
+    
+    - name: Fail if any packages are missing
+      run_once: true
+      ansible.builtin.fail:
+        msg: |
+          ============================================================
+          SOFTWARE PACKAGE VALIDATION FAILED!
+          ============================================================
+          
+          The following nodes are missing required software packages:
+          
+          {% for host in groups['all'] %}
+          {%   if hostvars[host].node_missing_packages is defined and hostvars[host].node_missing_packages %}
+          Host: {{ host }}
+          Groups: {{ hostvars[host].group_names | join(', ') }}
+          Missing packages:
+          {%     for pkg in hostvars[host].missing_packages %}
+            - {{ pkg.type }} ({{ pkg.identifier }})
+              Search pattern: {{ pkg.search_pattern }}
+              Search location: {{ pkg.location }}
+          {%     endfor %}
+          
+          {%   endif %}
+          {% endfor %}
+          ACTION REQUIRED:
+          Copy the required software packages to the remote nodes.
+          
+          Package naming format: <version>*<identifier>*<os>*.<extension>
+          Where identifier is: SPSRV (server), TSMBAC (ba_clients), TSMHSM (hsm_clients)
+          
+          Examples:
+            - SP Server: 8.2.1.000-IBM-SPSRV-LIC-LinuxX86_64-098.bin
+            - BA Client: 8.2.1.0-TIV-TSMBAC-LinuxX86.tar
+            - HSM Client: 8.2.1.0-TIV-TSMHSM-LinuxX86GPFS.tar
+          ============================================================
+      when: >
+        groups['all']
+        | map('extract', hostvars, 'node_missing_packages')
+        | select('defined')
+        | select('equalto', true)
+        | list
+        | length > 0
+
+# ============================================================================
+# SP Server Installation on SP Server Nodes (FIRST)
+# ============================================================================
+# Installation Order: 1st SP Server, 2nd HSM Client, 3rd BA Client
+- name: Install SP Server on sp_servers nodes
+  hosts: sp_servers
+  gather_facts: true
+  become: true
+  tags:
+    - always
+  
+  # Variables are loaded from:
+  # - playbooks/host_vars/<hostname>.yml (per-host settings)
+  # - playbooks/group_vars/sp_servers.yml (group defaults)
+  # - playbooks/group_vars/all.yml (global defaults)
+  
+  tasks:
+    - name: Display SP Server configuration for this host
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP Server Configuration for {{ inventory_hostname }}
+          ============================================================
+          Version: {{ sp_server_version | default('NOT SET') }}
+          State: {{ sp_server_state | default('present') }}
+          Action: {{ sp_server_action | default('install') }}
+          Install Dest: {{ sp_server_install_dest | default('/opt/sp_server_binary/') }}
+          Server Name: {{ server_name | default('Server1') }}
+          
+          Configuration loaded from:
+          - playbooks/host_vars/{{ inventory_hostname }}.yml
+          - playbooks/group_vars/sp_servers.yml
+          - playbooks/group_vars/all.yml
+          ============================================================
+    
+    - name: Display SP Server installation start message
+      ansible.builtin.debug:
+        msg: "Starting SP Server installation check and setup on {{ inventory_hostname }}"
+    
+    - name: Check if SP Server is already installed
+      ansible.builtin.command: "{{ imcl_path | default('/opt/IBM/InstallationManager/eclipse/tools/imcl') }} listInstalledPackages"
+      register: sp_server_check
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+    
+    - name: Display SP Server current status
+      ansible.builtin.debug:
+        msg: >-
+          {% if sp_server_check.rc == 0 and 'com.tivoli.dsm.server' in sp_server_check.stdout %}
+            SP Server is already installed on {{ inventory_hostname }}
+          {% else %}
+            SP Server is NOT installed on {{ inventory_hostname }} - Will proceed with installation
+          {% endif %}
+    
+    - name: Set SP Server installation needed fact
+      ansible.builtin.set_fact:
+        sp_server_needs_install: "{{ sp_server_check.rc != 0 or 'com.tivoli.dsm.server' not in sp_server_check.stdout }}"
+    
+    - name: Set SP Server state and action for installation
+      ansible.builtin.set_fact:
+        sp_server_state: "present"
+        sp_server_action: "install"
+      when: sp_server_needs_install
+    
+    - name: Run SP Server installation using sp_server_install role
+      ansible.builtin.include_role:
+        name: ../roles/sp_server_install
+      when: sp_server_needs_install
+    
+    - name: Verify SP Server installation
+      ansible.builtin.command: "{{ imcl_path | default('/opt/IBM/InstallationManager/eclipse/tools/imcl') }} listInstalledPackages"
+      register: sp_server_verify
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+    
+    - name: Display SP Server installation result
+      ansible.builtin.debug:
+        msg: >-
+          {% if not sp_server_needs_install %}
+            SP Server was already installed - No action taken
+          {% elif sp_server_verify.rc == 0 and 'com.tivoli.dsm.server' in sp_server_verify.stdout %}
+            ✓ SP Server successfully installed on {{ inventory_hostname }}
+          {% else %}
+            ✗ SP Server installation may have failed on {{ inventory_hostname }}
+          {% endif %}
+    
+    - name: Collect installation summary
+      ansible.builtin.set_fact:
+        sp_server_status: >-
+          {% if not sp_server_needs_install %}
+          already_installed
+          {% elif sp_server_verify.rc == 0 and 'com.tivoli.dsm.server' in sp_server_verify.stdout %}
+          newly_installed
+          {% else %}
+          installation_failed
+          {% endif %}
+
+# ============================================================================
+# SP Server Installation Summary
+# ============================================================================
+- name: SP Server Installation Summary
+  hosts: sp_servers
+  gather_facts: false
+  tags:
+    - always
+  
+  tasks:
+    - name: Generate installation summary report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          SP SERVER INSTALLATION SUMMARY
+          ============================================================
+          {% set already_installed = [] %}
+          {% set newly_installed = [] %}
+          {% set failed = [] %}
+          {% for host in groups['sp_servers'] %}
+          {%   if hostvars[host].sp_server_status is defined %}
+          {%     if hostvars[host].sp_server_status == 'already_installed' %}
+          {%       set _ = already_installed.append(host) %}
+          {%     elif hostvars[host].sp_server_status == 'newly_installed' %}
+          {%       set _ = newly_installed.append(host) %}
+          {%     elif hostvars[host].sp_server_status == 'installation_failed' %}
+          {%       set _ = failed.append(host) %}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          Already Installed ({{ already_installed | length }}):
+          {% for host in already_installed %}
+            - {{ host }}
+          {% endfor %}
+          
+          Newly Installed ({{ newly_installed | length }}):
+          {% for host in newly_installed %}
+            - {{ host }}
+          {% endfor %}
+          
+          Failed Installations ({{ failed | length }}):
+          {% for host in failed %}
+            - {{ host }}
+          {% endfor %}
+          ============================================================
+    
+    - name: Fail if any SP Server installations failed
+      run_once: true
+      ansible.builtin.fail:
+        msg: "SP Server installation failed on one or more hosts. Please check the logs above."
+      when: >
+        groups['sp_servers']
+        | map('extract', hostvars, 'sp_server_status')
+        | select('defined')
+        | select('equalto', 'installation_failed')
+        | list
+        | length > 0
+
+# ============================================================================
+# HSM Client Installation on HSM Client Nodes (SECOND)
+# ============================================================================
+# Installation Order: 1st SP Server, 2nd HSM Client, 3rd BA Client
+- name: Install HSM Client on hsm_clients nodes
+  hosts: hsm_clients
+  gather_facts: true
+  become: true
+  tags:
+    - always
+  
+  # ============================================================================
+  # HSM Client Configuration
+  # ============================================================================
+  # Variables are loaded from (in order of precedence):
+  # 1. playbooks/host_vars/<hostname>.yml (HIGHEST - per-host settings)
+  # 2. playbooks/group_vars/hsm_clients.yml (group defaults)
+  # 3. playbooks/group_vars/all.yml (global defaults)
+  #
+  # CUSTOMER: Edit the host_vars files to customize each HSM client:
+  # - playbooks/host_vars/hsm-client-01.yml
+  # - playbooks/host_vars/hsm-client-02.yml
+  # - playbooks/host_vars/hsm-client-03.yml
+  #
+  # Each host can have:
+  # - Different HSM Client versions
+  # - Different package locations
+  # - Different installation directories
+  # - GPFS filesystem requirements
+  # ============================================================================
+  
+  tasks:
+    - name: Display HSM Client configuration for this host
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM Client Configuration for {{ inventory_hostname }}
+          ============================================================
+          Version: {{ hsm_client_version | default('NOT SET') }}
+          OS Type: {{ os_type | default('NOT SET') }}
+          Package Path: {{ hsm_client_package_path | default('NOT SET') }}
+          Extract Dest: {{ hsm_client_extract_dest | default('NOT SET') }}
+          State: {{ hsm_client_state | default('NOT SET') }}
+          
+          Configuration loaded from:
+          - playbooks/host_vars/{{ inventory_hostname }}.yml
+          - playbooks/group_vars/hsm_clients.yml
+          - playbooks/group_vars/all.yml
+          ============================================================
+    
+    - name: Display HSM Client installation start message
+      ansible.builtin.debug:
+        msg: "Starting HSM Client installation check and setup on {{ inventory_hostname }}"
+    
+    - name: Check if HSM Client is already installed (Linux)
+      ansible.builtin.command: rpm -q TIVsm-HSM
+      register: hsm_client_check_linux
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family != 'AIX'
+    
+    - name: Check if HSM Client is already installed (AIX)
+      ansible.builtin.command: lslpp -l tivoli.tsm.client.hsm.gpfs
+      register: hsm_client_check_aix
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == 'AIX'
+    
+    - name: Set unified check result
+      ansible.builtin.set_fact:
+        hsm_client_check: "{{ hsm_client_check_linux if ansible_os_family != 'AIX' else hsm_client_check_aix }}"
+    
+    - name: Display HSM Client current status
+      ansible.builtin.debug:
+        msg: >-
+          {% if hsm_client_check.rc == 0 %}
+            HSM Client is already installed on {{ inventory_hostname }} - {{ hsm_client_check.stdout }}
+          {% else %}
+            HSM Client is NOT installed on {{ inventory_hostname }} - Will proceed with installation
+          {% endif %}
+    
+    - name: Set HSM Client installation needed fact
+      ansible.builtin.set_fact:
+        hsm_client_needs_install: "{{ hsm_client_check.rc != 0 }}"
+    
+    # Check if package exists on remote node before proceeding
+    - name: Check if HSM Client package exists on remote node
+      ansible.builtin.stat:
+        path: "{{ hsm_client_package_path }}"
+      register: package_stat
+      when: hsm_client_needs_install
+    
+    - name: Display package availability status
+      ansible.builtin.debug:
+        msg: >-
+          {% if hsm_client_needs_install %}
+            {% if package_stat.stat.exists %}
+              HSM Client package found at {{ hsm_client_package_path }} on {{ inventory_hostname }}
+            {% else %}
+              ERROR: HSM Client package NOT found at {{ hsm_client_package_path }} on {{ inventory_hostname }}
+            {% endif %}
+          {% else %}
+            HSM Client already installed, package check skipped
+          {% endif %}
+      when: hsm_client_needs_install
+    
+    - name: Fail if HSM Client package is missing on remote node
+      ansible.builtin.fail:
+        msg: |
+          HSM Client package not found on {{ inventory_hostname }}!
+          Expected location: {{ hsm_client_package_path }}
+          
+          Please ensure the HSM Client installation package is present on the remote node at the specified path.
+          You can copy it using:
+            scp {{ hsm_client_version }}-TIV-TSMHSM-LinuxX86GPFS.tar {{ ansible_user }}@{{ inventory_hostname }}:{{ hsm_client_package_path }}
+      when:
+        - hsm_client_needs_install
+        - not package_stat.stat.exists
+    
+    - name: Set package location and state for hsm_client_install role
+      ansible.builtin.set_fact:
+        tar_file_path: "{{ hsm_client_package_path }}"
+        hsm_client_state: "present"
+      when:
+        - hsm_client_needs_install
+        - package_stat.stat.exists
+    
+    - name: Run HSM Client installation using hsm_client_install role
+      ansible.builtin.include_role:
+        name: ../roles/hsm_client_install
+      when:
+        - hsm_client_needs_install
+        - package_stat.stat.exists
+    
+    - name: Wait for installation to complete (pause for 5 seconds)
+      ansible.builtin.pause:
+        seconds: 5
+      when: hsm_client_needs_install
+    
+    - name: Verify HSM Client installation after role execution (Linux)
+      ansible.builtin.command: rpm -q TIVsm-HSM
+      register: hsm_client_verify_linux
+      changed_when: false
+      failed_when: false
+      when:
+        - hsm_client_needs_install
+        - ansible_os_family != 'AIX'
+      retries: 3
+      delay: 2
+      until: hsm_client_verify_linux.rc == 0
+
+    - name: Verify HSM Client installation after role execution (AIX)
+      ansible.builtin.command: lslpp -l tivoli.tsm.client.hsm.gpfs
+      register: hsm_client_verify_aix
+      changed_when: false
+      failed_when: false
+      when:
+        - hsm_client_needs_install
+        - ansible_os_family == 'AIX'
+      retries: 3
+      delay: 2
+      until: hsm_client_verify_aix.rc == 0
+
+    - name: Set unified verification result
+      ansible.builtin.set_fact:
+        hsm_client_verify: "{{ hsm_client_verify_linux if ansible_os_family != 'AIX' else hsm_client_verify_aix }}"
+      when: hsm_client_needs_install
+    
+    - name: Display HSM Client installation result
+      ansible.builtin.debug:
+        msg: >-
+          {% if not hsm_client_needs_install %}
+            HSM Client was already installed - No action taken
+          {% elif hsm_client_verify.rc == 0 %}
+            HSM Client successfully installed on {{ inventory_hostname }} - {{ hsm_client_verify.stdout }}
+          {% else %}
+            HSM Client installation may have failed on {{ inventory_hostname }}
+          {% endif %}
+    
+    - name: Collect installation summary
+      ansible.builtin.set_fact:
+        hsm_client_status: >-
+          {% if not hsm_client_needs_install %}
+          already_installed
+          {% elif hsm_client_verify.rc == 0 %}
+          newly_installed
+          {% else %}
+          installation_failed
+          {% endif %}
+
+- name: HSM Client Installation Summary
+  hosts: hsm_clients
+  gather_facts: false
+  become: false
+  tags:
+    - always
+  
+  tasks:
+    - name: Generate installation summary report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          HSM Client Installation Summary
+          ============================================================
+          {% set already_installed = [] %}
+          {% set newly_installed = [] %}
+          {% set failed = [] %}
+          {% for host in groups['hsm_clients'] %}
+          {%   if hostvars[host].hsm_client_status is defined %}
+          {%     if hostvars[host].hsm_client_status == 'already_installed' %}
+          {%       set _ = already_installed.append(host) %}
+          {%     elif hostvars[host].hsm_client_status == 'newly_installed' %}
+          {%       set _ = newly_installed.append(host) %}
+          {%     elif hostvars[host].hsm_client_status == 'installation_failed' %}
+          {%       set _ = failed.append(host) %}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          Already Installed ({{ already_installed | length }}):
+          {% for host in already_installed %}
+            - {{ host }}
+          {% endfor %}
+          
+          Newly Installed ({{ newly_installed | length }}):
+          {% for host in newly_installed %}
+            - {{ host }}
+          {% endfor %}
+          
+          Failed Installations ({{ failed | length }}):
+          {% for host in failed %}
+            - {{ host }}
+          {% endfor %}
+          ============================================================
+    
+    - name: Fail if any HSM Client installations failed
+      run_once: true
+      ansible.builtin.fail:
+        msg: "HSM Client installation failed on one or more hosts. Please check the logs above."
+      when: >
+        groups['hsm_clients']
+        | map('extract', hostvars, 'hsm_client_status')
+        | select('defined')
+        | select('equalto', 'installation_failed')
+        | list
+        | length > 0
+
+# ============================================================================
+# BA Client Installation on BA Client Nodes (THIRD)
+# ============================================================================
+# Installation Order: 1st SP Server, 2nd HSM Client, 3rd BA Client
+- name: Install BA Client on ba_clients nodes
+  hosts: ba_clients
+  gather_facts: true
+  become: true
+  tags:
+    - always
+  
+  # ============================================================================
+  # BA Client Configuration
+  # ============================================================================
+  # Variables are loaded from (in order of precedence):
+  # 1. playbooks/host_vars/<hostname>.yml (HIGHEST - per-host settings)
+  # 2. playbooks/group_vars/ba_clients.yml (group defaults)
+  # 3. playbooks/group_vars/all.yml (global defaults)
+  #
+  # CUSTOMER: Edit the host_vars files to customize each BA client:
+  # - playbooks/host_vars/ba-client-01.yml (version 8.2.1.0 example)
+  # - playbooks/host_vars/ba-client-02.yml (version 8.1.24.0 example)
+  # - playbooks/host_vars/ba-client-03.yml (custom paths example)
+  #
+  # Each host can have:
+  # - Different BA Client versions
+  # - Different package locations
+  # - Different installation directories
+  # - Different daemon start settings
+  # ============================================================================
+  
+  tasks:
+    - name: Display BA Client configuration for this host
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA Client Configuration for {{ inventory_hostname }}
+          ============================================================
+          Version: {{ ba_client_version | default('NOT SET') }}
+          OS Type: {{ os_type | default('NOT SET') }}
+          Package Path: {{ ba_client_package_path | default('NOT SET') }}
+          Extract Dest: {{ ba_client_extract_dest | default('NOT SET') }}
+          Start Daemon: {{ ba_client_start_daemon | default('NOT SET') }}
+          State: {{ ba_client_state | default('NOT SET') }}
+          
+          Configuration loaded from:
+          - playbooks/host_vars/{{ inventory_hostname }}.yml
+          - playbooks/group_vars/ba_clients.yml
+          - playbooks/group_vars/all.yml
+          ============================================================
+    
+    - name: Display BA Client installation start message
+      ansible.builtin.debug:
+        msg: "Starting BA Client installation check and setup on {{ inventory_hostname }}"
+    
+    - name: Check if BA Client is already installed
+      ansible.builtin.command: rpm -q TIVsm-BA
+      register: ba_client_check
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+    
+    - name: Display BA Client current status
+      ansible.builtin.debug:
+        msg: >-
+          {% if ba_client_check.rc == 0 %}
+            BA Client is already installed on {{ inventory_hostname }} - {{ ba_client_check.stdout }}
+          {% else %}
+            BA Client is NOT installed on {{ inventory_hostname }} - Will proceed with installation
+          {% endif %}
+    
+    - name: Set BA Client installation needed fact
+      ansible.builtin.set_fact:
+        ba_client_needs_install: "{{ ba_client_check.rc != 0 }}"
+    
+    # Check if package exists on remote node before proceeding
+    - name: Check if BA Client package exists on remote node
+      ansible.builtin.stat:
+        path: "{{ ba_client_package_path }}"
+      register: package_stat
+      when:
+        - ba_client_needs_install
+        - ba_client_package_path is defined
+    
+    - name: Display package availability status
+      ansible.builtin.debug:
+        msg: >-
+          {% if ba_client_needs_install %}
+            {% if package_stat.stat.exists %}
+              BA Client package found at {{ ba_client_package_path }} on {{ inventory_hostname }}
+            {% else %}
+              ERROR: BA Client package NOT found at {{ ba_client_package_path }} on {{ inventory_hostname }}
+            {% endif %}
+          {% else %}
+            BA Client already installed, package check skipped
+          {% endif %}
+      when: ba_client_needs_install
+    
+    - name: Fail if BA Client package is missing on remote node
+      ansible.builtin.fail:
+        msg: |
+          BA Client package not found on {{ inventory_hostname }}!
+          Expected location: {{ ba_client_package_path }}
+          
+          Please ensure the BA Client installation package is present on the remote node at the specified path.
+          You can copy it using:
+            scp {{ ba_client_version }}-TIV-TSMBAC-LinuxX86.tar {{ ansible_user }}@{{ inventory_hostname }}:{{ ba_client_package_path }}
+      when:
+        - ba_client_needs_install
+        - not package_stat.stat.exists
+    
+    - name: Set package location and action for ba_client_install role
+      ansible.builtin.set_fact:
+        tar_file_path: "{{ ba_client_package_path }}"
+        version_available: true
+        ba_client_action: "install"
+      when:
+        - ba_client_needs_install
+        - package_stat.stat.exists
+    
+    - name: Run BA Client installation tasks
+      ansible.builtin.include_role:
+        name: ../roles/ba_client_install
+      when:
+        - ba_client_needs_install
+        - package_stat.stat.exists
+        - ba_client_action == "install"
+    
+    - name: Wait for installation to complete (pause for 5 seconds)
+      ansible.builtin.pause:
+        seconds: 5
+      when: ba_client_needs_install
+    
+    - name: Verify BA Client installation after role execution
+      ansible.builtin.command: rpm -q TIVsm-BA
+      register: ba_client_verify
+      ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: ba_client_needs_install
+      retries: 3
+      delay: 2
+      until: ba_client_verify.rc == 0
+    
+    - name: Display BA Client installation result
+      ansible.builtin.debug:
+        msg: >-
+          {% if not ba_client_needs_install %}
+            BA Client was already installed - No action taken
+          {% elif ba_client_verify.rc == 0 %}
+            BA Client successfully installed on {{ inventory_hostname }} - {{ ba_client_verify.stdout }}
+          {% else %}
+            BA Client installation may have failed on {{ inventory_hostname }}
+          {% endif %}
+    
+    - name: Collect installation summary
+      ansible.builtin.set_fact:
+        ba_client_status: >-
+          {% if not ba_client_needs_install %}
+          already_installed
+          {% elif ba_client_verify.rc == 0 %}
+          newly_installed
+          {% else %}
+          installation_failed
+          {% endif %}
+
+- name: BA Client Installation Summary
+  hosts: ba_clients
+  gather_facts: false
+  become: false
+  tags:
+    - always
+  
+  tasks:
+    - name: Generate installation summary report
+      run_once: true
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          BA Client Installation Summary
+          ============================================================
+          {% set already_installed = [] %}
+          {% set newly_installed = [] %}
+          {% set failed = [] %}
+          {% for host in groups['ba_clients'] %}
+          {%   if hostvars[host].ba_client_status is defined %}
+          {%     if hostvars[host].ba_client_status == 'already_installed' %}
+          {%       set _ = already_installed.append(host) %}
+          {%     elif hostvars[host].ba_client_status == 'newly_installed' %}
+          {%       set _ = newly_installed.append(host) %}
+          {%     elif hostvars[host].ba_client_status == 'installation_failed' %}
+          {%       set _ = failed.append(host) %}
+          {%     endif %}
+          {%   endif %}
+          {% endfor %}
+          
+          Already Installed ({{ already_installed | length }}):
+          {% for host in already_installed %}
+            - {{ host }}
+          {% endfor %}
+          
+          Newly Installed ({{ newly_installed | length }}):
+          {% for host in newly_installed %}
+            - {{ host }}
+          {% endfor %}
+          
+          Failed Installations ({{ failed | length }}):
+          {% for host in failed %}
+            - {{ host }}
+          {% endfor %}
+          ============================================================
+    
+    - name: Fail if any BA Client installations failed
+      run_once: true
+      ansible.builtin.fail:
+        msg: "BA Client installation failed on one or more hosts. Please check the logs above."
+      when: >
+        groups['ba_clients']
+        | map('extract', hostvars, 'ba_client_status')
+        | select('defined')
+        | select('equalto', 'installation_failed')
+        | list
+        | length > 0
+
